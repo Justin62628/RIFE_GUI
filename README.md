@@ -3,12 +3,12 @@ Python Scripts (CLI tool with GUI) for RIFE batch process (Mainly for interpolat
 
 ## *Usage*:
 ### *Preparation*
-####1. Clone this Repository
-####2. Clone [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
-####3. Follow RIFE's instructions and download assigned datasets
+#### 1. Clone this Repository
+#### 2. Clone [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
+#### 3. Follow RIFE's instructions and download assigned datasets
 ## *Run*
-###1. CLI tool
-####1. Run command to obtain CLI guidance: 
+### 1. CLI tool
+#### 1. Run command to obtain CLI guidance: 
 ```
 python3 one_line_shot_args.py -h
 ```
@@ -69,7 +69,7 @@ optional arguments:
   --preset PRESET       压制预设，medium以下可用于收藏。硬件加速推荐hq
   --crf CRF             恒定质量控制，12以下可作为收藏，16能看，默认：9
 ```
-####2. Example
+#### 2. Example
 ```
 python3 one_line_shot_args.py -i <input_video> --rife <path of inference_img_only.py> \-r 2 --output <output_video>  --fps 24000/1001 --preset hq --hwaccel --crf 6 --UHD  --start 1 --chunk 1 --ffmpeg ffmpeg
 ```
@@ -79,17 +79,17 @@ python3 one_line_shot_args.py -i <input_video> --rife <path of inference_img_onl
 3. Assign encode presets of ffmpeg as "hq"(for encoder **hevc_nvenc**, note that HDR metadata will not be written in this case)
 4. Assign **crf** for ffmpeg as 6
 5. start the interpolation process from **frame 1, chunk 1** to the end
-####3. Output
+#### 3. Output
 *output chunk(.mp4) is named after following rules*
 ```
 chunk-<chunk count>-<start frame count>-<end frame count>.mp4
 ```
 e.g. chunk-001-00000001-00001466.mp4
-###2. GUI tool
+### 2. GUI tool
 built by PyQt5, easy to launch
-###3. Other tools
+### 3. Other tools
 measure.py, handy scripts for measuring two images(for inferenced imgs)
-###4. Notes:
+### 4. Notes:
 English usages on fly
-###5. Reference & Acknowledgement
+### 5. Reference & Acknowledgement
 Video interpolation method: [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
