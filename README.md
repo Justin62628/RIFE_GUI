@@ -93,3 +93,5 @@ measure.py, handy scripts for measuring two images(for inferenced imgs)
 English usages on fly
 ### 5. Reference & Acknowledgement
 Video interpolation method: [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
+
+RIFE GUI Assembly: [Squirrel-Video-Frame-Interpolation](https://github.com/YiWeiHuang-stack/Squirrel-Video-Frame-Interpolation/stargazers)
