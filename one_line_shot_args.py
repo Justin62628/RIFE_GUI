@@ -9,7 +9,7 @@ import subprocess
 import json
 import datetime
 
-parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
+parser = argparse.ArgumentParser(prog="### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ###",
                                  description='Interpolation for sequences of images')
 
 stage1_parser = parser.add_argument_group(title="Basic Settings, Necessary")
