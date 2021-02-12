@@ -9,38 +9,49 @@ import subprocess
 import json
 import datetime
 
-parser = argparse.ArgumentParser(prog="\n#### RIFE 补帧分步设置命令行 from Jeanna ####  ", description='Interpolation for sequences of images\n\n\n=> 基础设置：以下各项必须填写\n\n')
+parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
+                                 description='Interpolation for sequences of images')
 
-parser.add_argument('-i', '--input', dest='input', type=str, default=None, required=True, help="原视频路径，记得打双引号。补帧项目将在视频所在文件夹建立")
-parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,help="成品输出的路径，注意默认在项目文件夹")
-parser.add_argument('--rife', dest='rife', type=str, default=None, required=True,help="inference_img_only.py的路径")
-parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default="ffmpeg", required=True,help="ffmpeg.exe 所在路径")
-parser.add_argument('--fps', dest='fps', type=float, default=23.976, required=True,help="原视频的帧率, 请使用分数，23.976 = 24000/1001\n\n\n=> 补帧分步设置\n\n")
+stage1_parser = parser.add_argument_group(title="Basic Settings, Necessary")
+stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None, required=True,
+                           help="原视频路径，记得打双引号。补帧项目将在视频所在文件夹建立")
+stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,
+                           help="成品输出的路径，注意默认在项目文件夹")
+stage1_parser.add_argument('--rife', dest='rife', type=str, default=None, required=True,
+                           help="inference_img_only.py的路径")
+stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default="ffmpeg", required=True, help="ffmpeg.exe 所在路径")
+stage1_parser.add_argument('--fps', dest='fps', type=float, default=24000 / 1001, required=True,
+                           help="原视频的帧率, 请使用分数，23.976 = 24000/1001")
 
-parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,help="补帧系数, 2的几次方，23.976->96，填2")
-parser.add_argument('--start', dest='start', type=int, default=1, required=True,help="起始补帧的原视频帧数")
-parser.add_argument('--chunk', dest='chunk', type=int, default=1, required=True,help="新增视频的序号")
-parser.add_argument('--end', dest='end', type=int, default=0, help="结束补帧的原视频帧数")
-parser.add_argument('--round', dest='round', type=int, default=100000000, help="要处理的转场数(一个转场将素材补成一个视频)")
-parser.add_argument('--interp_start', dest='interp_start', type=int, default=1, help="起始补帧的帧序列帧数，默认：%(default)s")
-parser.add_argument('--interp_cnt', dest='interp_cnt', type=int, default=1, help="补帧帧序列起始帧数")
-parser.add_argument('--hwaccel', dest='hwaccel', action='store_true', help='支持硬件加速编码（想搞快点就可以用这个）\n\n\n=> 个性化分步设置：\n\n')
-parser.add_argument('--model', dest='model', type=int, default=2, help="Select RIFE Model, default v2")
+stage2_parser = parser.add_argument_group(title="Step by Step Settings")
+stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
+                           help="补帧系数, 2的几次方，23.976->96，填2")
+stage2_parser.add_argument('--start', dest='start', type=int, default=1, required=True, help="起始补帧的原视频帧数")
+stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, required=True, help="新增视频的序号")
+stage2_parser.add_argument('--end', dest='end', type=int, default=0, help="结束补帧的原视频帧数")
+stage2_parser.add_argument('--round', dest='round', type=int, default=100000000, help="要处理的转场数(一个转场将素材补成一个视频)")
+stage2_parser.add_argument('--interp_start', dest='interp_start', type=int, default=1, help="起始补帧的帧序列帧数，默认：%(default)s")
+stage2_parser.add_argument('--interp_cnt', dest='interp_cnt', type=int, default=1, help="补帧帧序列起始帧数")
+stage2_parser.add_argument('--hwaccel', dest='hwaccel', action='store_true', help='支持硬件加速编码（想搞快点就可以用这个）')
+stage2_parser.add_argument('--model', dest='model', type=int, default=2, help="Select RIFE Model, default v2")
 
-parser.add_argument('--UHD', dest='UHD', action='store_true', help='支持UHD补帧')
-parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
-parser.add_argument('--pause', dest='pause', action='store_true', help='pause, 删除项目缓存前提供确认操作')
-parser.add_argument('--rifeonly', dest='rifeonly', action='store_true', help='只进行补帧操作，其余手动，要求文件夹目录齐全')
-parser.add_argument('--renderonly', dest='renderonly', action='store_true', help='只进行渲染操作，其余手动，要求文件夹目录齐全')
-parser.add_argument('--accurate', dest='accurate', action='store_true', help='精确补帧')
-parser.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流\n\n\n=> 个性化画质/成品质量控制：\n\n')
+stage3_parser = parser.add_argument_group(title="Preference Settings")
+stage3_parser.add_argument('--UHD', dest='UHD', action='store_true', help='支持UHD补帧')
+stage3_parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
+stage3_parser.add_argument('--pause', dest='pause', action='store_true', help='pause, 删除项目缓存前提供确认操作')
+stage3_parser.add_argument('--rifeonly', dest='rifeonly', action='store_true', help='只进行补帧操作，其余手动，要求文件夹目录齐全')
+stage3_parser.add_argument('--renderonly', dest='renderonly', action='store_true', help='只进行渲染操作，其余手动，要求文件夹目录齐全')
+stage3_parser.add_argument('--accurate', dest='accurate', action='store_true', help='精确补帧')
+stage3_parser.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流')
 
-parser.add_argument('-s', '--scene', dest='scene', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
-parser.add_argument('--UHDcrop', dest='UHDcrop', type=str, default="3840:1608:0:276", help="UHD裁切参数，默认开启，填0不裁，默认：%(default)s")
-parser.add_argument('--HDcrop', dest='HDcrop', type=str, default="1920:804:0:138", help="QHD裁切参数，默认：%(default)s")
-parser.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="80M", help="成品目标（最高）码率")
-parser.add_argument('--preset', dest='preset', type=str, default="slow", help="压制预设，medium以下可用于收藏。硬件加速推荐hq")
-parser.add_argument('--crf', dest='crf', type=int, default=9, help="恒定质量控制，12以下可作为收藏，16能看，默认：%(default)s")
+stage4_parser = parser.add_argument_group(title="Output Settings")
+stage4_parser.add_argument('-s', '--scene', dest='scene', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
+stage4_parser.add_argument('--UHDcrop', dest='UHDcrop', type=str, default="3840:1608:0:276",
+                           help="UHD裁切参数，默认开启，填0不裁，默认：%(default)s")
+stage4_parser.add_argument('--HDcrop', dest='HDcrop', type=str, default="1920:804:0:138", help="QHD裁切参数，默认：%(default)s")
+stage4_parser.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="80M", help="成品目标（最高）码率")
+stage4_parser.add_argument('--preset', dest='preset', type=str, default="slow", help="压制预设，medium以下可用于收藏。硬件加速推荐hq")
+stage4_parser.add_argument('--crf', dest='crf', type=int, default=9, help="恒定质量控制，12以下可作为收藏，16能看，默认：%(default)s")
 
 args = parser.parse_args()
 
@@ -61,10 +72,11 @@ debug = args.debug
 hwaccel = args.hwaccel
 preset = args.preset
 crf = args.crf
-accurate = "--accurate "  if args.accurate else ""
+accurate = "--accurate " if args.accurate else ""
 reverse_ = "--reverse " if args.reverse else ""
 
 TARGET_FPS = (2 ** EXP) * round(SOURCE_FPS)
+TARGET_FPS = (2 ** EXP) * SOURCE_FPS  # Maintain Double Accuracy of FPS
 
 PROJECT_DIR = os.path.dirname(OUTPUT_FILE_PATH)
 print(f"Project Dir: {PROJECT_DIR}")
@@ -93,6 +105,7 @@ def t2s(t):
     h, m, s = t.strip().split(":")
     return int(h) * 3600 + int(m) * 60 + float(s)
 
+
 media_info = os.path.join(dname, 'media_info.txt')
 os.system(f'{ffmpeg} -i "{INPUT_FILEPATH}"  > "{media_info}" 2>&1')
 with open("media_info.txt", "r") as r:
@@ -118,10 +131,10 @@ def extract_scenes():
     start, end = float((start_frame - 1) / SOURCE_FPS), float((end_frame - 1) / SOURCE_FPS)
     if UHD:
         os.system(
-            f'{ffmpeg} -hide_banner -hwaccel auto -i {INPUT_FILEPATH} -vf trim=start_frame={start_frame}:end_frame={end_frame},setpts=PTS-STARTPTS,zscale=matrixin=input:chromal=input:cin=input,format=yuv444p10le,format=rgb48be,format=rgb24{UHDcrop} {low_res} -q:v 2 -pix_fmt rgb24 "{frame_input}" -y')
+            f'{ffmpeg} -hide_banner -hwaccel auto -r {SOURCE_FPS} -i {INPUT_FILEPATH} -vf trim=start_frame={start_frame}:end_frame={end_frame},setpts=PTS-STARTPTS,zscale=matrixin=input:chromal=input:cin=input,format=yuv444p10le,format=rgb48be,format=rgb24{UHDcrop} {low_res} -q:v 2 -pix_fmt rgb24 "{frame_input}" -y')
     else:
         os.system(
-            f'{ffmpeg} -hide_banner -hwaccel auto -i {INPUT_FILEPATH} -vf trim=start_frame={start_frame}:end_frame={end_frame},setpts=PTS-STARTPTS,zscale=matrix=709:matrixin=709:chromal=input:cin=input,format=yuv444p10le,format=rgb48be,format=rgb24{HDcrop} {low_res} -q:v 2 -pix_fmt rgb24  "{frame_input}" -y')
+            f'{ffmpeg} -hide_banner -hwaccel auto -r {SOURCE_FPS} -i {INPUT_FILEPATH} -vf trim=start_frame={start_frame}:end_frame={end_frame},setpts=PTS-STARTPTS,zscale=matrix=709:matrixin=709:chromal=input:cin=input,format=yuv444p10le,format=rgb48be,format=rgb24{HDcrop} {low_res} -q:v 2 -pix_fmt rgb24  "{frame_input}" -y')
     # if UHD:
     #     os.system(
     #         f'{ffmpeg} -hide_banner -hwaccel auto -copyts -ss {start} -to {end} -i {INPUT_FILEPATH} -vf setpts=PTS-STARTPTS,zscale=matrixin=input:chromal=input:cin=input,format=yuv444p10le,format=rgb48be,format=rgb24{UHDcrop} {low_res} -q:v 2 -pix_fmt rgb24 "{frame_input}" -y')
@@ -224,12 +237,15 @@ if not scenes_data:
 
 scdet_dump()
 
+
 def clean_env():
     for DIR_ in ENV:
         if os.path.exists(DIR_):
             shutil.rmtree(DIR_)
         if not os.path.exists(DIR_):
             os.mkdir(DIR_)
+
+
 """Start Sectioning"""
 sections = []
 
