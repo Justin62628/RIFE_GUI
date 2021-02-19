@@ -215,7 +215,8 @@ if not scenes_data:
     scene_cnt = 1
     last_scene_time = 0
     for scene in scenes:
-        if last_scene_time and scene - last_scene_time < 1:
+        scene = float(scene)
+        if last_scene_time is not None and scene - last_scene_time < 1:
             print(f"SCENE TOO NEAR and DROP!: {scene}")
             continue
         last_scene_time = scene
