@@ -38,15 +38,18 @@ stage2_parser.add_argument('--hwaccel', dest='hwaccel', action='store_true', hel
 stage2_parser.add_argument('--model', dest='model', type=int, default=2, help="Select RIFE Model, default v2")
 
 stage3_parser = parser.add_argument_group(title="Preference Settings")
+stage3_parser_paradox = stage3_parser.add_mutually_exclusive_group()
+stage3_parser_paradox_2 = stage3_parser.add_mutually_exclusive_group()
 stage3_parser.add_argument('--UHD', dest='UHD', action='store_true', help='支持UHD补帧')
 stage3_parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
 stage3_parser.add_argument('--pause', dest='pause', action='store_true', help='pause, 在各步暂停确认')
 stage3_parser.add_argument('--quick-extract', dest='quick_extract', action='store_true', help='快速抽帧')
-stage3_parser.add_argument('--extract-only', dest='extract_only', action='store_true', help='只进行帧序列提取操作')
-stage3_parser.add_argument('--rife-only', dest='rife_only', action='store_true', help='只进行补帧操作')
-stage3_parser.add_argument('--render-only', dest='render_only', action='store_true', help='只进行渲染操作')
-stage3_parser.add_argument('--accurate', dest='accurate', action='store_true', help='精确补帧')
-stage3_parser.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流')
+stage3_parser_paradox.add_argument('--extract-only', dest='extract_only', action='store_true', help='只进行帧序列提取操作')
+stage3_parser_paradox.add_argument('--rife-only', dest='rife_only', action='store_true', help='只进行补帧操作')
+stage3_parser_paradox.add_argument('--render-only', dest='render_only', action='store_true', help='只进行渲染操作')
+stage3_parser_paradox.add_argument('--concat-only', dest='concat_only', action='store_true', help='只进行音视频合并操作')
+stage3_parser_paradox_2.add_argument('--accurate', dest='accurate', action='store_true', help='精确补帧')
+stage3_parser_paradox_2.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流')
 
 stage4_parser = parser.add_argument_group(title="Output Settings")
 stage4_parser.add_argument('--scdet', dest='scdet', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
@@ -95,6 +98,7 @@ model_select = args.model
 extract_only = args.extract_only
 rife_only = args.rife_only
 render_only = args.render_only
+concat_only = args.concat_only
 quick_extract = args.quick_extract
 failed_frames_cnt = False
 
@@ -477,9 +481,15 @@ if rife_only:
     sys.exit()
 if render_only:
     logger.info("Render Only")
-    render_frames.run()
     Finished.clear()
+    render_frames.run()
     sys.exit()
+if concat_only:
+    logger.info("Concat Only")
+    Finished.clear()
+    render_frames.concat()
+    sys.exit()
+
 
 extract_frames.run()
 render_frames.start()
