@@ -10,7 +10,6 @@ import datetime
 import threading
 import time
 import logging
-
 parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
                                  description='Interpolation for sequences of images')
 
@@ -31,8 +30,7 @@ stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
 stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, help="新增视频的序号(auto)")
-stage2_parser.add_argument('--scene', dest='scene', type=int, default=-1, help="开局转场编号")
-stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=1,
+stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=0,
                            help="用于补帧的原视频的帧序列起始帧数，默认：%(default)s")
 stage2_parser.add_argument('--interp-cnt', dest='interp_cnt', type=int, default=1, help="成品帧序列起始帧数")
 stage2_parser.add_argument('--hwaccel', dest='hwaccel', action='store_true', help='支持硬件加速编码(想搞快点就用上)')
@@ -50,8 +48,8 @@ stage3_parser.add_argument('--accurate', dest='accurate', action='store_true', h
 stage3_parser.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流')
 
 stage4_parser = parser.add_argument_group(title="Output Settings")
-stage4_parser.add_argument('-s', '--scdet', dest='scdet', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
-stage4_parser.add_argument('--scdet_threshold', dest='scdet_threshold', type=float, default=0.2, help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
+stage4_parser.add_argument('--scdet', dest='scdet', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
+stage4_parser.add_argument('--scdet-threshold', dest='scdet_threshold', type=float, default=0.2, help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
 stage4_parser.add_argument('--UHD-crop', dest='UHDcrop', type=str, default="3840:1608:0:276",
                            help="UHD裁切参数，默认开启，填0不裁，默认：%(default)s")
 stage4_parser.add_argument('--HD-crop', dest='HDcrop', type=str, default="1920:804:0:138",
@@ -70,7 +68,6 @@ TARGET_FPS = args.target_fps
 EXP = args.ratio
 
 UHD = args.UHD
-scene_start = args.scene
 RIFE_PATH = args.rife
 CHUNK_CNT = args.chunk
 scdet = args.scdet
@@ -100,17 +97,23 @@ quick_extract = args.quick_extract
 failed_frames_cnt = False
 
 PROJECT_DIR = os.path.dirname(OUTPUT_FILE_PATH)
-logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
-logger_formatter = logging.Formatter('%(asctime)s-%(module)s-%(lineno)s - %(levelname)s - %(message)s')
-txt_handler = logging.FileHandler(logger_path)
-txt_handler.setLevel(level=logging.INFO if not debug else logging.DEBUG)
-txt_handler.setFormatter(logger_formatter)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(level=logging.INFO if not debug else logging.DEBUG)
-console_handler.setFormatter(logger_formatter)
+
+"""Set Logger"""
 logger = logging.getLogger(__name__)
-logger.addHandler(txt_handler)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter('%(asctime)s-%(module)s-%(lineno)s - %(levelname)s - %(message)s')
+
+logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
+txt_handler = logging.FileHandler(logger_path)
+txt_handler.setLevel(logging.INFO)
+txt_handler.setFormatter(logger_formatter)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(level=logging.INFO)
+console_handler.setFormatter(logger_formatter)
+
 logger.addHandler(console_handler)
+logger.addHandler(txt_handler)
 logger.info(f"Initial New Interpolation Project: PROJECT_DIR: %s, INPUT_FILEPATH: %s", PROJECT_DIR, INPUT_FILEPATH)
 
 FRAME_INPUT_DIR = os.path.join(PROJECT_DIR, 'frames')
@@ -293,8 +296,9 @@ def interpolation():
 
 
 class RenderThread(threading.Thread):
-    def __init__(self, input_dir, output_dir, **kwargs):
+    def __init__(self, finished, input_dir, output_dir, **kwargs):
         threading.Thread.__init__(self)
+        self.finished = finished
         self.scene_data = kwargs["scene_data"]
         self.exp = kwargs["exp"]
         self.start_frame = 0
@@ -311,7 +315,7 @@ class RenderThread(threading.Thread):
         self.rife_current_png = None
         self.render_init_path = ""
         self.rendered_list = list()
-        self.render_gap = 1000
+        self.render_gap = 500
         self.final_round = False
 
     def generate_render_ini(self):
@@ -429,6 +433,9 @@ class RenderThread(threading.Thread):
         while True:
             if not self.generate_render_ini():
                 time.sleep(0.5)
+                if not self.finished.is_set():
+                    print("Main Thread Already Terminated, Render Thread Break")
+                    break
                 continue
             self.render()
             self.clean()
@@ -441,31 +448,36 @@ class RenderThread(threading.Thread):
 
 
 """Instinct Procesd and Exit"""
+Finished = threading.Event()
+Finished.set()
 clean_env()
 scene_dealer = SceneDealer()
 extract_frames = ExtractFrames()
 extract_frames.check_frames()  # get all_frames_cnt right
-render_frames = RenderThread(FRAME_INPUT_DIR, FRAME_OUTPUT_DIR, chunk_cnt=CHUNK_CNT, exp=EXP,
+render_frames = RenderThread(Finished, FRAME_INPUT_DIR, FRAME_OUTPUT_DIR, chunk_cnt=CHUNK_CNT, exp=EXP,
                              scene_data=scene_dealer.get_scenes_data(), target_fps=TARGET_FPS, source_fps=SOURCE_FPS,
                              all_frames_cnt=all_frames_cnt, ffmpeg=ffmpeg, logger=logger)
 
 if extract_only:
     logger.info("Extract Frames Only")
     extract_frames.run()
+    Finished.clear()
     sys.exit()
 if rife_only:
     logger.info("interpolation Only")
     interpolation()
+    Finished.clear()
     sys.exit()
 if render_only:
     logger.info("Render Only")
     render_frames.run()
+    Finished.clear()
     sys.exit()
 
 extract_frames.run()
 render_frames.start()
 interpolation()
-
+Finished.clear()
 while render_frames.is_alive():
     time.sleep(0.1)
 logger.info(f"Program finished at {datetime.datetime.now()}")

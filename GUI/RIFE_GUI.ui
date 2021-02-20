@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>982</width>
-    <height>576</height>
+    <width>876</width>
+    <height>467</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -210,54 +210,34 @@
            <layout class="QGridLayout" name="gridLayout_11">
             <item row="0" column="0">
              <layout class="QGridLayout" name="gridLayout_3">
-              <item row="0" column="0">
-               <widget class="QLabel" name="CRFReminder">
+              <item row="0" column="12">
+               <widget class="QLabel" name="PresetReminder">
                 <property name="text">
-                 <string>恒定质量控制参数(CRF)：</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="QLabel" name="TargetBitrateReminder">
-                <property name="text">
-                 <string>   目标码率：</string>
+                 <string>  选择压制预设：</string>
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QSpinBox" name="CRFSelector">
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="maximum">
-                 <number>51</number>
                 </property>
                </widget>
               </item>
               <item row="0" column="4">
-               <widget class="QLabel" name="TargetBitrateMeasure">
-                <property name="text">
-                 <string>M        </string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="3">
                <widget class="QDoubleSpinBox" name="BitrateSelector"/>
               </item>
-              <item row="0" column="5">
-               <widget class="QLabel" name="PresetReminder">
+              <item row="0" column="7">
+               <widget class="QLabel" name="ScdetReminder">
                 <property name="text">
-                 <string>选择压制预设：</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                 <string>转场灵敏度：</string>
                 </property>
                </widget>
               </item>
-              <item row="0" column="6">
+              <item row="0" column="8">
+               <widget class="QSpinBox" name="ScdetSelector">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="13">
                <widget class="QComboBox" name="PresetSelector">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -302,104 +282,68 @@
                 </item>
                </widget>
               </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <layout class="QGridLayout" name="gridLayout_4">
-              <item row="1" column="3">
-               <widget class="QLineEdit" name="Round">
-                <property name="placeholderText">
-                 <string>循环次数(round)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QLabel" name="label_2">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>*起始块数：</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLineEdit" name="StartFrame">
-                <property name="placeholderText">
-                 <string>起始帧数(startframe)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="2">
-               <widget class="QLineEdit" name="EndFrame">
-                <property name="placeholderText">
-                 <string>结束帧数(endframe)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QLineEdit" name="StartChunk">
-                <property name="placeholderText">
-                 <string>起始块数(chunk)</string>
-                </property>
-               </widget>
-              </item>
               <item row="0" column="3">
-               <widget class="QLabel" name="label_4">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
+               <widget class="QLabel" name="TargetBitrateReminder">
                 <property name="text">
-                 <string>循环次数：</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QLabel" name="label">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>*(必填)起始帧数：</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="QLabel" name="label_3">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>结束帧数：</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="2" column="0">
-             <layout class="QGridLayout" name="gridLayout_5">
-              <item row="0" column="1">
-               <widget class="QLabel" name="CropReminder">
-                <property name="text">
-                 <string>       裁切参数(不裁切填0)</string>
+                 <string>目标码率：</string>
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
+              <item row="0" column="10">
+               <widget class="QDoubleSpinBox" name="ScdetTSelector"/>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="CRFReminder">
+                <property name="text">
+                 <string>恒定质量控制参数(CRF)：</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="9">
+               <widget class="QLabel" name="ScedetTReminder">
+                <property name="text">
+                 <string>转场最低间隔</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="5">
+               <widget class="QLabel" name="TargetBitrateMeasure">
+                <property name="text">
+                 <string>M </string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="CRFSelector">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>51</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="11">
+               <widget class="QLabel" name="ScdetTMark">
+                <property name="text">
+                 <string>s</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="7" column="0">
+             <widget class="QCheckBox" name="DebugChecker">
+              <property name="text">
+               <string>Debug</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <layout class="QGridLayout" name="gridLayout_5">
               <item row="0" column="0">
                <widget class="QCheckBox" name="UHDChecker">
                 <property name="text">
@@ -407,7 +351,24 @@
                 </property>
                </widget>
               </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="CropReminder">
+                <property name="text">
+                 <string>   裁切参数(不裁切填0)</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
               <item row="0" column="3">
+               <widget class="QLabel" name="ResizeReminder">
+                <property name="text">
+                 <string>   缩放大小</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="5">
                <widget class="QCheckBox" name="HwaccelChecker">
                 <property name="text">
                  <string>开启硬件加速（废话）</string>
@@ -421,35 +382,10 @@
                 </property>
                </widget>
               </item>
-             </layout>
-            </item>
-            <item row="3" column="0">
-             <widget class="Line" name="line_2">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-             </widget>
-            </item>
-            <item row="4" column="0">
-             <layout class="QGridLayout" name="gridLayout_6">
-              <item row="0" column="0">
-               <widget class="QCheckBox" name="PauseChecker">
-                <property name="text">
-                 <string>暂停模式</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QCheckBox" name="RIFEOnlyChecker">
-                <property name="text">
-                 <string>只进行补帧</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="QCheckBox" name="RenderOnlyChecker">
-                <property name="text">
-                 <string>只进行渲染</string>
+              <item row="0" column="4">
+               <widget class="QLineEdit" name="ResizeSettings">
+                <property name="placeholderText">
+                 <string>如320x180</string>
                 </property>
                </widget>
               </item>
@@ -461,6 +397,84 @@
                <enum>Qt::Horizontal</enum>
               </property>
              </widget>
+            </item>
+            <item row="1" column="0">
+             <layout class="QGridLayout" name="gridLayout_4">
+              <item row="1" column="2">
+               <widget class="QLineEdit" name="StartFrame">
+                <property name="placeholderText">
+                 <string>起始帧数(startframe)</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="label_2">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>起始块数：</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="4">
+               <widget class="QLineEdit" name="StartCntFrame">
+                <property name="placeholderText">
+                 <string>补帧序列起始帧数</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="4">
+               <widget class="QLabel" name="label_3">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>补帧序列起始帧数：</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLineEdit" name="StartChunk">
+                <property name="placeholderText">
+                 <string>起始块数(chunk)</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="label">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>原视频起始帧数：</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QPushButton" name="AutoSet">
+                <property name="text">
+                 <string>点我！</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="AutoSetReminder">
+                <property name="text">
+                 <string>自动设置</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
             <item row="6" column="0">
              <layout class="QGridLayout" name="gridLayout_7">
@@ -480,10 +494,49 @@
               </item>
              </layout>
             </item>
-            <item row="7" column="0">
-             <widget class="QCheckBox" name="DebugChecker">
-              <property name="text">
-               <string>Debug</string>
+            <item row="4" column="0">
+             <layout class="QGridLayout" name="gridLayout_6">
+              <item row="0" column="6">
+               <widget class="QCheckBox" name="RenderOnlyChecker">
+                <property name="text">
+                 <string>只进行渲染</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="5">
+               <widget class="QCheckBox" name="RIFEOnlyChecker">
+                <property name="text">
+                 <string>只进行补帧</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="3">
+               <widget class="QCheckBox" name="QuickExtractChecker">
+                <property name="text">
+                 <string>快速拆帧</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QCheckBox" name="PauseChecker">
+                <property name="text">
+                 <string>暂停模式</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="4">
+               <widget class="QCheckBox" name="ExtractOnlyChecker">
+                <property name="text">
+                 <string>只进行拆帧</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="3" column="0">
+             <widget class="Line" name="line_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
               </property>
              </widget>
             </item>
@@ -548,13 +601,9 @@
   <tabstop>InputFPS</tabstop>
   <tabstop>CRFSelector</tabstop>
   <tabstop>StartFrame</tabstop>
-  <tabstop>StartChunk</tabstop>
-  <tabstop>EndFrame</tabstop>
-  <tabstop>Round</tabstop>
+  <tabstop>StartCntFrame</tabstop>
   <tabstop>UHDChecker</tabstop>
   <tabstop>HwaccelChecker</tabstop>
-  <tabstop>PauseChecker</tabstop>
-  <tabstop>RIFEOnlyChecker</tabstop>
   <tabstop>RenderOnlyChecker</tabstop>
   <tabstop>AccurateChecker</tabstop>
   <tabstop>ReverseChecker</tabstop>
