@@ -10,6 +10,7 @@ import datetime
 import threading
 import time
 import logging
+
 parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
                                  description='Interpolation for sequences of images')
 
@@ -49,7 +50,8 @@ stage3_parser.add_argument('--reverse', dest='reverse', action='store_true', hel
 
 stage4_parser = parser.add_argument_group(title="Output Settings")
 stage4_parser.add_argument('--scdet', dest='scdet', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
-stage4_parser.add_argument('--scdet-threshold', dest='scdet_threshold', type=float, default=0.2, help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
+stage4_parser.add_argument('--scdet-threshold', dest='scdet_threshold', type=float, default=0.2,
+                           help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
 stage4_parser.add_argument('--UHD-crop', dest='UHDcrop', type=str, default="3840:1608:0:276",
                            help="UHD裁切参数，默认开启，填0不裁，默认：%(default)s")
 stage4_parser.add_argument('--HD-crop', dest='HDcrop', type=str, default="1920:804:0:138",
@@ -214,7 +216,7 @@ class SceneDealer:
         scenes_list = sorted(os.listdir(SCENE_INPUT_DIR), key=lambda x: int(x[:-4]))
         for _scene in scenes_list:
             self.scenes_data[str(_scene[:-4])] = int(_scene[:-4]) / SOURCE_FPS
-        print(f"Get New Fresh Scene Data: {len(self.scenes_data)}")
+        logger.info(f"Get New Fresh Scene Data: {len(self.scenes_data)}")
         pprint(self.scenes_data)
         self.scdet_dump()
 
@@ -222,7 +224,7 @@ class SceneDealer:
         if os.path.exists(self.scene_json):
             with open(self.scene_json, "r") as r_:
                 self.scenes_data = json.load(r_)
-                print(f"Loaded Scenes: {len(self.scenes_data)}")
+                logger.info(f"Loaded Scenes: {len(self.scenes_data)}")
                 pprint(self.scenes_data)
                 return True
         return False
@@ -290,7 +292,12 @@ def interpolation():
     UHD_args = "--UHD" if UHD else ""
     accurate_args = "--accurate" if accurate else ""
     reverse_args = "--reverse " if reverse else ""
-    python_command = f"python {RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {UHD_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
+    if os.path.splitext(RIFE_PATH)[1] == ".exe":
+        """Executable RIFE"""
+        logger.info("Use Executable RIFE")
+        python_command = f"{RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {UHD_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
+    else:
+        python_command = f"python {RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {UHD_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
     logger.info(f"Interpolation Python Command: {python_command}")
     os.system(python_command)
 
@@ -315,7 +322,7 @@ class RenderThread(threading.Thread):
         self.rife_current_png = None
         self.render_init_path = ""
         self.rendered_list = list()
-        self.render_gap = 500
+        self.render_gap = 1000
         self.final_round = False
 
     def generate_render_ini(self):
@@ -327,7 +334,7 @@ class RenderThread(threading.Thread):
         rife_last_png = rife_rendered_list[-1]
         rife_first = int(rife_first_png[:-4])
         rife_last = int(rife_last_png[:-4])
-        rife_end = (self.all_frames_cnt - 1) * (2**self.exp)
+        rife_end = self.all_frames_cnt * (2 ** self.exp)
 
         if rife_last - rife_first + 1 < self.render_gap and rife_last != rife_end:
             """Not Right time to render"""
@@ -342,10 +349,10 @@ class RenderThread(threading.Thread):
         render_list = list()
         for _scene in self.scene_data:
             scene_pts = int(_scene)
-            if (scene_pts - 1) * (2 ** self.exp) > rife_last:
+            if scene_pts * (2 ** self.exp) > rife_last:
                 break
             for i in range(2 ** self.exp - 1):
-                scene_false.append((scene_pts - 1) * (2 ** self.exp) - i)
+                scene_false.append(scene_pts * (2 ** self.exp) - i)
         """Start_Frame is calculated"""
         self.start_frame = round((rife_first - 1) / (2 ** self.exp))
         self.end_frame = round(rife_last / (2 ** self.exp) - 1)
@@ -372,7 +379,7 @@ class RenderThread(threading.Thread):
 
     def render(self):
         output_chunk_path = f"{os.path.splitext(self.render_init_path)[0]}.mp4"
-        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {output_chunk_path}")
+        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)}, {len(os.listdir(self.output_dir))} interp frames left")
         ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -vsync 0 -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" '
         if UHD:
             if not hwaccel:
@@ -420,7 +427,7 @@ class RenderThread(threading.Thread):
                 concat_list.append(f)
             else:
                 self.logger.debug(f"concat escape {f}")
-        concat_list.sort(key=lambda x:int(x.split('-')[2]))
+        concat_list.sort(key=lambda x: int(x.split('-')[2]))
         if os.path.exists(concat_path):
             os.remove(concat_path)
         with open("concat.txt", "w+", encoding="UTF-8") as w:

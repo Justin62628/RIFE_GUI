@@ -5,7 +5,10 @@ import math
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-import RIFE_GUI
+try:
+    from GUI.RIFE_GUI import RIFE_GUI
+except ImportError as e:
+    import RIFE_GUI
 import sys
 MAC = True
 try:
@@ -216,7 +219,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         input_fps = self.InputFPS.text()
         selected_exp = currentExp[1:]
         if input_fps:
-            self.OutputFPSReminder.setText(f"预计输出帧率：{round(float(input_fps) * float(selected_exp))}")
+            self.OutputFPSReminder.setText(f"预计输出帧率：{float(input_fps) * float(selected_exp)}")
 
     @pyqtSlot(int)
     def on_tabWidget_currentChanged(self, tabIndex):
