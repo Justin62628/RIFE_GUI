@@ -111,7 +111,7 @@ logger_formatter = logging.Formatter('%(asctime)s-%(module)s-%(lineno)s - %(leve
 
 logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
 txt_handler = logging.FileHandler(logger_path)
-txt_handler.setLevel(logging.INFO)
+txt_handler.setLevel(level=logging.INFO)
 txt_handler.setFormatter(logger_formatter)
 
 console_handler = logging.StreamHandler()
@@ -328,6 +328,8 @@ class RenderThread(threading.Thread):
         self.rendered_list = list()
         self.render_gap = 1000
         self.final_round = False
+        self.render_only = False
+        self.concat_only = False
 
     def generate_render_ini(self):
         rife_rendered_list = sorted(os.listdir(self.output_dir), key=lambda x: int(x[:-4]))
@@ -340,15 +342,21 @@ class RenderThread(threading.Thread):
         rife_last = int(rife_last_png[:-4])
         rife_end = self.all_frames_cnt * (2 ** self.exp)
 
-        if rife_last - rife_first + 1 < self.render_gap and rife_last != rife_end:
-            """Not Right time to render"""
-            self.logger.debug("Jump to next wait, %d -> %d, %d", rife_first, rife_last, rife_end)
-            return False
-        """Update current rife_last"""
-        if rife_last == rife_end:
+        """Overwrite authority with render_only flag"""
+        if self.render_only:
+            self.logger.info(f"Final Round for Render only Detected, {rife_first} -> {rife_last}, {rife_end}")
             self.final_round = True
         else:
-            rife_last = rife_first + self.render_gap - 1
+            if rife_last - rife_first + 1 < self.render_gap and rife_last != rife_end:
+                """Not Right time to render"""
+                self.logger.debug("Jump to next wait, %d -> %d, %d", rife_first, rife_last, rife_end)
+                return False
+            """Update current rife_last"""
+            if rife_last == rife_end:
+                self.logger.info(f"Final Round Detected, {rife_first} -> {rife_last}, {rife_end}")
+                self.final_round = True
+            else:
+                rife_last = rife_first + self.render_gap - 1
         scene_false = list()
         render_list = list()
         for _scene in self.scene_data:
@@ -383,8 +391,8 @@ class RenderThread(threading.Thread):
 
     def render(self):
         output_chunk_path = f"{os.path.splitext(self.render_init_path)[0]}.mp4"
-        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)}, {len(os.listdir(self.output_dir))} interp frames left")
         ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -vsync 0 -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" '
+        render_start = datetime.datetime.now()
         if UHD:
             if not hwaccel:
                 ffmpeg_command = ffmpeg_command + f'-c:v libx265 -preset {preset} -tune grain -profile:v main10 -pix_fmt yuv420p10le ' \
@@ -406,6 +414,8 @@ class RenderThread(threading.Thread):
                                                   f'-pix_fmt yuv420p -preset {preset} "{output_chunk_path}" -y'
         self.logger.debug("Render FFmpeg Command: %s" % ffmpeg_command)
         subprocess.Popen(ffmpeg_command).wait()
+        render_end = datetime.datetime.now()
+        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)} in {str(render_end - render_start)}, {len(os.listdir(self.output_dir))} interp frames left")
 
     def clean(self):
         try:
@@ -440,12 +450,18 @@ class RenderThread(threading.Thread):
         os.system(f'{self.ffmpeg} -f concat -safe 0 -i "{concat_path}" -c copy concat_all.mp4 -y')
         pass
 
-    def run(self):
+    def run(self, _render_only=False, _concat_only=False):
+        self.render_only = _render_only
+        self.concat_only = _concat_only
+        if self.concat_only:
+            self.concat()
+            return
         while True:
             if not self.generate_render_ini():
                 time.sleep(0.5)
-                if not self.finished.is_set():
-                    print("Main Thread Already Terminated, Render Thread Break")
+                if not self.finished.is_set() and len(os.listdir(self.output_dir)):
+                    """Buffer Write exists latency, no kill render process before output_dir is cleared"""
+                    self.logger.info("Main Thread Already Terminated, Render Thread Break")
                     break
                 continue
             self.render()
@@ -473,21 +489,25 @@ if extract_only:
     logger.info("Extract Frames Only")
     extract_frames.run()
     Finished.clear()
+    logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
 if rife_only:
     logger.info("interpolation Only")
     interpolation()
     Finished.clear()
+    logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
 if render_only:
     logger.info("Render Only")
     Finished.clear()
-    render_frames.run()
+    render_frames.run(_render_only=True)
+    logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
 if concat_only:
     logger.info("Concat Only")
     Finished.clear()
     render_frames.concat()
+    logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
 
 
