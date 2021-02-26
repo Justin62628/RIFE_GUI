@@ -403,7 +403,7 @@ class RenderThread(threading.Thread):
                                                   f'-x265-params "hdr-opt=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=0,0" ' \
                                                   f'-crf {crf} "{output_chunk_path}" -y'
             else:
-                ffmpeg_command = ffmpeg_command + f'-c:v hevc_nvenc -preset slow -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
+                ffmpeg_command = ffmpeg_command + f'-c:v hevc_nvenc -preset {preset} -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
                                                   f'-refs:v 16 -bf:v 3 -b:v 100M -b_ref_mode:v middle -profile:v main10 ' \
                                                   f'-pix_fmt p010le ' \
                                                   f'-color_range tv -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc "{output_chunk_path}" -y'
@@ -412,7 +412,7 @@ class RenderThread(threading.Thread):
             if not hwaccel:
                 ffmpeg_command = ffmpeg_command + f'-c:v libx264 -pix_fmt yuv420p -preset {preset} -crf {crf} "{output_chunk_path}" -y'
             else:
-                ffmpeg_command = ffmpeg_command + f'-c:v h264_nvenc -preset slow -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
+                ffmpeg_command = ffmpeg_command + f'-c:v h264_nvenc -preset {preset} -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
                                                   f'-refs:v 16 -bf:v 3 -b:v 100M -b_ref_mode:v middle ' \
                                                   f'-pix_fmt yuv420p -preset {preset} "{output_chunk_path}" -y'
         self.logger.debug("Render FFmpeg Command: %s" % ffmpeg_command)
