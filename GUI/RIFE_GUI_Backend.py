@@ -49,6 +49,7 @@ class RIFE_Args:
     Scedet = 2
     ScedetT = 0.2
 
+
 class RIFE_Run_Thread(QThread):
     run_signal = pyqtSignal(str)
 
@@ -102,7 +103,6 @@ class RIFE_Run_Thread(QThread):
             self.command += f'--scdet {self.RIFE_args.Scedet} '
         if self.RIFE_args.ScedetT:
             self.command += f'--scdet-threshold {self.RIFE_args.ScedetT} '
-
 
         if self.RIFE_args.reverse:
             self.command += f'--reverse '
@@ -165,6 +165,9 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     def auto_set(self):
         chunk_list = list()
+        if not len(self.OutputFolder.toPlainText()):
+            print("OutputFolder path is empty, pls enter it first")
+            return
         for f in os.listdir(self.OutputFolder.toPlainText()):
             if re.match("chunk-[\d+].*?\.mp4", f):
                 chunk_list.append(f)
@@ -311,7 +314,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.FFmpeg = self.FFmpegPath.toPlainText()
         self.RIFE_args.RIFEPath = self.RIFEPath.toPlainText()
         self.RIFE_args.OneLineShotPath = self.OneLineShotPath.toPlainText()
-        self.RIFE_args.InputFPS = float(self.InputFPS.text()) if self.InputFPS.text() else 0
+        self.RIFE_args.InputFPS = float(self.InputFPS.text()) if len(self.InputFPS.text()) else 0
         self.RIFE_args.Exp = math.log(int(self.ExpSelecter.currentText()[1:]), 2)
         self.RIFE_args.bitrate = float(self.BitrateSelector.value())
         self.RIFE_args.preset = self.PresetSelector.currentText().split('[')[0]
@@ -356,8 +359,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
 
 if __name__ == "__main__":
-    import sys
-
     app = QApplication(sys.argv)
     form = RIFE_GUI_BACKEND()
     form.show()
