@@ -29,8 +29,7 @@ stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=No
                            help="成品输出的路径，注意默认在项目文件夹")
 stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only.py",
                            help="inference_img_only.py的路径")
-stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
-                           help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
+stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname, help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
 stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
                            help="原视频的帧率, 默认0(自动识别)")
 stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
@@ -40,8 +39,7 @@ stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
 stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, help="新增视频的序号(auto)")
-stage2_parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=1000,
-                           help="每一个chunk包含的帧数量, 默认: %(default)s")
+stage2_parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=1000, help="每一个chunk包含的帧数量, 默认: %(default)s")
 stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=0,
                            help="用于补帧的原视频的帧序列起始帧数，默认：%(default)s")
 stage2_parser.add_argument('--interp-cnt', dest='interp_cnt', type=int, default=1, help="成品帧序列起始帧数")
@@ -143,6 +141,8 @@ if not os.path.exists(SCENE_INPUT_DIR):
 ENV = [FRAME_INPUT_DIR, FRAME_OUTPUT_DIR]
 
 
+
+
 def clean_env():
     for DIR_ in ENV:
         if not os.path.exists(DIR_):
@@ -175,9 +175,18 @@ ffmpeg_reader = FFmpegQuickReader("video_info.txt")
 video_info = ffmpeg_reader.execute("ffprobe",
                                    f"-v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate,nb_frames {INPUT_FILEPATH}").splitlines()
 if not SOURCE_FPS:
-    fps_info = video_info[0].split('/')
-    SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
-    logger.warning("Auto Find FPS: %s", SOURCE_FPS)
+    if video_info[0] != "N/A":
+        logger.warning("Auto Find FPS Failed: %s and set it to 23.976")
+        SOURCE_FPS = 24000/1001
+
+    if '/' in video_info[0]:
+        fps_info = video_info[0].split('/')
+        SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
+        logger.warning("Auto Find FPS in fraction: %s", SOURCE_FPS)
+    elif len(video_info[0]):
+        SOURCE_FPS = float(video_info[0])
+        logger.warning("Auto Find FPS in decimal: %s", SOURCE_FPS)
+
 if video_info[1] == "N/A":
     logger.warning("Not Find Frames Cnt")
     failed_frames_cnt = True
@@ -421,8 +430,7 @@ class RenderThread(threading.Thread):
         self.logger.debug("Render FFmpeg Command: %s" % ffmpeg_command)
         subprocess.Popen(ffmpeg_command).wait()
         render_end = datetime.datetime.now()
-        self.logger.info(
-            f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)} in {str(render_end - render_start)}, {len(os.listdir(self.output_dir))} interp frames left")
+        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)} in {str(render_end - render_start)}, {len(os.listdir(self.output_dir))} interp frames left")
 
     def clean(self):
         try:
@@ -516,6 +524,7 @@ if concat_only:
     render_frames.concat()
     logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
+
 
 extract_frames.run()
 render_frames.start()
