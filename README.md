@@ -92,10 +92,26 @@ chunk-<chunk count>-<start frame count>-<end frame count>.mp4
 e.g. chunk-001-00000001-00001466.mp4
 ### 2. GUI tool
 built by PyQt5, easy to launch
+#### Handful Guide for v5.4.0 Release:
+##### a. Extract 7z file to an empty folder
+![Step1](./static/step1.png)
+##### b. launch RIFE_GUI.exe
+![Step2](./static/step2.png)
+##### c. Fill in related parameters, follow the step from 1 to 2 to 3
+![Step3](./static/step3.png)
+![Step4](./static/step4.png)
+##### d. Press One-Line-Shot button and wait for output, which is really easy
+![Step5](./static/step5.png)
+##### e. Error handle
+if you could not find "concat_all.mp4" in your output folder, restart RIFE_GUI.exe and use "RIFE_ONLY" at STEP 2 to create the last chunk of interpolated product.
 ### 3. Other tools
 measure.py, handy scripts for measuring two images(for inferenced imgs)
 ### 4. Notes:
-English usages on fly
+English/Chinese usages on fly
+### 5. Known Issues:
+a. The interpolated video may be 5 frames longer than the original. You could use Davinci Resolve to clean out those frames.
+####
+b. False frames at video transition. No once-fixed-up solution for this, cutting tool is involved for best PERFORMANCE.
 ### 5. Reference & Acknowledgement
 Video interpolation method: [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
 

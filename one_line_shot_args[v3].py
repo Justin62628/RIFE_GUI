@@ -13,7 +13,7 @@ import logging
 
 parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
                                  description='Interpolation for sequences of images')
-
+# TODO: Use "Click" Commander
 stage1_parser = parser.add_argument_group(title="Basic Settings, Necessary")
 stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None, required=True,
                            help="原视频路径, 补帧项目将在视频所在文件夹建立")
@@ -83,6 +83,7 @@ HDcrop = args.HDcrop
 ffmpeg = os.path.join(args.ffmpeg, "ffmpeg.exe")
 ffprobe = os.path.join(args.ffmpeg, "ffprobe.exe")
 ffplay = os.path.join(args.ffmpeg, "ffplay.exe")
+# TODO: Default FFmpeg, RIFE paths as frozen_path
 debug = args.debug
 hwaccel = args.hwaccel
 preset = args.preset
@@ -107,7 +108,7 @@ PROJECT_DIR = os.path.dirname(OUTPUT_FILE_PATH)
 """Set Logger"""
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger_formatter = logging.Formatter('%(asctime)s-%(module)s-%(lineno)s - %(levelname)s - %(message)s')
+logger_formatter = logging.Formatter('%(asctime)s - %(module)s - %(lineno)s - %(levelname)s - %(message)s')
 
 logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
 txt_handler = logging.FileHandler(logger_path)
@@ -197,6 +198,7 @@ class SceneDealer:
 
     def scdet_get(self):
         scene_reader = FFmpegQuickReader("scenes.txt")
+        # TODO: -s using iw,ih
         scene_content = scene_reader.execute("ffmpeg",
                                              f'-hide_banner -hwaccel auto -i "{INPUT_FILEPATH}" -an -vsync 0 -frame_pts true -copyts -vf scdet=t={scdet}:sc_pass=1 -compression_level 7 -s 320x180 {os.path.join(SCENE_INPUT_DIR, "%08d.png")}')
         scenes_time = re.findall(".*?lavfi\.scd\.time:\s{,5}([\d\.]+).*?", scene_content)
@@ -204,20 +206,21 @@ class SceneDealer:
         scenes_tuple = zip(scenes_list, scenes_time)  # 文件名, 时间
         scene_t = 1e-2
         _last_scene_time = 0
-        for _scene in scenes_tuple:
+        for _scene in reversed(list(scenes_tuple)):
             scene_pts, scene_time = int(_scene[0][:-4]), float(_scene[1])
             if scene_pts / SOURCE_FPS - scene_time > scene_t:
                 logger.warning(f"Shifted Scene pts: {scene_pts}, time: {scene_time}, discarded")
                 os.remove(os.path.join(SCENE_INPUT_DIR, _scene[0]))
                 continue
-            if scene_time - _last_scene_time < scdet_threshold:
-                logger.warning(f"Too Near Scene pts: {scene_pts}, time: {scene_time} <- {_last_scene_time}, discarded")
+            if abs(scene_time - _last_scene_time) < scdet_threshold:
+                logger.warning(f"Too Near Scene pts: {scene_pts}, time: {scene_time} -> {_last_scene_time}, discarded")
                 os.remove(os.path.join(SCENE_INPUT_DIR, _scene[0]))
                 continue
             _last_scene_time = scene_time
+        # TODO: Upgrade specified situations for "Pause"
         if pause:
             input("Wait for Finish of Manually Cleaning Scenes")
-        scenes_list = sorted(os.listdir(SCENE_INPUT_DIR), key=lambda x: int(x[:-4]))
+        scenes_list = sorted(os.listdir(SCENE_INPUT_DIR), key=lambda x: int(x[:-4]), reverse=True)
         for _scene in scenes_list:
             self.scenes_data[str(_scene[:-4])] = int(_scene[:-4]) / SOURCE_FPS
         logger.info(f"Get New Fresh Scene Data: {len(self.scenes_data)}")
@@ -404,7 +407,7 @@ class RenderThread(threading.Thread):
                                                   f'-refs:v 16 -bf:v 3 -b:v 100M -b_ref_mode:v middle -profile:v main10 ' \
                                                   f'-pix_fmt p010le ' \
                                                   f'-color_range tv -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc "{output_chunk_path}" -y'
-
+        # TODO: Change preset from slow to others
         else:
             if not hwaccel:
                 ffmpeg_command = ffmpeg_command + f'-c:v libx264 -pix_fmt yuv420p -preset {preset} -crf {crf} "{output_chunk_path}" -y'
@@ -450,6 +453,7 @@ class RenderThread(threading.Thread):
         os.system(f'{self.ffmpeg} -f concat -safe 0 -i "{concat_path}" -c copy concat_all.mp4 -y')
         pass
 
+    # TODO: debug final round
     def run(self, _render_only=False, _concat_only=False):
         self.render_only = _render_only
         self.concat_only = _concat_only
