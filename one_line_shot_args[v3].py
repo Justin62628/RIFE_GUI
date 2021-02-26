@@ -11,6 +11,14 @@ import threading
 import time
 import logging
 
+"""Set Path Environment"""
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+print("Changing working dir to {0}".format(dname))
+os.chdir(os.path.dirname(dname))
+print("Added {0} to temporary PATH".format(dname))
+sys.path.append(dname)
+
 parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
                                  description='Interpolation for sequences of images')
 # TODO: Use "Click" Commander
@@ -21,7 +29,8 @@ stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=No
                            help="成品输出的路径，注意默认在项目文件夹")
 stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only.py",
                            help="inference_img_only.py的路径")
-stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default="", help="ffmpeg三件套所在文件夹")
+stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
+                           help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
 stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
                            help="原视频的帧率, 默认0(自动识别)")
 stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
@@ -31,6 +40,8 @@ stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
 stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, help="新增视频的序号(auto)")
+stage2_parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=1000,
+                           help="每一个chunk包含的帧数量, 默认: %(default)s")
 stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=0,
                            help="用于补帧的原视频的帧序列起始帧数，默认：%(default)s")
 stage2_parser.add_argument('--interp-cnt', dest='interp_cnt', type=int, default=1, help="成品帧序列起始帧数")
@@ -75,6 +86,7 @@ EXP = args.ratio
 UHD = args.UHD
 RIFE_PATH = args.rife
 CHUNK_CNT = args.chunk
+CHUNK_SIZE = args.chunk_size
 scdet = args.scdet
 scdet_threshold = args.scdet_threshold
 bitrate = args.bitrate
@@ -83,7 +95,6 @@ HDcrop = args.HDcrop
 ffmpeg = os.path.join(args.ffmpeg, "ffmpeg.exe")
 ffprobe = os.path.join(args.ffmpeg, "ffprobe.exe")
 ffplay = os.path.join(args.ffmpeg, "ffplay.exe")
-# TODO: Default FFmpeg, RIFE paths as frozen_path
 debug = args.debug
 hwaccel = args.hwaccel
 preset = args.preset
@@ -130,14 +141,6 @@ if not os.path.exists(SCENE_INPUT_DIR):
     os.mkdir(SCENE_INPUT_DIR)
 
 ENV = [FRAME_INPUT_DIR, FRAME_OUTPUT_DIR]
-
-"""Set Path Environment"""
-abspath = os.path.abspath(__file__)
-dname = os.path.dirname(abspath)
-logger.info("Changing working dir to {0}".format(dname))
-os.chdir(os.path.dirname(dname))
-logger.info("Added {0} to temporary PATH".format(dname))
-sys.path.append(dname)
 
 
 def clean_env():
@@ -198,9 +201,8 @@ class SceneDealer:
 
     def scdet_get(self):
         scene_reader = FFmpegQuickReader("scenes.txt")
-        # TODO: -s using iw,ih
         scene_content = scene_reader.execute("ffmpeg",
-                                             f'-hide_banner -hwaccel auto -i "{INPUT_FILEPATH}" -an -vsync 0 -frame_pts true -copyts -vf scdet=t={scdet}:sc_pass=1 -compression_level 7 -s 320x180 {os.path.join(SCENE_INPUT_DIR, "%08d.png")}')
+                                             f'-hide_banner -hwaccel auto -i "{INPUT_FILEPATH}" -an -vsync 0 -frame_pts true -copyts -vf scdet=t={scdet}:sc_pass=1,scale=iw/4:ih/4 -compression_level 7 {os.path.join(SCENE_INPUT_DIR, "%08d.png")}')
         scenes_time = re.findall(".*?lavfi\.scd\.time:\s{,5}([\d\.]+).*?", scene_content)
         scenes_list = sorted(os.listdir(SCENE_INPUT_DIR), key=lambda x: int(x[:-4]))
         scenes_tuple = zip(scenes_list, scenes_time)  # 文件名, 时间
@@ -307,17 +309,19 @@ def interpolation():
         python_command = f"python {RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {UHD_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
     logger.info(f"Interpolation Python Command: {python_command}")
     os.system(python_command)
+    logger.info("Interpolation process is over")
 
 
 class RenderThread(threading.Thread):
-    def __init__(self, finished, input_dir, output_dir, **kwargs):
+    def __init__(self, interp_finished, input_dir, output_dir, **kwargs):
         threading.Thread.__init__(self)
-        self.finished = finished
+        self.interp_finished = interp_finished
         self.scene_data = kwargs["scene_data"]
         self.exp = kwargs["exp"]
         self.start_frame = 0
         self.end_frame = 0
         self.chunk_cnt = kwargs["chunk_cnt"]
+        self.render_gap = kwargs["chunk_size"]
         self.target_fps = kwargs["target_fps"]
         self.source_fps = kwargs["source_fps"]
         self.all_frames_cnt = kwargs["all_frames_cnt"]
@@ -329,7 +333,6 @@ class RenderThread(threading.Thread):
         self.rife_current_png = None
         self.render_init_path = ""
         self.rendered_list = list()
-        self.render_gap = 1000
         self.final_round = False
         self.render_only = False
         self.concat_only = False
@@ -343,23 +346,23 @@ class RenderThread(threading.Thread):
         rife_last_png = rife_rendered_list[-1]
         rife_first = int(rife_first_png[:-4])
         rife_last = int(rife_last_png[:-4])
-        rife_end = self.all_frames_cnt * (2 ** self.exp)
 
         """Overwrite authority with render_only flag"""
         if self.render_only:
-            self.logger.info(f"Final Round for Render only Detected, {rife_first} -> {rife_last}, {rife_end}")
+            self.logger.info(f"Final Round for Render only Detected, {rife_first} -> {rife_last}")
             self.final_round = True
         else:
-            if rife_last - rife_first + 1 < self.render_gap and rife_last != rife_end:
-                """Not Right time to render"""
-                self.logger.debug("Jump to next wait, %d -> %d, %d", rife_first, rife_last, rife_end)
-                return False
-            """Update current rife_last"""
-            if rife_last == rife_end:
-                self.logger.info(f"Final Round Detected, {rife_first} -> {rife_last}, {rife_end}")
+            if rife_last - rife_first + 1 >= self.render_gap:
+                """There are many pictures to render, update rife_last"""
+                rife_last = rife_first + self.render_gap - 1
+            elif not self.interp_finished.is_set():
+                """less than int(gap) pictures to render, and interp process is done"""
+                self.logger.info(f"Final Round Detected, {rife_first} -> {rife_last}")
                 self.final_round = True
             else:
-                rife_last = rife_first + self.render_gap - 1
+                """less than int(gap) pictures to render, and interp process is not done, continue waiting"""
+                return False
+
         scene_false = list()
         render_list = list()
         for _scene in self.scene_data:
@@ -372,6 +375,7 @@ class RenderThread(threading.Thread):
         self.start_frame = round((rife_first - 1) / (2 ** self.exp))
         self.end_frame = round(rife_last / (2 ** self.exp) - 1)
         last_render_frame = 0
+        self.rendered_list.clear()
         for render_frame in range(rife_first, rife_last + 1):
             render_file_path = os.path.join(self.output_dir, '{:0>8d}.png'.format(render_frame))
             self.rendered_list.append(render_file_path)
@@ -407,7 +411,6 @@ class RenderThread(threading.Thread):
                                                   f'-refs:v 16 -bf:v 3 -b:v 100M -b_ref_mode:v middle -profile:v main10 ' \
                                                   f'-pix_fmt p010le ' \
                                                   f'-color_range tv -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc "{output_chunk_path}" -y'
-        # TODO: Change preset from slow to others
         else:
             if not hwaccel:
                 ffmpeg_command = ffmpeg_command + f'-c:v libx264 -pix_fmt yuv420p -preset {preset} -crf {crf} "{output_chunk_path}" -y'
@@ -418,7 +421,8 @@ class RenderThread(threading.Thread):
         self.logger.debug("Render FFmpeg Command: %s" % ffmpeg_command)
         subprocess.Popen(ffmpeg_command).wait()
         render_end = datetime.datetime.now()
-        self.logger.info(f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)} in {str(render_end - render_start)}, {len(os.listdir(self.output_dir))} interp frames left")
+        self.logger.info(
+            f"Render: UHD: {UHD}, from {self.start_frame} -> {self.end_frame}, to {os.path.basename(output_chunk_path)} in {str(render_end - render_start)}, {len(os.listdir(self.output_dir))} interp frames left")
 
     def clean(self):
         try:
@@ -444,16 +448,15 @@ class RenderThread(threading.Thread):
                 concat_list.append(f)
             else:
                 self.logger.debug(f"concat escape {f}")
-        concat_list.sort(key=lambda x: int(x.split('-')[2]))
+        concat_list.sort(key=lambda x: int(x.split('-')[2]))  # sort as start-frame
         if os.path.exists(concat_path):
             os.remove(concat_path)
-        with open("concat.txt", "w+", encoding="UTF-8") as w:
+        with open(concat_path, "w+", encoding="UTF-8") as w:
             for f in concat_list:
                 w.write(f"file '{f}'\n")
         os.system(f'{self.ffmpeg} -f concat -safe 0 -i "{concat_path}" -c copy concat_all.mp4 -y')
         pass
 
-    # TODO: debug final round
     def run(self, _render_only=False, _concat_only=False):
         self.render_only = _render_only
         self.concat_only = _concat_only
@@ -463,9 +466,8 @@ class RenderThread(threading.Thread):
         while True:
             if not self.generate_render_ini():
                 time.sleep(0.5)
-                if not self.finished.is_set() and len(os.listdir(self.output_dir)):
-                    """Buffer Write exists latency, no kill render process before output_dir is cleared"""
-                    self.logger.info("Main Thread Already Terminated, Render Thread Break")
+                if not self.interp_finished.is_set() and len(os.listdir(self.output_dir)):
+                    self.logger.info("Interp Thread Already Terminated, Render Thread Break")
                     break
                 continue
             self.render()
@@ -480,12 +482,13 @@ class RenderThread(threading.Thread):
 
 """Instinct Procesd and Exit"""
 Finished = threading.Event()
-Finished.set()
+Finished.set()  # set means alive
 clean_env()
 scene_dealer = SceneDealer()
 extract_frames = ExtractFrames()
 extract_frames.check_frames()  # get all_frames_cnt right
-render_frames = RenderThread(Finished, FRAME_INPUT_DIR, FRAME_OUTPUT_DIR, chunk_cnt=CHUNK_CNT, exp=EXP,
+render_frames = RenderThread(Finished, FRAME_INPUT_DIR, FRAME_OUTPUT_DIR, chunk_cnt=CHUNK_CNT, chunk_size=CHUNK_SIZE,
+                             exp=EXP,
                              scene_data=scene_dealer.get_scenes_data(), target_fps=TARGET_FPS, source_fps=SOURCE_FPS,
                              all_frames_cnt=all_frames_cnt, ffmpeg=ffmpeg, logger=logger)
 
@@ -513,7 +516,6 @@ if concat_only:
     render_frames.concat()
     logger.info(f"Program finished at {datetime.datetime.now()}")
     sys.exit()
-
 
 extract_frames.run()
 render_frames.start()
