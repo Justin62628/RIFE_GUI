@@ -159,7 +159,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         5. 保存设置
         """
 
-    def select_file(self, filename):
+    def select_file(self, filename, folder=False):
+        if folder:
+            directory = QFileDialog.getExistingDirectory(None, caption="选取文件夹")
+            return directory
         directory = QFileDialog.getOpenFileName(None, caption=f"选择{filename}")
         return directory[0]
 
@@ -167,6 +170,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         chunk_list = list()
         if not len(self.OutputFolder.toPlainText()):
             print("OutputFolder path is empty, pls enter it first")
+            reply = QMessageBox.warning(self,
+                                        "Parameters unfilled",
+                                        "请移步Stage1填写输出文件夹！",
+                                        QMessageBox.Yes)
             return
         for f in os.listdir(self.OutputFolder.toPlainText()):
             if re.match("chunk-[\d+].*?\.mp4", f):
@@ -195,17 +202,17 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(bool)
     def on_OutputBrowser_clicked(self):
-        output_folder = self.select_file('输出项目文件夹')
-        self.OutputFolder.setText(os.path.dirname(output_folder))
+        output_folder = self.select_file('输出项目文件夹', folder=True)
+        self.OutputFolder.setText(output_folder)
 
     @pyqtSlot(bool)
     def on_FFmpegBrowser_clicked(self):
-        FFmpeg = self.select_file('FFmpeg.exe路径')
-        self.FFmpegPath.setText(os.path.dirname(FFmpeg))
+        FFmpeg = self.select_file('FFmpeg.exe文件夹所在路径', folder=True)
+        self.FFmpegPath.setText(FFmpeg)
 
     @pyqtSlot(bool)
     def on_RIFEBrowser_clicked(self):
-        rife_path = self.select_file('inference_img_only.py路径')
+        rife_path = self.select_file('inference_img_only.exe路径')
         self.RIFEPath.setText(rife_path)
 
     @pyqtSlot(bool)
