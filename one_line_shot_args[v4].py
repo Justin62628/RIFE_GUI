@@ -12,6 +12,7 @@ import time
 import logging
 import traceback
 
+# v6.0.0
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
