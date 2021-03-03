@@ -1,15 +1,15 @@
 # coding: utf-8
-from pprint import pprint
 import argparse
+import datetime
+import json
+import logging
 import os
 import re
-import sys
 import subprocess
-import json
-import datetime
+import sys
 import threading
 import time
-import logging
+from pprint import pprint
 
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -27,9 +27,10 @@ stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None
                            help="原视频路径, 补帧项目将在视频所在文件夹建立")
 stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,
                            help="成品输出的路径，注意默认在项目文件夹")
-stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only.py",
+stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only[v1].py",
                            help="inference_img_only.py的路径")
-stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname, help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
+stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
+                           help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
 stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
                            help="原视频的帧率, 默认0(自动识别)")
 stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,

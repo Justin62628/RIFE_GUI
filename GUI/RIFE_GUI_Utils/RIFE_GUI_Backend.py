@@ -1,9 +1,12 @@
-import re
-import os
 import json
 import math
-from PyQt5.QtWidgets import *
+import os
+import re
+import traceback
+
+import cv2
 from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 try:
     from RIFE_GUI_Utils import RIFE_GUI
@@ -25,7 +28,8 @@ class RIFE_Args:
     RIFEPath = ""
     OneLineShotPath = ""
 
-    InputFPS = 23.976
+    InputFPS = 0
+    OutputFPS = 0
     Exp = 1
     interp_start = 0
     interp_cnt = 0
@@ -43,6 +47,7 @@ class RIFE_Args:
     scene_only = False
     extract_only = False
     quick_extract = False
+    remove_dup = False
     RIFE_only = False
     render_only = False
     concat_only = False
@@ -52,6 +57,9 @@ class RIFE_Args:
     interp_scale = 1.0
     Scedet = 2
     ScedetT = 0.2
+    DupT = 0
+
+    NCNN = False
 
 
 class RIFE_Run_Other_Threads(QThread):
@@ -71,7 +79,6 @@ class RIFE_Run_Other_Threads(QThread):
         print(f"[CMD Thread]: Start execute {self.command}")
         os.system(self.command)
         pass
-
     pass
 
 
@@ -89,7 +96,7 @@ class RIFE_Run_Thread(QThread):
             bundle_dir = os.path.dirname(os.path.abspath(__file__))
         if user_args is not None:
             self.RIFE_args = user_args
-        #: Indent above
+        # TODO: Indent above
         self.command = ""
         self.build_command()
 
@@ -110,6 +117,8 @@ class RIFE_Run_Thread(QThread):
         self.command += f'--rife {self.fillQuotation(self.RIFE_args.RIFEPath)} '
         self.command += f'--ffmpeg {self.fillQuotation(self.RIFE_args.FFmpeg)} '
         self.command += f'--fps {self.RIFE_args.InputFPS} '
+        if self.RIFE_args.OutputFPS:
+            self.command += f'--target-fps {self.RIFE_args.OutputFPS} '
         self.command += f'--ratio {int(self.RIFE_args.Exp)} '
         self.command += f'--crf {self.RIFE_args.CRF} '
         self.command += f'--scale {self.RIFE_args.interp_scale} '
@@ -119,7 +128,7 @@ class RIFE_Run_Thread(QThread):
             self.command += f'--interp-cnt {self.RIFE_args.interp_cnt} '
         if self.RIFE_args.chunk:
             self.command += f'--chunk {self.RIFE_args.chunk} '
-        if self.RIFE_args.crop not in ["0", ""]:
+        if self.RIFE_args.crop != "":
             if self.RIFE_args.UHD:
                 self.command += f'--UHD-crop {self.RIFE_args.crop} '
             else:
@@ -143,6 +152,11 @@ class RIFE_Run_Thread(QThread):
             self.command += f'--hwaccel '
         if self.RIFE_args.quick_extract:
             self.command += f'--quick-extract '
+        if self.RIFE_args.remove_dup:
+            self.command += f'--remove-dup '
+            if self.RIFE_args.DupT:
+                self.command += f'--dup-threshold {self.RIFE_args.DupT} '
+
         if self.RIFE_args.scene_only:
             self.command += f'--scene-only '
         elif self.RIFE_args.extract_only:
@@ -159,6 +173,9 @@ class RIFE_Run_Thread(QThread):
             self.command += f'--pause '
         if self.RIFE_args.DEBUG:
             self.command += f'--debug '
+        if self.RIFE_args.NCNN:
+            self.command += f'--ncnn '
+
         print("[Thread]: Designed Command:")
         print(self.command)
 
@@ -170,12 +187,13 @@ class RIFE_Run_Thread(QThread):
     pass
 
 
-class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
+# @CandyWindow.colorful("blueGreen")
+class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
     found = pyqtSignal(int)
     notfound = pyqtSignal(int)
 
     def __init__(self, parent=None):
-        super(RIFE_GUI_BACKEND, self).__init__(parent)
+        super(RIFE_GUI_BACKEND, self).__init__()
         self.setupUi(self)
         self.RIFE_args = RIFE_Args()
         self.thread = None
@@ -195,11 +213,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         5. 保存设置
         """
 
-    def select_file(self, filename, folder=False):
+    def select_file(self, filename, folder=False, _filter=None):
         if folder:
             directory = QFileDialog.getExistingDirectory(None, caption="选取文件夹")
             return directory
-        directory = QFileDialog.getOpenFileName(None, caption=f"选择{filename}")
+        directory = QFileDialog.getOpenFileName(None, caption=f"选择{filename}", filter=_filter)
         return directory[0]
 
     def quick_concat(self):
@@ -263,6 +281,12 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def on_InputBrowser_clicked(self):
         input_filename = self.select_file('视频文件')
         self.InputFileName.setText(input_filename)
+        try:
+            input_stream = cv2.VideoCapture(input_filename)
+            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
+            self.InputFPS.setText(str(input_fps)[:7])
+        except Exception:
+            traceback.print_exc()
 
     @pyqtSlot(bool)
     def on_OutputBrowser_clicked(self):
@@ -276,13 +300,14 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(bool)
     def on_RIFEBrowser_clicked(self):
-        rife_path = self.select_file('inference_img_only.exe路径')
+        rife_path = self.select_file('inference_img_only.exe路径',
+                                     _filter="inference_img_only.exe inference_img_only[v1].py")
         self.RIFEPath.setText(rife_path)
 
     @pyqtSlot(bool)
     def on_OneLineShotBrowser_clicked(self):
-        onelineshot_path = self.select_file('OneLineShot路径')
-        self.OneLineShotPath.setText(onelineshot_path)
+        onelineshot_path = self.select_file('OneLineShot路径', _filter="*.exe *.py")
+        self.OneLineShotPath.setText(onelineshot_path, )
 
     @pyqtSlot(bool)
     def on_AutoSet_clicked(self):
@@ -296,10 +321,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(str)
     def on_ExpSelecter_currentTextChanged(self, currentExp):
-        input_fps = self.InputFPS.text()
+        input_fps = self.InputFPS.text() if self.InputFPS.text() != "Unknown" else 0
         selected_exp = currentExp[1:]
         if input_fps:
-            self.OutputFPSReminder.setText(f"预计输出帧率：{float(input_fps) * float(selected_exp)}")
+            self.OutputFPS.setText(f"{float(input_fps) * float(selected_exp)}")
 
     @pyqtSlot(int)
     def on_tabWidget_currentChanged(self, tabIndex):
@@ -317,6 +342,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             settings["RIFEPath"] = self.RIFE_args.RIFEPath
             settings["OneLineShotPath"] = self.RIFE_args.OneLineShotPath
             settings["InputFPS"] = self.RIFE_args.InputFPS
+            settings["OutputFPS"] = self.RIFE_args.OutputFPS
             settings["Exp"] = self.RIFE_args.Exp
             settings["CRF"] = self.RIFE_args.CRF
             settings["interp_start"] = self.RIFE_args.interp_start
@@ -380,6 +406,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.RIFEPath = self.RIFEPath.toPlainText()
         self.RIFE_args.OneLineShotPath = self.OneLineShotPath.toPlainText()
         self.RIFE_args.InputFPS = float(self.InputFPS.text()) if len(self.InputFPS.text()) else 0
+        self.RIFE_args.OutputFPS = float(self.OutputFPS.text()) if len(self.OutputFPS.text()) else 0
         self.RIFE_args.Exp = math.log(int(self.ExpSelecter.currentText()[1:]), 2)
         self.RIFE_args.bitrate = float(self.BitrateSelector.value())
         self.RIFE_args.preset = self.PresetSelector.currentText().split('[')[0]
@@ -387,7 +414,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.resize = self.ResizeSettings.text()
         self.RIFE_args.interp_scale = float(self.InterpScaleSelector.currentText())
         self.RIFE_args.Scedet = self.ScdetSelector.value()
-        self.RIFE_args.ScedetT = self.ScdetTSelector.text()
+        self.RIFE_args.ScedetT = self.ScdetTSelector.value()
+        self.RIFE_args.DupT = self.DupFramesTSelector.value()
 
         self.RIFE_args.CRF = int(self.CRFSelector.value())
         self.RIFE_args.interp_start = int(self.StartFrame.text())
@@ -398,6 +426,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.HWACCEL = bool(self.HwaccelChecker.isChecked())
         self.RIFE_args.PAUSE = bool(self.PauseChecker.isChecked())
         self.RIFE_args.DEBUG = bool(self.DebugChecker.isChecked())
+        self.RIFE_args.remove_dup = bool(self.DupRmChecker.isChecked())
         self.RIFE_args.scene_only = bool(self.ExtractScenesOnlyChecker.isChecked())
         self.RIFE_args.extract_only = bool(self.ExtractOnlyChecker.isChecked())
         self.RIFE_args.quick_extract = bool(self.QuickExtractChecker.isChecked())
@@ -406,6 +435,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.concat_only = bool(self.ConcatOnlyChecker.isChecked())
         self.RIFE_args.fp16 = bool(self.FP16Checker.isChecked())
         self.RIFE_args.reverse = bool(self.ReverseChecker.isChecked())
+        self.RIFE_args.NCNN = bool(self.UseNCNNButton.isChecked())
         print("[Main]: Download all settings")
         status_check = "[当前导出设置预览]\n\n"
         for name, value in vars(self.RIFE_args).items():
@@ -424,6 +454,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     @pyqtSlot(bool)
     def on_CloseButton_clicked(self):
         self.save_current_settings()
+        # app.exec_()
 
 
 if __name__ == "__main__":

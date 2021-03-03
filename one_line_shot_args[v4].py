@@ -1,16 +1,18 @@
 # coding: utf-8
-from pprint import pprint
 import argparse
+import datetime
+import json
+import logging
 import os
 import re
-import sys
 import subprocess
-import json
-import datetime
+import sys
 import threading
 import time
-import logging
 import traceback
+from pprint import pprint
+
+import cv2
 
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -28,7 +30,7 @@ stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None
                            help="原视频路径, 补帧项目将在视频所在文件夹建立")
 stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,
                            help="成品输出的路径，注意默认在项目文件夹")
-stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only.py",
+stage1_parser.add_argument('--rife', dest='rife', type=str, default="inference_img_only[v1].py",
                            help="inference_img_only.py的路径")
 stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
                            help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
@@ -36,7 +38,6 @@ stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
                            help="原视频的帧率, 默认0(自动识别)")
 stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
                            help="目标视频帧率, 默认0(fps * 2 ** exp)")
-
 stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
@@ -58,6 +59,9 @@ stage3_parser.add_argument('--UHD', dest='UHD', action='store_true', help='支�
 stage3_parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
 stage3_parser.add_argument('--pause', dest='pause', action='store_true', help='pause, 在各步暂停确认')
 stage3_parser.add_argument('--scene-only', dest='scene_only', action='store_true', help='只进行转场识别操作')
+stage3_parser.add_argument('--remove-dup', dest='remove_dup', action='store_true', help='动态去除重复帧（预计会额外花很多时间）')
+stage3_parser.add_argument('--dup-threshold', dest='dup_threshold', type=int, default=8,
+                           help='单次匹配重复帧最大重复数，默认: %(default)s')
 stage3_parser.add_argument('--quick-extract', dest='quick_extract', action='store_true', help='快速抽帧')
 stage3_parser_paradox.add_argument('--extract-only', dest='extract_only', action='store_true', help='只进行帧序列提取操作')
 stage3_parser_paradox.add_argument('--rife-only', dest='rife_only', action='store_true', help='只进行补帧操作')
@@ -114,6 +118,8 @@ interp_cnt = args.interp_cnt
 model_select = args.model
 
 scene_only = args.scene_only
+remove_dup = args.remove_dup
+dup_threshold = args.dup_threshold
 extract_only = args.extract_only
 rife_only = args.rife_only
 render_only = args.render_only
@@ -130,7 +136,7 @@ logger_formatter = logging.Formatter('%(asctime)s - %(module)s - %(lineno)s - %(
 
 logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
 txt_handler = logging.FileHandler(logger_path)
-txt_handler.setLevel(level=logging.INFO)
+txt_handler.setLevel(level=logging.DEBUG)
 txt_handler.setFormatter(logger_formatter)
 
 console_handler = logging.StreamHandler()
@@ -174,6 +180,7 @@ class FFmpegQuickReader:
         os.system(f'{tool} {command} > {self.output_txt} 2>&1')
         with open(self.output_txt, "r", encoding="utf-8") as tool_read:
             content = tool_read.read()
+        # TODO: Warning ffmpeg failed
         return content
 
 
@@ -277,15 +284,118 @@ class SceneDealer:
             json.dump(self.scenes_data, w)
 
 
+class RemoveDuplicateFrames(threading.Thread):
+    def __init__(self, input_dir, extract_event):
+        super(RemoveDuplicateFrames, self).__init__()
+        self.extract_event = extract_event
+        # self.extract_event = threading.Event()
+        # TODO 注释上一条
+        self.input_dir = input_dir
+        self.cnt_threshold = dup_threshold
+        self.dup_data = dict()
+        self.logger = logger
+        self.interpolation_command = interpolation(True)
+        self.duplicate_threshold = 0.5
+        self.scene_threshold = 1
+
+    def get_png_path(self, cnt):
+        return os.path.join(self.input_dir, "{:0>8d}.png".format(cnt))
+
+    def check_pair_data(self):
+        dup_json_path = os.path.join(os.path.dirname(self.input_dir), "dup_json.json")
+        if os.path.exists(dup_json_path):
+            return True
+        if len(self.dup_data):
+            with open(dup_json_path, "w", encoding="utf-8") as w:
+                json.dump(self.dup_data, w)
+                self.logger.info(f"Dump {len(self.dup_data)} duplicated sections")
+        return False
+
+    def find_duplicate_frames(self):
+        start_cnt = 0
+        next_cnt = 1
+        retry_first = 10
+        while retry_first:
+            if os.path.exists(self.get_png_path(start_cnt)):
+                i1 = cv2.imread(self.get_png_path(start_cnt))
+                break
+            else:
+                retry_first -= 1
+                if not retry_first:
+                    self.logger.info("Failed to find first png to fix after several tries")
+                    return False
+                time.sleep(5)
+        while True:
+            next_path = self.get_png_path(next_cnt)
+            if not os.path.exists(next_path):
+                if not self.extract_event.is_set():
+                    """End of extracted frames, break"""
+                    self.logger.info("Extracted frames detected over, break")
+                    break
+                time.sleep(0.1)
+            i2 = cv2.imread(next_path)
+            diff = cv2.absdiff(i1, i2).mean()
+            if diff < self.duplicate_threshold:
+                """duplicate frames"""
+                self.logger.debug(f"DIFF: {start_cnt} {next_cnt} {diff} <")
+                if next_cnt - start_cnt == self.cnt_threshold:
+                    pair = (start_cnt, next_cnt)
+                    start_cnt = next_cnt
+                    self.logger.debug(f"Find duplicate outlaw section {str(pair)}")
+                    self.dup_data[str(pair)] = 1
+                next_cnt += 1
+                i1 = i2
+                continue
+            elif diff > self.scene_threshold:
+                """scene"""
+                self.logger.debug(f"DIFF {start_cnt} {next_cnt} {diff} >")
+                if next_cnt - start_cnt - 1 > 1:
+                    """simple smooth frames"""
+                    pair = (start_cnt, next_cnt - 1)
+                    self.logger.debug(f"Find duplicate previous section {str(pair)}")
+                    self.dup_data[str(pair)] = 1
+                start_cnt = next_cnt
+                next_cnt += 1
+                i1 = i2
+                continue
+            else:
+                """pair"""
+                self.logger.debug(f"DIFF {start_cnt} {next_cnt} {diff} ~~")
+                if next_cnt - start_cnt > 1:
+                    """simple smooth frames"""
+                    pair = (start_cnt, next_cnt)
+                    start_cnt = next_cnt
+                    self.logger.debug(f"Find duplicate section {str(pair)}")
+                    self.dup_data[str(pair)] = 1
+                """end current session, start by B frame"""
+                next_cnt += 1
+                i1 = i2  # avoid redundant imread
+
+        self.check_pair_data()
+        return True
+
+    def run(self):
+        if self.check_pair_data():
+            self.logger.info("Duplicate Frames already removed")
+            return
+        if not self.find_duplicate_frames():
+            self.logger.info("Not find enough frames to fix")
+            return
+        self.logger.info("First round interpolation start")
+        os.system(self.interpolation_command)
+        self.logger.info("First round interpolation is done")
+        pass
+
+
 class ExtractFrames:
     def __init__(self):
         pass
 
     def run(self):
-        if not self.check_frames():
+        if not self.check_frames(False):
             self.extract_frames()
 
-    def check_frames(self):
+    def check_frames(self, dup_check=True):
         global all_frames_cnt
         check = True
         if failed_frames_cnt:
@@ -303,16 +413,17 @@ class ExtractFrames:
             frame_path = "{:0>8d}.png".format(frame)
             if not os.path.exists(os.path.join(FRAME_INPUT_DIR, frame_path)):
                 logger.warning(f"[Frame Check]: PNG {frame} not exists, ReExtraction is Necessary")
-                check = False
-                break
+                return False
+
+        all_frames_cnt = len(os.listdir(FRAME_INPUT_DIR))
         return check
 
     def extract_frames(self):
         global all_frames_cnt
         logger.info(
-            f"\n\n\nExtract All the Frames at once from 0 to {all_frames_cnt - 1}, UHD: {UHD}")
+            f"\n\n\nExtract All the Frames at once from 0 to {all_frames_cnt - 1}, UHD: {UHD}, Remove Duplicated: {remove_dup}")
         frame_input = os.path.join(FRAME_INPUT_DIR, "%08d.png")
-        extract_head = f'{ffmpeg} -hide_banner -hwaccel auto -r {SOURCE_FPS}  -i {INPUT_FILEPATH} -vsync 0 -copyts -frame_pts true -vf'
+        extract_head = f'{ffmpeg} -hide_banner -r {SOURCE_FPS}  -i {INPUT_FILEPATH} -vsync 0 -copyts -frame_pts true -vf'
         extract_color_filters = "format=yuv444p10le,zscale=matrixin=input:chromal=input:cin=input,format=rgb48be,format=rgb24" if not quick_extract else "copy"
         UHDcrop_args = f",crop={UHDcrop}" if UHDcrop != "0" else ""
         HDcrop_args = f",crop={HDcrop}" if HDcrop != "0" else ""
@@ -325,12 +436,22 @@ class ExtractFrames:
         else:
             ffmpeg_command = f'{extract_head} {extract_color_filters}{HDcrop_args} {low_res} -compression_level 2 -pix_fmt rgb24  "{frame_input}" -y'
         logger.info(f"Extract Frames FFmpeg Command: {ffmpeg_command}")
+
+        extract_thread_event = threading.Event()
+        extract_thread_event.set()
+        remove_dup_thread = RemoveDuplicateFrames(FRAME_INPUT_DIR, extract_thread_event)
+        if remove_dup:
+            logger.info("Start Remove Duplicate Frames Process")
+            remove_dup_thread.start()
         os.system(ffmpeg_command)
-        all_frames_cnt = len(os.listdir(FRAME_INPUT_DIR))
+        extract_thread_event.clear()
+        logger.info("Frames Extract finished")
+        while remove_dup_thread.is_alive():
+            time.sleep(0.1)
         return
 
 
-def interpolation():
+def interpolation(get_command=False):
     logger.info(f"\n\n\nInterpolation: UHD: {UHD}, Frame {interp_cnt} -> {interp_start}")
     interp_scale_args = "--scale 2.0" if not UHD and interp_scale == 1.0 else f"--scale {interp_scale}"
     fp16_args = "--fp16" if fp16 else ""
@@ -342,7 +463,12 @@ def interpolation():
         python_command = f"{RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {interp_scale_args} {fp16_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
     else:
         python_command = f"python {RIFE_PATH} --img {FRAME_INPUT_DIR} --exp {EXP} {accurate_args} {reverse_args} {interp_scale_args} {fp16_args} --imgformat png --output {FRAME_OUTPUT_DIR} --cnt {interp_cnt} --start {interp_start} --model {model_select}"
+
+    if remove_dup:
+        python_command += " --remove-dup"
     logger.info(f"Interpolation Python Command: {python_command}")
+    if get_command:
+        return python_command
     os.system(python_command)
     logger.info("Interpolation process is over")
 
@@ -445,7 +571,8 @@ class RenderThread(threading.Thread):
 
     def render(self):
         output_chunk_path = f"{os.path.splitext(self.render_init_path)[0]}.mp4"
-        ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -vsync 0 -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" '
+        target_fps_args = f"-r {self.target_fps}" if self.target_fps else ""
+        ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" {target_fps_args} '
         render_start = datetime.datetime.now()
         if UHD:
             if not hwaccel:
@@ -454,6 +581,8 @@ class RenderThread(threading.Thread):
                                                   f'-x265-params "hdr-opt=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=0,0" ' \
                                                   f'-crf {crf} "{output_chunk_path}" -y'
             else:
+                """GPU online, pause interpolation"""
+                self.update_render_status_json(False)
                 ffmpeg_command = ffmpeg_command + f'-c:v hevc_nvenc -preset {preset} -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
                                                   f'-b:v 100M -profile:v main10 ' \
                                                   f'-pix_fmt p010le ' \
@@ -462,11 +591,11 @@ class RenderThread(threading.Thread):
             if not hwaccel:
                 ffmpeg_command = ffmpeg_command + f'-c:v libx264 -pix_fmt yuv420p -preset {preset} -crf {crf} -color_primaries bt709 -color_trc bt709 -colorspace bt709 "{output_chunk_path}" -y'
             else:
+                self.update_render_status_json(False)
                 ffmpeg_command = ffmpeg_command + f'-c:v h264_nvenc -preset {preset} -rc:v vbr_hq -cq:v {crf} -rc-lookahead:v 32 ' \
                                                   f'-b:v 100M ' \
                                                   f'-pix_fmt yuv420p -color_primaries bt709 -color_trc bt709 -colorspace bt709 "{output_chunk_path}" -y'
         self.logger.debug("Render FFmpeg Command: %s" % ffmpeg_command)
-        self.update_render_status_json(False)
         subprocess.Popen(ffmpeg_command).wait()
         render_end = datetime.datetime.now()
         self.logger.info(
@@ -573,6 +702,7 @@ if concat_only:
 
 extract_frames.run()
 render_frames.start()
+remove_dup = False  # prevent further first round interpolation
 interpolation()
 Finished.clear()
 while render_frames.is_alive():

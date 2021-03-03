@@ -1,15 +1,16 @@
-import os
-import cv2
-import torch
-import argparse
-import numpy as np
-from tqdm import tqdm
-from torch.nn import functional as F
-import warnings
 import _thread
-from queue import Queue
-import multiprocessing
+import argparse
+import os
 import time
+import warnings
+from queue import Queue
+
+import cv2
+import numpy as np
+import torch
+from torch.nn import functional as F
+from tqdm import tqdm
+
 # from benchmark.pytorch_msssim import ssim_matlab as ssim
 
 warnings.filterwarnings("ignore")
