@@ -1,20 +1,19 @@
-import _thread
-import argparse
-import datetime
-import json
-import math
 import os
-import shutil
+import cv2
+import torch
+import argparse
+import numpy as np
+from tqdm import tqdm
+from torch.nn import functional as F
+import warnings
+import _thread
+from queue import Queue
 import time
 import traceback
-import warnings
-from queue import Queue
-
-import cv2
-import numpy as np
-import torch
-from torch.nn import functional as F
-from tqdm import tqdm
+import json
+import datetime
+import math
+import shutil
 
 warnings.filterwarnings("ignore")
 
@@ -38,8 +37,7 @@ parser.add_argument('--end', dest='end', type=int, default=0)
 parser.add_argument('--cnt', dest='cnt', type=int, default=1)
 parser.add_argument('--thread', dest='thread', type=int, default=8, help="Write Buffer Thread")
 parser.add_argument('--model', dest='model', type=int, default=2, help="Select RIFE Modle, default v2")
-parser.add_argument('--ncnn', dest='ncnn', action='store_true',
-                    help='Appoint NCNN interpolation which supports AMD card')
+parser.add_argument('--ncnn', dest='ncnn', action='store_true', help='Appoint NCNN interpolation which supports AMD card')
 
 args = parser.parse_args()
 # assert args.scale in [0.25, 0.5, 1.0, 2.0, 4.0]
@@ -83,7 +81,7 @@ class RifeInterpolation:
         self.user_args = args
         self.input = args.img
         self.output = args.output
-        self.padding = (0, 0, 0, 0)
+        self.padding = (0,0,0,0)
         self.input_start = args.start
         self.interp_start = args.cnt
         self.input_end = args.end
@@ -156,7 +154,7 @@ class RifeInterpolation:
         ph = ((h - 1) // tmp + 1) * tmp
         pw = ((w - 1) // tmp + 1) * tmp
         self.padding = (0, pw - w, 0, ph - h)
-        return h, w
+        return h,w
         pass
 
     def generate_torch_img(self, img):
@@ -197,7 +195,7 @@ class RifeInterpolation:
             print("Manually make dir for png output")
             os.mkdir(output_dir)
 
-        h, w = self.generate_padding(lastframe)
+        h,w = self.generate_padding(lastframe)
 
         write_buffer = Queue(maxsize=1000)
         read_buffer = Queue(maxsize=500)
@@ -209,8 +207,7 @@ class RifeInterpolation:
         # Feed first frame to torch
         I1 = self.generate_torch_img(lastframe)
 
-        print(
-            f"Start Interpolation from {os.path.basename(input_dir)} to {os.path.basename(output_dir)}, --reverse: {args.reverse}, --accurate: {args.accurate}, --model: {args.model}")
+        print(f"Start Interpolation from {os.path.basename(input_dir)} to {os.path.basename(output_dir)}, --reverse: {args.reverse}, --accurate: {args.accurate}, --model: {args.model}")
 
         pbar = tqdm(total=total_frame)
         frame_cnt = args.cnt
@@ -275,7 +272,7 @@ class NCNNinterpolator:
 
     def generate_input_list(self):
         self.input_list.append(args.img)
-        for e in range(self.exp - 1):
+        for e in range(self.exp-1):
             new_input = os.path.join(self.input_root, f"mid_interp_{e + 1}x")
             self.input_list.append(new_input)
             if not os.path.exists(new_input):
@@ -297,6 +294,8 @@ class NCNNinterpolator:
                 shutil.rmtree(input_dir)
             dir_cnt += 1
         pass
+
+
 
 
 class GenerateGapFrames(RifeInterpolation):
@@ -361,6 +360,7 @@ class GenerateGapFrames(RifeInterpolation):
         pbar.close()
         print("Duplicate Frames interpolated")
 
+
         pass
 
     def pair_interpolate(self, pair, exp, write_buffer):
@@ -368,7 +368,7 @@ class GenerateGapFrames(RifeInterpolation):
         img2_path = self.get_png_path(pair[1])
         img1 = cv2.imread(img1_path)[:, :, ::-1].copy()  # read first img
         img2 = cv2.imread(img2_path)[:, :, ::-1].copy()  # read first img
-        h, w = self.generate_padding(img1)
+        h,w = self.generate_padding(img1)
         I0_ = self.generate_torch_img(img1)
         I1_ = self.generate_torch_img(img2)
         mid_inference = self.make_inference(I0_, I1_, exp)

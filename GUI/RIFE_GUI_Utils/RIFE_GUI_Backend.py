@@ -182,6 +182,7 @@ class RIFE_Run_Thread(QThread):
     def run(self):
         print("[Thread]: Start")
         os.system(self.command)
+
         pass
 
     pass
@@ -230,7 +231,7 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
             offset_args = f"-itsoffset {offset_args}"
         else:
             offset_args = ""
-        if not output_v or not input_a or not output_v:
+        if not input_v or not input_a or not output_v:
             reply = QMessageBox.warning(self,
                                         "Parameters unfilled",
                                         "请填写输入或输出视频路径！",
@@ -244,6 +245,40 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
         # thrRIFE_Run_Other_Threads(ffmpeg_command)
         # thread.start()
         os.system(ffmpeg_command)
+        QMessageBox.information(self,
+                            "音视频合并成功！",
+                            f"请查收",
+                            QMessageBox.Yes)
+
+    def quick_gif(self):
+        input_v = self.GifInput.text()
+        output_v = self.GifOutput.text()
+        self.load_current_settings()
+        if not input_v or not output_v:
+            reply = QMessageBox.warning(self,
+                                        "Parameters unfilled",
+                                        "请填写输入或输出视频路径！",
+                                        QMessageBox.Yes)
+            return
+        ffmpeg = os.path.join(self.RIFE_args.FFmpeg, "ffmpeg.exe")
+        palette_path = os.path.join(os.path.dirname(input_v), "palette.png")
+        ffmpeg_command = f"""
+                    {ffmpeg} -hide_banner -i {input_v} -vf "palettegen=stats_mode=diff" -y {palette_path}
+                """.strip().strip("\n").replace("\n", "")
+        print(f"ffmpeg_command for create palette: {ffmpeg_command}")
+        os.system(ffmpeg_command)
+        if not self.RIFE_args.OutputFPS:
+            self.RIFE_args.OutputFPS = 48
+            print("Not find output GIF fps, Auto set GIF output fps to 48 as it's smooth enough")
+        ffmpeg_command = f"""
+                           {ffmpeg} -hide_banner -i {input_v} -i {palette_path} -r {self.RIFE_args.OutputFPS} -lavfi "fps={self.RIFE_args.OutputFPS},scale=960:-1[x];[x][1:v]paletteuse=dither=floyd_steinberg" {output_v} -y
+                        """.strip().strip("\n").replace("\n", "")
+        print(f"ffmpeg_command for create gif: {ffmpeg_command}")
+        os.system(ffmpeg_command)
+        QMessageBox.information(self,
+                                "GIF制作成功！",
+                                f"GIF帧率:{self.RIFE_args.OutputFPS}",
+                                QMessageBox.Yes)
 
     def auto_set(self):
         chunk_list = list()
@@ -301,7 +336,7 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
     @pyqtSlot(bool)
     def on_RIFEBrowser_clicked(self):
         rife_path = self.select_file('inference_img_only.exe路径',
-                                     _filter="inference_img_only.exe inference_img_only[v1].py")
+                                     _filter="inference_img_only.exe inference_img_only.py")
         self.RIFEPath.setText(rife_path)
 
     @pyqtSlot(bool)
@@ -315,9 +350,27 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(bool)
     def on_ConcatButton_clicked(self):
+        if not self.ConcatInputV.text():
+            input_filename = self.select_file('请输入要进行音视频合并的视频文件')
+            self.ConcatInputV.setText(input_filename)
+            self.ConcatInputA.setText(os.path.join(os.path.dirname(input_filename), "input.mp3"))
+            self.OutputConcat.setText(os.path.join(os.path.dirname(input_filename), "output.mp4"))
+            return
         self.quick_concat()
         # self.auto_set()
         pass
+
+    @pyqtSlot(bool)
+    def on_GifButton_clicked(self):
+        if not self.GifInput.text():
+            input_filename = self.select_file('请输入要制作成gif的视频文件')
+            self.GifInput.setText(input_filename)
+            self.GifOutput.setText(os.path.join(os.path.dirname(input_filename), "output.gif"))
+            return
+        self.quick_gif()
+        # self.auto_set()
+        pass
+
 
     @pyqtSlot(str)
     def on_ExpSelecter_currentTextChanged(self, currentExp):
@@ -418,9 +471,9 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
         self.RIFE_args.DupT = self.DupFramesTSelector.value()
 
         self.RIFE_args.CRF = int(self.CRFSelector.value())
-        self.RIFE_args.interp_start = int(self.StartFrame.text())
-        self.RIFE_args.interp_cnt = int(self.StartCntFrame.text())
-        self.RIFE_args.chunk = int(self.StartChunk.text())
+        self.RIFE_args.interp_start = int(self.StartFrame.text()) if self.StartFrame.text() else 0
+        self.RIFE_args.interp_cnt = int(self.StartCntFrame.text()) if self.StartCntFrame.text() else 1
+        self.RIFE_args.chunk = int(self.StartChunk.text()) if self.StartChunk.text() else 1
 
         self.RIFE_args.UHD = bool(self.UHDChecker.isChecked())
         self.RIFE_args.HWACCEL = bool(self.HwaccelChecker.isChecked())
@@ -449,7 +502,7 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
     def on_ProcessStart_clicked(self):
         self.thread = RIFE_Run_Thread(self.RIFE_args)
         self.thread.start()
-        self.OptionCheck.setText("[一条龙启动，请移步命令行查看进度详情]")
+        self.OptionCheck.setText("[一条龙启动，请移步命令行查看进度详情]\n显示“Program finished”则任务完成")
 
     @pyqtSlot(bool)
     def on_CloseButton_clicked(self):
