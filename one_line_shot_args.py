@@ -429,7 +429,8 @@ class ExtractFrames:
         logger.info(
             f"\n\n\nExtract All the Frames at once from 0 to {all_frames_cnt - 1}, UHD: {UHD}, Remove Duplicated: {remove_dup}")
         frame_input = os.path.join(FRAME_INPUT_DIR, "%08d.png")
-        extract_head = f'{ffmpeg} -hide_banner -r {SOURCE_FPS}  -i {INPUT_FILEPATH} -vsync 0 -copyts -frame_pts true -vf'
+        # Warning: remove source fps
+        extract_head = f'{ffmpeg} -hide_banner -i {INPUT_FILEPATH} -vsync 0 -copyts -frame_pts true -vf'
         extract_color_filters = "format=yuv444p10le,zscale=matrixin=input:chromal=input:cin=input,format=rgb48be,format=rgb24" if not quick_extract else "copy"
         UHDcrop_args = f",crop={UHDcrop}" if UHDcrop != "0" else ""
         HDcrop_args = f",crop={HDcrop}" if HDcrop != "0" else ""
@@ -576,7 +577,7 @@ class RenderThread(threading.Thread):
     def render(self):
         output_chunk_path = f"{os.path.splitext(self.render_init_path)[0]}.mp4"
         target_fps_args = f"-r {self.target_fps}" if self.target_fps else ""
-        ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" {target_fps_args} '
+        ffmpeg_command = f'{ffmpeg}  -hide_banner -loglevel error -vsync 0 -f concat -safe 0 -r {self.source_fps * (2 ** self.exp)} -i "{self.render_init_path}" {target_fps_args} '
         render_start = datetime.datetime.now()
         if UHD:
             if not hwaccel:

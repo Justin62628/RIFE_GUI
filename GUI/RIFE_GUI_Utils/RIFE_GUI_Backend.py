@@ -226,11 +226,11 @@ class RIFE_GUI_BACKEND(QWidget, RIFE_GUI.Ui_RIFEDialog):
         input_a = self.ConcatInputA.text()
         output_v = self.OutputConcat.text()
         self.load_current_settings()
-        offset_args = self.ConcatOffsetSelector.value()
-        if offset_args:
-            offset_args = f"-itsoffset {offset_args}"
-        else:
-            offset_args = ""
+        # offset_args = self.ConcatOffsetSelector.value()
+        # if offset_args:
+        #     offset_args = f"-itsoffset {offset_args}"
+        # else:
+        #     offset_args = ""
         if not input_v or not input_a or not output_v:
             reply = QMessageBox.warning(self,
                                         "Parameters unfilled",
