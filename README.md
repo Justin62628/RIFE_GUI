@@ -139,3 +139,5 @@ measure.py, handy scripts for measuring two images(for inferenced imgs)
 - Video interpolation method(for CUDA): [RIFE](https://github.com/hzwer/arXiv2020-RIFE)
 - [RIFE-NCNN](https://github.com/nihui/rife-ncnn-vulkan) 
 - RIFE tool: [Squirrel-Video-Frame-Interpolation](https://github.com/YiWeiHuang-stack/Squirrel-Video-Frame-Interpolation/stargazers)
+## Patreon for fun, thanks!!
+![Help](./static/help.png)
