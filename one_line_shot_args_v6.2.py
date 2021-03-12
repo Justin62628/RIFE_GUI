@@ -13,7 +13,9 @@ import logging
 import traceback
 import cv2
 import numpy as np
-
+import utils
+from skvideo.io import ffprobe, FFmpegWriter, FFmpegReader
+Utils = utils.Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
@@ -76,10 +78,8 @@ stage4_parser = parser.add_argument_group(title="Output Settings")
 stage4_parser.add_argument('--scdet', dest='scdet', type=float, default=3, help="转场识别灵敏度，越小越准确，人工介入也会越多")
 stage4_parser.add_argument('--scdet-threshold', dest='scdet_threshold', type=float, default=0.2,
                            help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
-stage4_parser.add_argument('--UHD-crop', dest='UHDcrop', type=str, default="3840:1608:0:276",
-                           help="UHD裁切参数，默认开启，填0不裁，默认：%(default)s")
-stage4_parser.add_argument('--HD-crop', dest='HDcrop', type=str, default="1920:804:0:138",
-                           help="QHD裁切参数，默认：%(default)s")
+stage4_parser.add_argument('--crop', dest='crop', type=str, default="0",
+                           help="视频裁切参数，默认开启，填0不裁，默认：%(default)s")
 stage4_parser.add_argument('--resize', dest='resize', type=str, default="", help="ffmpeg -s 缩放参数，默认不开启（为空）")
 stage4_parser.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="80M", help="成品目标(最高)码率")
 stage4_parser.add_argument('--preset', dest='preset', type=str, default="slow", help="压制预设，medium以下可用于收藏。硬件加速推荐hq")
@@ -101,10 +101,9 @@ CHUNK_SIZE = args.chunk_size
 scdet = args.scdet
 scdet_threshold = args.scdet_threshold
 bitrate = args.bitrate
-UHDcrop = args.UHDcrop
-HDcrop = args.HDcrop
+CROP = args.crop
 ffmpeg = os.path.join(args.ffmpeg, "ffmpeg.exe")
-ffprobe = os.path.join(args.ffmpeg, "ffprobe.exe")
+# ffprobe = os.path.join(args.ffmpeg, "ffprobe.exe")
 ffplay = os.path.join(args.ffmpeg, "ffplay.exe")
 debug = args.debug
 hwaccel = args.hwaccel
@@ -131,24 +130,12 @@ concat_only = args.concat_only
 quick_extract = args.quick_extract
 failed_frames_cnt = False
 
-PROJECT_DIR = os.path.dirname(OUTPUT_FILE_PATH)
-
+if os.path.isfile(OUTPUT_FILE_PATH):
+    PROJECT_DIR = os.path.dirname(OUTPUT_FILE_PATH)
+else:
+    PROJECT_DIR = OUTPUT_FILE_PATH
 """Set Logger"""
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger_formatter = logging.Formatter('%(asctime)s - %(module)s - %(lineno)s - %(levelname)s - %(message)s')
-
-logger_path = os.path.join(PROJECT_DIR, f"{datetime.datetime.now().date()}-{EXP}-{interp_start}-{interp_cnt}.txt")
-txt_handler = logging.FileHandler(logger_path)
-txt_handler.setLevel(level=logging.DEBUG)
-txt_handler.setFormatter(logger_formatter)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(level=logging.INFO)
-console_handler.setFormatter(logger_formatter)
-
-logger.addHandler(console_handler)
-logger.addHandler(txt_handler)
+logger = Utils.get_logger("MAIN", PROJECT_DIR)
 logger.info(f"Initial New Interpolation Project: PROJECT_DIR: %s, INPUT_FILEPATH: %s", PROJECT_DIR, INPUT_FILEPATH)
 
 FRAME_INPUT_DIR = os.path.join(PROJECT_DIR, 'frames')
@@ -166,54 +153,39 @@ def clean_env():
             os.mkdir(DIR_)
 
 
-class FFmpegQuickReader:
-    def __init__(self, output_txt):
-        self.output_txt = os.path.join(PROJECT_DIR, output_txt)
-        self.tool_list = {"ffmpeg": ffmpeg, "ffprobe": ffprobe, "ffplay": ffplay}
-        pass
-
-    def get_tool(self, tool):
-        if tool not in self.tool_list:
-            logger.warning(f"Not Recognize tool: {tool}")
-            return ""
-        else:
-            return self.tool_list[tool]
-
-    def execute(self, tool, command):
-        tool = self.get_tool(tool)
-        os.system(f'{tool} {command} > {self.output_txt} 2>&1')
-        with open(self.output_txt, "r", encoding="utf-8") as tool_read:
-            content = tool_read.read()
-        # TODO: Warning ffmpeg failed
-        return content
-
-
 """Frame Count"""
-ffmpeg_reader = FFmpegQuickReader("video_info.txt")
-video_info = ffmpeg_reader.execute("ffprobe",
-                                   f"-v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate,nb_frames {INPUT_FILEPATH}").splitlines()
+ffmpeg_reader = utils.FFmpegQuickReader(args.ffmpeg, "video_info.txt")
+video_info = ffprobe(INPUT_FILEPATH)
+if "video" in video_info:
+    video_info = video_info["video"]
+    # raise IOError(f"Not find video stream in {INPUT_FILEPATH}")
+# TODO more specific situations handle
 if not SOURCE_FPS:
-    if video_info[0] == "N/A":
-        logger.warning("Auto Find FPS Failed: %s and set it to 23.976", video_info[0])
-        SOURCE_FPS = 24000 / 1001
 
-    if '/' in video_info[0]:
-        fps_info = video_info[0].split('/')
+    if "@r_frame_rate" in video_info:
+        fps_info = video_info["@r_frame_rate"].split('/')
+        SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
+        # TODO switch to float
+    elif "@avg_frame_rate" in video_info:
+        fps_info = video_info["@avg_frame_rate"].split('/')
         SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
         logger.warning("Auto Find FPS in fraction: %s", SOURCE_FPS)
-    elif len(video_info[0]):
-        SOURCE_FPS = float(video_info[0])
-        logger.warning("Auto Find FPS in decimal: %s", SOURCE_FPS)
+    else:
+        logger.warning("Auto Find FPS Failed: %s and set it to 23.976", video_info[0])
+        SOURCE_FPS = 23.976
 
-if video_info[1] == "N/A":
-    logger.warning("Not Find Frames Cnt")
-    failed_frames_cnt = True
-    all_frames_cnt = 0
+if "@nb_frames" in video_info:
+    all_frames_cnt = int(video_info["@nb_frames"])
+elif "@duration" in video_info:
+    all_frames_cnt = float(video_info["@duration"]) * SOURCE_FPS
+    logger.warning("Find Frames Cnt by duration deduction")
+
 else:
-    all_frames_cnt = int(video_info[1])
+    failed_frames_cnt = True
+    logger.warning("Not Find Frames Cnt")
+    all_frames_cnt = 0
 TARGET_FPS = (2 ** EXP) * SOURCE_FPS if not TARGET_FPS else TARGET_FPS  # Maintain Double Accuracy of FPS
 logger.info(f"Check Interpolation Source, FPS: {SOURCE_FPS}, TARGET FPS: {TARGET_FPS}, FRAMES_CNT: {all_frames_cnt}")
-
 
 class SceneDealer:
     def __init__(self):
@@ -233,7 +205,7 @@ class SceneDealer:
         return self.scenes_data
 
     def scdet_get(self):
-        scene_reader = FFmpegQuickReader("scenes.txt")
+        scene_reader = utils.FFmpegQuickReader(PROJECT_DIR, "scenes.txt")
         scene_content = scene_reader.execute("ffmpeg",
                                              f'-hide_banner -hwaccel auto -i "{INPUT_FILEPATH}" -an -vsync 0 -frame_pts true -copyts -vf scdet=t={scdet}:sc_pass=1,scale=iw/4:ih/4 -compression_level 7 {os.path.join(SCENE_INPUT_DIR, "%08d.png")}')
         scenes_time = re.findall(".*?lavfi\.scd\.time:\s{,5}([\d\.]+).*?", scene_content)

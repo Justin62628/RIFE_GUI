@@ -27,15 +27,15 @@ parser.add_argument('--remove-dup', dest='remove_dup', action='store_true',
 parser.add_argument('--fp16', dest='fp16', action='store_true',
                     help='fp16 mode for faster and more lightweight inference on cards with Tensor Cores')
 parser.add_argument('--fps', dest='fps', type=int, default=None, help="Source fps")
-parser.add_argument('--exp', dest='exp', type=int, default=1, help="2 ** exp")
+parser.add_argument('--exp', dest='exp', type=int, default=1, help="output fps = fps * 2 ** exp")
 parser.add_argument('--scale', dest='scale', type=float, default=1.0,
                     help='actual times of scaled resolution: scale = 2 => 1080p -> 4K to achieve more accurate interpolation')
 parser.add_argument('--imgformat', default="png")
-#
-parser.add_argument('--start', dest='start', type=int, default=0)
+parser.add_argument('--start', dest='start', type=int, default=0, help="start pts of input dir")
 parser.add_argument('--end', dest='end', type=int, default=0)
 parser.add_argument('--cnt', dest='cnt', type=int, default=1)
 parser.add_argument('--thread', dest='thread', type=int, default=8, help="Write Buffer Thread")
+# TODO: model select
 parser.add_argument('--model', dest='model', type=int, default=2, help="Select RIFE Modle, default v2")
 parser.add_argument('--ncnn', dest='ncnn', action='store_true', help='Appoint NCNN interpolation which supports AMD card')
 
@@ -45,12 +45,19 @@ project_dir = os.path.dirname(args.img)
 
 rendering_flag = True
 
+class InterpArgs:
+    def __init__(self, args_=None):
+        pass
+    img = args.img
+
 
 class RifeInterpolation:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        torch.set_grad_enabled(False)
-        if torch.cuda.is_available():
+        if not torch.cuda.is_available():
+            self.device = torch.device("cpu")
+            print("use cpu to interpolate")
+        else:
+            self.device = torch.device("cuda")
             torch.backends.cudnn.enabled = True
             torch.backends.cudnn.benchmark = True
             if args.fp16:
@@ -61,6 +68,8 @@ class RifeInterpolation:
                     print("FP16 mode switch failed")
                     traceback.print_exc()
                     args.fp16 = False
+
+        torch.set_grad_enabled(False)
 
         if args.img:
             args.png = True
