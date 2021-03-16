@@ -13,12 +13,12 @@ from queue import Queue
 import cv2
 import numpy as np
 import tqdm
-from skvideo.io import ffprobe, FFmpegWriter, FFmpegReader
+from skvideo.io import  FFmpegWriter, FFmpegReader
 
+from Utils.utils import Utils, ImgSeqIO, VideoInfo
 import inference
-import utils
 
-Utils = utils.Utils()
+Utils = Utils()
 
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -35,7 +35,6 @@ stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None
                            help="原视频/图片序列文件夹路径")
 stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,
                            help="成品输出的路径，注意默认在项目文件夹")
-stage1_parser.add_argument('--img-input', dest='img_input', action='store_true', help='输入的是图片序列，支持png、jpg、jpeg')
 
 stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
                            help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
@@ -44,10 +43,10 @@ stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
 stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
                            help="目标视频帧率, 默认0(fps * 2 ** exp)")
 stage2_parser = parser.add_argument_group(title="Step by Step Settings")
-stage2_parser.add_argument('-r', '--ratio', dest='ratio', type=int, choices=range(1, 4), default=2, required=True,
+stage2_parser.add_argument('-r', '--ratio', dest='exp', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
 stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, help="新增视频的序号(auto)")
-stage2_parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=1000,
+stage2_parser.add_argument('--render-gap', dest='render_gap', type=int, default=1000,
                            help="每一个chunk包含的帧数量, 默认: %(default)s")
 stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=0,
                            help="用于补帧的原视频的帧序列起始帧数，默认：%(default)s")
@@ -56,18 +55,19 @@ stage2_parser.add_argument('--hwaccel', dest='hwaccel', action='store_true', hel
 stage2_parser.add_argument('--fp16', dest='fp16', action='store_true', help='支持fp16以精度稍低、占用显存更少的操作完成补帧')
 stage2_parser.add_argument('--scale', dest='scale', type=float, default=1.0, help='补帧精度倍数，越大越精确、越慢，4K推荐0.5或1.0')
 stage2_parser.add_argument('--model', dest='model', type=str, default="", help="Select RIFE Model, default v2")
-# TODO module selector
+
 stage3_parser = parser.add_argument_group(title="Preference Settings")
 stage3_parser_hardware_set = stage3_parser.add_mutually_exclusive_group()
-# stage3_parser_step = stage3_parser.add_argument_group()
+
+stage3_parser.add_argument('--img-input', dest='img_input', action='store_true', help='输入的是图片序列，支持png、jpg、jpeg')
 stage3_parser.add_argument('--img-output', dest='img_output', action='store_true', help='输出的是图片序列')
 stage3_parser.add_argument('--HDR', dest='HDR', action='store_true', help='支持HDR补帧')
+stage3_parser.add_argument('--encoder', dest='encoder',  type=str, choices=("H264", "HEVC"), help='压制编码格式')
 stage3_parser_hardware_set.add_argument('--use-gpu', dest='use_specific_gpu', type=int, default=0, help='指定GPU编号，从0开始')
 stage3_parser_hardware_set.add_argument('--multicard', dest='use_multi_card', action='store_true', help='N卡多卡补帧，暂不支持')
 stage3_parser_hardware_set.add_argument('--ncnn', dest='ncnn', action='store_true', help='NCNN补帧')
 stage3_parser_hardware_set.add_argument('--cpu', dest='use_cpu', action='store_true', help='CPU补帧')
 stage3_parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
-# stage3_parser.add_argument('--pause', dest='pause', action='store_true', help='pause, 在各步暂停确认')
 stage3_parser.add_argument('--no-scdet', dest='no_scdet', action='store_true', help='关闭转场识别（针对无转场素材）')
 stage3_parser.add_argument('--no-concat', dest='no_concat', action='store_true', help='关闭自动合并（适合磁盘空间少使用）')
 stage3_parser.add_argument('--remove-dup', dest='remove_dup', action='store_true', help='动态去除重复帧（预计会额外花很多时间）')
@@ -78,216 +78,143 @@ stage3_parser.add_argument('--audio', dest='save_audio', action='store_true', he
 stage3_parser_hardware_set.add_argument('--reverse', dest='reverse', action='store_true', help='反向光流')
 
 stage4_parser = parser.add_argument_group(title="Output Settings")
+stage4_render_set = stage4_parser.add_mutually_exclusive_group()
 stage4_parser.add_argument('--scdet-threshold', dest='scdet_threshold', type=float, default=30,
                            help="转场间隔阈值判定，要求相邻转场间隔大于该阈值")
-stage4_parser.add_argument('--dup-threshold', dest='dup_threshold', type=float, default=0.8,
-                           help='单次匹配重复帧最大重复数，默认: %(default)s')
+stage4_parser.add_argument('--dup-threshold', dest='dup_threshold', type=float, default=1.0,
+                           help='重复帧判定阈值，默认: %(default)s')
 stage4_parser.add_argument('--crop', dest='crop', type=str, default="0",
                            help="视频裁切参数，如3840:1608:0:276")
 stage4_parser.add_argument('--resize', dest='resize', type=str, default="", help="ffmpeg -s 缩放参数，默认不开启（为空）")
-stage4_parser.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="80M", help="成品目标(最高)码率")
 stage4_parser.add_argument('--preset', dest='preset', type=str, default="slow", help="压制预设，medium以下可用于收藏。硬件加速推荐hq")
-stage4_parser.add_argument('--crf', dest='crf', type=int, default=9, help="恒定质量控制，12以下可作为收藏，16能看，默认：%(default)s")
+stage4_render_set.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="", help="成品目标(最高)码率，与crf不共存，默认：%(default)s")
+stage4_render_set.add_argument('--crf', dest='crf', type=int, default=0, help="恒定质量控制，12以下可作为收藏，16能看，与bitrate不共存，默认：%(default)s")
 
 args = parser.parse_args()
-
-INPUT_FILEPATH = args.input
-OUTPUT_DIR = args.output
-SOURCE_FPS = args.fps
-TARGET_FPS = args.target_fps
-EXP = args.ratio
-
-input_img = args.img_input
-output_img = args.img_output
-output_only = args.output_only
-
-HDR = args.HDR
-ncnn = args.ncnn
-use_cpu = args.use_cpu
-use_multi_card = args.use_multi_card
-
-CHUNK_CNT = args.chunk
-CHUNK_SIZE = args.chunk_size
-bitrate = args.bitrate
-CROP = args.crop
-resize = args.resize
-hwaccel = args.hwaccel
-ffmpeg = os.path.join(args.ffmpeg, "ffmpeg.exe")
-ffplay = os.path.join(args.ffmpeg, "ffplay.exe")
-if not os.path.exists(ffmpeg):
-    ffmpeg = "ffmpeg"
-    print("[ARGS] Not find selected ffmpeg")
-
-no_scdet = args.no_scdet
-no_concat = args.no_concat
-
-debug = args.debug
-fp16 = args.fp16
-interp_scale = args.scale
-preset = args.preset
-crf = args.crf
-# accurate = args.accurate
-reverse = args.reverse
-interp_start = args.interp_start
-interp_cnt = args.interp_cnt
-
-scdet_threshold = args.scdet_threshold
-remove_dup = args.remove_dup
-dup_threshold = args.dup_threshold
-quick_extract = args.quick_extract
-save_audio = args.save_audio
-
-failed_frames_cnt = False
-if os.path.isfile(OUTPUT_DIR):
-    PROJECT_DIR = os.path.dirname(OUTPUT_DIR)
-else:
-    PROJECT_DIR = OUTPUT_DIR
-"""Set Logger"""
-sys.path.append(PROJECT_DIR)
-logger = Utils.get_logger("[ARGS]", PROJECT_DIR)
-logger.info(f"Initial New Interpolation Project: PROJECT_DIR: %s, INPUT_FILEPATH: %s", PROJECT_DIR, INPUT_FILEPATH)
-
-FRAME_INPUT_DIR = os.path.join(PROJECT_DIR, 'frames')
-FRAME_OUTPUT_DIR = os.path.join(PROJECT_DIR, 'interp')
-SCENE_INPUT_DIR = os.path.join(PROJECT_DIR, 'scenes')
-ENV = [SCENE_INPUT_DIR, FRAME_INPUT_DIR, FRAME_OUTPUT_DIR]
-
-
-def clean_env():
-    for DIR_ in ENV:
-        if not os.path.exists(DIR_):
-            os.mkdir(DIR_)
-
-
-"""Frame Count"""
-if not input_img:
-    video_info = ffprobe(INPUT_FILEPATH)
-    if "video" in video_info:
-        video_info = video_info["video"]
-    if not SOURCE_FPS:
-        if "@r_frame_rate" in video_info:
-            fps_info = video_info["@r_frame_rate"].split('/')
-            SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
-            logger.info("Auto Find FPS in r_frame_rate: %s", SOURCE_FPS)
-        elif "@avg_frame_rate" in video_info:
-            fps_info = video_info["@avg_frame_rate"].split('/')
-            SOURCE_FPS = int(fps_info[0]) / int(fps_info[1])
-            logger.warning("Auto Find FPS in avg_frame_rate: %s", SOURCE_FPS)
-        else:
-            logger.warning("Auto Find FPS Failed: and set it to 23.976", video_info)
-            SOURCE_FPS = 24000 / 1001
-
-    if "@nb_frames" in video_info:
-        all_frames_cnt = int(video_info["@nb_frames"])
-        logger.info(f"Auto Find frames cnt in nb_frames: {all_frames_cnt}")
-    elif "@duration" in video_info:
-        all_frames_cnt = round(video_info["@duration"]) * SOURCE_FPS
-        logger.warning(f"Auto Find Frames Cnt by duration deduction: {all_frames_cnt}")
-    else:
-        failed_frames_cnt = True
-        logger.warning("Not Find Frames Cnt")
-        all_frames_cnt = 0
-else:
-    """FRAMES INPUT"""
-    video_info = {}
-    all_frames_cnt = len(os.listdir(INPUT_FILEPATH))
-TARGET_FPS = (2 ** EXP) * SOURCE_FPS if not TARGET_FPS else TARGET_FPS  # Maintain Double Accuracy of FPS
-logger.info(f"Check Interpolation Source, FPS: {SOURCE_FPS}, TARGET FPS: {TARGET_FPS}, FRAMES_CNT: {all_frames_cnt}")
+args = vars(args)
 
 
 class InterpWorkFlow:
-    def __init__(self, __video_info, **kwargs):
-        self.video_info = __video_info
-        self.color_info = Utils.parse_video_info(HDR, __video_info)
-        if ncnn:
-            self.rife_core = inference.NCNNinterpolator(args)
+    def __init__(self, __args, **kwargs):
+        self.args = __args
+
+        if os.path.isfile(self.args["output"]):
+            self.project_dir = os.path.dirname(self.args["output"])
         else:
-            self.rife_core = inference.RifeInterpolation(args)
-        # self.ffmpeg_reader = self.generate_ffmpeg_reader()
-        self.logger = kwargs["logger"]
-        self.duplicate_threshold = kwargs.get("dup_threshold", 1.0)
-        self.scene_threshold = kwargs.get("scdet_threshold", 30)
-        self.render_gap = kwargs.get("CHUNK_SIZE", 1000)
-        self.start_frame = kwargs.get("start_frame", 0)
-        self.start_cnt = kwargs.get("start_cnt", 1)
+            self.project_dir = self.args["output"]
+        """Set Logger"""
+        sys.path.append(self.project_dir)
+        self.logger = Utils.get_logger("[ARGS]", self.project_dir)
+        self.logger.info(f"Initial New Interpolation Project: project_dir: %s, INPUT_FILEPATH: %s", self.project_dir,
+                           self.args["input"])
+
+        self.ffmpeg = os.path.join(self.args["ffmpeg"], "ffmpeg.exe")
+        self.ffplay = os.path.join(self.args["ffmpeg"], "ffplay.exe")
+        if not os.path.exists(self.ffmpeg):
+            self.ffmpeg = "ffmpeg"
+            self.logger.info("Not find selected ffmpeg, use default")
+
+        self.input = self.args["input"]
+        self.output = self.args["output"]
+        self.input_dir = os.path.join(self.project_dir, 'frames')
+        self.interp_dir = os.path.join(self.project_dir, 'interp')
+        self.scene_dir = os.path.join(self.project_dir, 'scenes')
+        env = [self.input_dir, self.interp_dir, self.scene_dir]
+        Utils.make_dirs(env)
+
+        self.exp = self.args["exp"]
+        """Frame Count"""
+        self.video_info_instance = VideoInfo(**self.args)
+        self.video_info_instance.update_info()
+        self.video_info = self.video_info_instance.get_info()
+        if self.args["fps"]:
+            self.fps = self.args["fps"]
+        else:
+            self.fps = self.video_info["fps"]
+        if self.args["target_fps"]:
+            self.target_fps = self.args["target_fps"]
+        else:
+            self.target_fps = (2 ** self.exp) * self.fps
+        self.all_frames_cnt = self.video_info["cnt"]
+
+        self.logger.info(
+            f"Check Interpolation Source, FPS: {self.fps}, TARGET FPS: {self.target_fps}, "
+            f"FRAMES_CNT: {self.all_frames_cnt}, EXP: {self.exp}")
+
+        if self.args["ncnn"]:
+            self.rife_core = inference.NCNNinterpolator(self.args)
+        else:
+            self.rife_core = inference.RifeInterpolation(self.args)
+
+        self.render_gap = self.args["render_gap"]
         self.frame_reader = None
         self.render_thread = None
         self.frames_output = Queue(maxsize=int(self.render_gap * 1.5))
         self.pos_map = Utils.generate_prebuild_map()
-        # pprint(self.pos_map)
+
         self.render_info_pipe = {"rendering": (0, 0, 0, 0)}
         self.scene_stack_len = 6
         self.scene_stack = deque(maxlen=self.scene_stack_len)
+
         self.main_event = threading.Event()
         self.main_event.set()
-        self.save_audio = kwargs.get("save_audio", True)
-        self.input_img = kwargs.get("input_img", False)
-        self.output_img = kwargs.get("output_img", False)
-        self.output_only = kwargs.get("output_only", False)
-        self.no_concat = kwargs.get("no_concat", False)
-        self.no_scdet = kwargs.get("no_scdet", False)
+
+        self.color_info = {}
+        for k in self.video_info:
+            if k.startswith("-"):
+                self.color_info[k] = self.video_info[k]
         pass
 
     def generate_frame_reader(self, start_frame=-1):
-        if self.input_img:
-            return utils.ImgSeqIO(folder=INPUT_FILEPATH, is_read=True)
-        input_dict = {"-vsync": "0", "-to": "00:00:01"}
+        if self.args["img_input"]:
+            return ImgSeqIO(folder=self.input, is_read=True)
+        # input_dict = {"-vsync": "0", "-to": "00:00:01"}
         input_dict = {"-vsync": "0"}
         output_dict = {}
         vf_args = "copy"
 
-        if len(resize):
-            output_dict.update({"-sws_flags": "lanczos+full_chroma_inp", "-s": resize.replace(":", "x")})
+        if len(self.args["resize"]):
+            output_dict.update({"-sws_flags": "lanczos+full_chroma_inp", "-s": self.args["resize"].replace(":", "x")})
         if start_frame not in [-1, 0]:
             vf_args += f",trim=start_frame={start_frame - 1}"
-        if not quick_extract:
+        if not self.args["quick_extract"]:
             vf_args += f",format=yuv444p10le,zscale=matrixin=input:chromal=input:cin=input,format=rgb48be,format=rgb24"
         output_dict["-vf"] = vf_args
         # print(f"reader: {input_dict} {output_dict}")
-        return FFmpegReader(filename=INPUT_FILEPATH, inputdict=input_dict, outputdict=output_dict)
+        return FFmpegReader(filename=self.input, inputdict=input_dict, outputdict=output_dict)
 
     def generate_frame_renderer(self, output_path):
-        if self.output_img:
-            return utils.ImgSeqIO(folder=OUTPUT_DIR, is_read=False)
-        input_dict = {"-vsync": "0", "-r": f"{SOURCE_FPS * 2 ** EXP}"}
-        output_dict = {"-vsync": "0", "-r": f"{TARGET_FPS}", "-preset": preset}
+        if self.args["img_output"]:
+            return ImgSeqIO(folder=self.output, is_read=False)
+        input_dict = {"-vsync": "0", "-r": f"{self.fps * 2 ** self.exp}"}
+        output_dict = {"-vsync": "0", "-r": f"{self.target_fps}", "-preset": self.args["preset"]}
+        # TODO check CFR
         output_dict.update(self.color_info)
         vf_args = "copy"
-        if CROP != "0":
-            vf_args += f",crop={CROP}"
+        if self.args["crop"] != "0":
+            vf_args += f',crop={self.args["crop"]}'
         output_dict.update({"-vf": vf_args})
-        if HDR:
-            if not hwaccel:
-                output_dict.update({"-c:v": "libx265",
-                                    "-tune": "grain",
-                                    "-profile:v": "main10",
-                                    "-pix_fmt": "yuv420p10le",
-                                    "-x265-params": "hdr-opt=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):max-cll=0,0",
-                                    "-crf": f"{crf}",
-                                    })
+        # print(self.args)
+        if self.args["encoder"] == "H264":
+            output_dict.update({"-pix_fmt": "yuv420p"})
+            if self.args["hwaccel"]:
+                output_dict.update({"-c:v": "h264_nvenc", "-rc:v":"vbr_hq"})
+            else:
+                output_dict.update({"-c:v": "libx264", "-tune": "grain",})
+        elif self.args["encoder"] == "HEVC":
+            if self.args["hwaccel"]:
+                output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq", "-pix_fmt": "p010le"})
+            else:
+                output_dict.update({"-c:v": "libx265", "-tune": "grain", "-profile:v": "main10", "-pix_fmt": "yuv420p10le"})
 
+        if self.args["crf"]:
+            if self.args["hwaccel"]:
+                output_dict.update({"-cq:v": str(self.args["crf"])})
             else:
-                output_dict.update({"-c:v": "hevc_nvenc",
-                                    "-rc:v": "vbr_hq",
-                                    "-profile:v": "main10",
-                                    "-pix_fmt": "p010le",
-                                    "-cq:v": f"{crf}",
-                                    })
-                """GPU online, pause interpolation"""
-        else:
-            if not hwaccel:
-                output_dict.update({"-c:v": "libx264",
-                                    "-tune": "grain",
-                                    "-pix_fmt": "yuv420p",
-                                    "-crf": f"{crf}",
-                                    })
-            else:
-                output_dict.update({"-c:v": "h264_nvenc",
-                                    "-rc:v": "vbr_hq",
-                                    "-pix_fmt": "yuv420p",
-                                    "-cq:v": f"{crf}",
-                                    })
-        # print(f"writer: {input_dict} {output_dict}")
+                output_dict.update({"-crf": str(self.args["crf"])})
+        if len(self.args["bitrate"]):
+            output_dict.update({"-b:v": str(self.args["bitrate"])})
+        # print(output_dict, input_dict)
         return FFmpegWriter(filename=output_path, inputdict=input_dict, outputdict=output_dict)
 
     def check_chunk(self, del_chunk=False):
@@ -297,26 +224,26 @@ class InterpWorkFlow:
         :return:
         """
         chunk_list = list()
-        for f in os.listdir(PROJECT_DIR):
+        for f in os.listdir(self.project_dir):
             if re.match("chunk-[\d+].*?\.mp4", f):
                 if del_chunk:
-                    os.remove(os.path.join(PROJECT_DIR, f))
+                    os.remove(os.path.join(self.project_dir, f))
                 else:
                     chunk_list.append(f)
         if del_chunk:
-            return
-        if self.start_frame != 0 or self.start_cnt != 1:
+            return 1, 0
+        if self.args["interp_start"] != 0 or  self.args["interp_cnt"] != 1:
             """Manually Prioritized"""
-            return 1, self.start_frame
+            return 1,  self.args["interp_start"]
         if not len(chunk_list):
             return 1, 0
         """Remove last chunk(high possibility of dilapidation)"""
         chunk_list.sort(key=lambda x: int(x.split('-')[2]))
-        os.remove(os.path.join(PROJECT_DIR, chunk_list[-1]))
+        os.remove(os.path.join(self.project_dir, chunk_list[-1]))
         chunk_list.pop(-1)
         if not len(chunk_list):
             return 1, 0
-        logger.info("Found Previous Chunks")
+        self.logger.info("Found Previous Chunks")
         last_chunk = chunk_list[-1]
         match_result = re.findall("chunk-(\d+)-(\d+)-(\d+)\.mp4", last_chunk)[0]
 
@@ -325,16 +252,16 @@ class InterpWorkFlow:
         return chunk + 1, last_frame + 1
 
     def render(self, chunk_cnt, start_frame):
-        end_frame = int(start_frame + self.render_gap / (2 ** EXP) - 1)
+        end_frame = int(start_frame + self.render_gap / (2 ** self.exp) - 1)
         output_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}.mp4".format(chunk_cnt, start_frame, end_frame)
-        output_path = os.path.join(PROJECT_DIR, output_path)
-        if not self.output_img:
-            logger.info(f"First Chunk Render Path: {output_path}")
+        output_path = os.path.join(self.project_dir, output_path)
+        if not self.args["img_output"]:
+            self.logger.info(f"First Chunk Render Path: {output_path}")
         chunk_round = 1
         frame_writer = self.generate_frame_renderer(output_path)
         while True:
             if not self.main_event.is_set():
-                logger.info("Main interpolation thread Dead, break")
+                self.logger.info("Main interpolation thread Dead, break")
                 frame_writer.close()
                 break
             frame_data = self.frames_output.get()
@@ -349,9 +276,9 @@ class InterpWorkFlow:
             if not chunk_round % self.render_gap:
                 chunk_cnt += 1
                 start_frame = end_frame + 1
-                end_frame = int(start_frame + self.render_gap / (2 ** EXP) - 1)
+                end_frame = int(start_frame + self.render_gap / (2 ** self.exp) - 1)
                 output_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}.mp4".format(chunk_cnt, start_frame, end_frame)
-                output_path = os.path.join(PROJECT_DIR, output_path)
+                output_path = os.path.join(self.project_dir, output_path)
                 frame_writer.close()
                 frame_writer = self.generate_frame_renderer(output_path)
             pass
@@ -363,10 +290,10 @@ class InterpWorkFlow:
             if frame_i == frames_list_len - 1:
                 if is_end:
                     self.frames_output.put(None)
-                    logger.info("Put None to write_buffer")
+                    self.logger.info("Put None to write_buffer")
                     return
                 if is_scene:
-                    for put_i in range(2 ** EXP - 1):
+                    for put_i in range(2 ** self.exp - 1):
                         self.frames_output.put(frames_list[frame_i])
                     return
         pass
@@ -407,12 +334,12 @@ class InterpWorkFlow:
         img1 = Utils.gen_next(videogen)
         now_frame = start_frame
         if img1 is None:
-            logger.critical(f"Input file not valid: {INPUT_FILEPATH}")
+            self.logger.critical(f"Input file not valid: {self.input}")
             self.main_event.clear()
             sys.exit()
 
         is_end = False
-        pbar = tqdm.tqdm(total=all_frames_cnt)
+        pbar = tqdm.tqdm(total=self.all_frames_cnt)
         pbar.update(n=start_frame)
         slot_img = None
         recent_scene = 0
@@ -428,7 +355,7 @@ class InterpWorkFlow:
                 img0 = img1
             img1 = None
             frames_list = []
-            if remove_dup:
+            if self.args["remove_dup"]:
                 now_gap = 0
                 is_scene = False
                 while True:
@@ -448,7 +375,7 @@ class InterpWorkFlow:
                         recent_scene = now_frame + now_gap
                         break
 
-                    if diff < self.duplicate_threshold:
+                    if diff < self.args["dup_threshold"]:
                         now_gap += 1
                         continue
 
@@ -466,7 +393,7 @@ class InterpWorkFlow:
                 elif now_gap == 1:
                     # print(f"check img0 == img1 {img0} {img1}, {img0 == img1}")
                     frames_list.append((now_frame, img0))
-                    interp_output = self.rife_core.generate_interp(img0, img1, EXP, interp_scale, _debug)
+                    interp_output = self.rife_core.generate_interp(img0, img1, self.exp, self.args["scale"], _debug)
                     for interp in interp_output:
                         frames_list.append((now_frame, interp))
                     now_frame += 1
@@ -480,13 +407,13 @@ class InterpWorkFlow:
                     # print(f"intertp between {now_frame} - {now_frame + now_gap}")
                     """exists gap > 1"""
                     exp = round(math.sqrt(now_gap))
-                    gap_output = self.rife_core.generate_interp(img0, img1, exp, interp_scale)
+                    gap_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
                     gap_input = [img0]
                     for gap_i in range(now_gap - 1):
                         gap_input.append(gap_output[self.pos_map[(now_gap, gap_i)]])
                     for gap_i in range(len(gap_input) - 1):
-                        interp_output = self.rife_core.generate_interp(gap_input[gap_i], gap_input[gap_i + 1], EXP,
-                                                                       interp_scale, _debug)
+                        interp_output = self.rife_core.generate_interp(gap_input[gap_i], gap_input[gap_i + 1], self.exp,
+                                                                       self.args["scale"], _debug)
                         frames_list.append((now_frame + gap_i, gap_input[gap_i]))
                         for interp_i in range(len(interp_output)):
                             frames_list.append((now_frame + gap_i, interp_output[interp_i]))
@@ -505,7 +432,7 @@ class InterpWorkFlow:
                     self.feed_to_render(frames_list, is_end=True)
                     # is_end = True
                     break
-                if not self.no_scdet:
+                if not self.args["no_scdet"]:
                     diff = cv2.absdiff(img0, img1).mean()
                     # print(f"now_frame {now_frame} - {now_frame + 1}, diff {diff}")
                     if self.check_scene(diff):
@@ -518,7 +445,7 @@ class InterpWorkFlow:
                         scedet_info["0"] += 1
                         continue
                 frames_list.append((now_frame, img0))
-                interp_output = self.rife_core.generate_interp(img0, img1, EXP, interp_scale)
+                interp_output = self.rife_core.generate_interp(img0, img1, self.exp, self.args["scale"])
                 for interp in interp_output:
                     frames_list.append((now_frame, interp))
                 self.feed_to_render(frames_list)
@@ -528,26 +455,26 @@ class InterpWorkFlow:
             rsq = self.render_info_pipe["rendering"]  # render status quo
             """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
             pbar.set_description(
-                f"Process at chunk {rsq[0]:0>3d}, {rsq[1]:0>8d} - {rsq[2]:0>8d}, frame_cnt {rsq[3]:0>8d}, now_frame {now_frame:0>8d}, recent_scene {recent_scene:0>8d}")
+                f"Process at chunk-{rsq[0]:0>3d}-{rsq[1]:0>8d}-{rsq[2]:0>8d}, frame_cnt {rsq[3]:0>8d}, now_frame {now_frame:0>8d}, recent_scene {recent_scene:0>8d}")
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
         pbar.close()
-        logger.info(f"Scedet Status Quo: {scedet_info}")
+        self.logger.info(f"Scedet Status Quo: {scedet_info}")
         while self.render_thread.is_alive():
             time.sleep(0.1)
         self.concat_all()
         pass
 
     def concat_all(self):
-        if self.no_concat:
+        if self.args["no_concat"]:
             return
-        os.chdir(PROJECT_DIR)
-        concat_path = os.path.join(PROJECT_DIR, "concat.txt")
+        os.chdir(self.project_dir)
+        concat_path = os.path.join(self.project_dir, "concat.ini")
         self.logger.info("Final Round Finished, Start Concating")
         concat_list = list()
-        for f in os.listdir(PROJECT_DIR):
+        for f in os.listdir(self.project_dir):
             if re.match("chunk-[\d+].*?\.mp4", f):
-                concat_list.append(os.path.join(PROJECT_DIR, f))
+                concat_list.append(os.path.join(self.project_dir, f))
             else:
                 self.logger.debug(f"concat escape {f}")
         concat_list.sort(key=lambda x: int(os.path.basename(x).split('-')[2]))  # sort as start-frame
@@ -556,24 +483,22 @@ class InterpWorkFlow:
         with open(concat_path, "w+", encoding="UTF-8") as w:
             for f in concat_list:
                 w.write(f"file '{f}'\n")
-        concat_filepath = f"{os.path.splitext(os.path.basename(INPUT_FILEPATH))[0]}_{2 ** EXP}x" + \
-                          os.path.splitext(INPUT_FILEPATH)[-1]
-        if self.save_audio:
-            map_audio = f'-i "{INPUT_FILEPATH}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
+        output_ext = os.path.splitext(self.input)[-1]
+        if output_ext not in [".mp4", ".mov"]:
+            output_ext = ".mp4"
+        concat_filepath = f"{os.path.splitext(os.path.basename(self.input))[0]}_{2 ** self.exp}x" + output_ext
+        if self.args["save_audio"]:
+            map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
         else:
             map_audio = ""
-        ffmpeg_command = f'{ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy {concat_filepath} -y'
+        ffmpeg_command = f'{self.ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy {concat_filepath} -y'
         self.logger.info(f"Concat command: {ffmpeg_command}")
         os.system(ffmpeg_command)
-        if self.output_only:
+        if self.args["output_only"]:
             self.check_chunk(del_chunk=True)
+        self.logger.info(f"Program finished at {datetime.datetime.now()}")
 
 
-interpworkflow = InterpWorkFlow(video_info,
-                                scdet_threshold=scdet_threshold, dup_threshold=dup_threshold, CHUNK_SIZE=CHUNK_SIZE,
-                                logger=logger, start_frame=interp_start, start_cnt=interp_cnt, save_audio=save_audio,
-                                input_img=input_img, output_img=output_img, output_only=output_only,
-                                no_scdet=no_scdet, no_concat=no_concat)
+interpworkflow = InterpWorkFlow(args)
 interpworkflow.run()
-logger.info(f"Program finished at {datetime.datetime.now()}")
 sys.exit()

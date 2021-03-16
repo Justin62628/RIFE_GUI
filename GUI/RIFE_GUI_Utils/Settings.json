@@ -1,1 +1,0 @@
-{"InputFile": "", "OutputFolder": "", "InputFPS": 0, "OutputFPS": 0, "Exp": 1.0, "CRF": 1, "interp_start": 1, "interp_cnt": 1, "chunk": 1, "resize": "3", "UHD": true, "HWACCEL": true, "DEBUG": true, "quick_extract": true, "reverse": true, "fp16": true, "interp_scale": 1.0, "bitrate": 1.0, "preset": "fast", "crop": "33", "Scedet": 30}

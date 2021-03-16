@@ -7,81 +7,55 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
-from model.RIFE_HDv2 import Model
+from Utils.model.RIFE_HDv2 import Model
 
 warnings.filterwarnings("ignore")
-
-
-class InterpArgs:
-    def __init__(self):
-        self.img = ""
-        self.output = ""
-        self.reverse = False
-        self.accurate = False
-        self.remove_dup = False
-        self.fp16 = False
-        self.fps = 24000 / 1001
-        self.exp = 1
-        self.scale = 1.0
-        self.imgformat = "png"
-        self.start = 0
-        self.end = 0
-        self.cnt = 1
-        self.thread = 8
-        self.model = ""
-        self.ncnn = False
-        self.png = False
-        self.use_multi_card = False
-        self.use_cpu = False
-        self.use_specific_gpu = 0
-
-
-args = InterpArgs()
 
 
 class RifeInterpolation:
     def __init__(self, __args):
         self.initiated = False
-        if __args is not None:
-            self.args = __args
-        else:
-            self.args = InterpArgs()
-        pass
-
-    def initiate_rife(self, __args=None):
+        self.args = {}
         if __args is not None:
             """Update Args"""
             self.args = __args
+        else:
+            raise NotImplementedError("Args not sent in")
+
+        self.device = None
+        self.model = None
+        self.model_path = ""
+        pass
+
+    def initiate_rife(self, __args=None):
         if self.initiated:
             return
-        # if self.args.use_cpu:
-        #     self.device = torch.device("cpu")
-        # elif not torch.cuda.is_available():
+
         if not torch.cuda.is_available():
             self.device = torch.device("cpu")
             print("use cpu to interpolate")
-        elif self.args.use_specific_gpu != -1:
-            os.environ["CUDA_VISIBLE_DEVICES"] = f"{self.args.use_specific_gpu}"
+        elif self.args["use_specific_gpu"] != -1:
+            os.environ["CUDA_VISIBLE_DEVICES"] = f"{self.args['use_specific_gpu']}"
             self.device = torch.device("cuda")
         else:
             self.device = torch.device("cuda")
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
-        if self.args.fp16:
+        if self.args["fp16"]:
             try:
                 torch.set_default_tensor_type(torch.cuda.HalfTensor)
                 print("FP16 mode switch success")
             except Exception as e:
                 print("FP16 mode switch failed")
                 traceback.print_exc()
-                self.args.fp16 = False
+                self.args["fp16"] = False
 
         torch.set_grad_enabled(False)
         self.model = Model()
-        if self.args.model == "":
+        if self.args["model"] == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
-            self.model_path = self.args.model
+            self.model_path = self.args["model"]
         self.model.load_model(self.model_path, -1)
         print(f"Load model at {self.model_path}")
         self.model.eval()
@@ -89,7 +63,7 @@ class RifeInterpolation:
         self.initiated = True
 
     def make_inference(self, i1, i2, scale, exp):
-        if self.args.reverse:
+        if self.args["reverse"]:
             middle = self.model.inference(i2, i1, scale)
         else:
             middle = self.model.inference(i1, i2, scale)
@@ -108,7 +82,7 @@ class RifeInterpolation:
         :return:
         """
         h, w, _ = img.shape
-        tmp = max(32, int(32 / self.args.scale))
+        tmp = max(32, int(32 / self.args["scale"]))
         ph = ((h - 1) // tmp + 1) * tmp
         pw = ((w - 1) // tmp + 1) * tmp
         padding = (0, pw - w, 0, ph - h)
@@ -130,7 +104,7 @@ class RifeInterpolation:
             raise e
 
     def pad_image(self, img, padding):
-        if self.args.fp16:
+        if self.args["fp16"]:
             return F.pad(img, padding).half()
         else:
             return F.pad(img, padding)
@@ -168,14 +142,12 @@ class NCNNinterpolator:
     def __init__(self, __args):
         if __args is not None:
             self.args = __args
-        else:
-            self.args = InterpArgs()
         # same with this file
         self.rife_ncnn_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "rife-ncnn")
         self.rife_ncnn = os.path.join(self.rife_ncnn_root, "rife-ncnn-vulkan.exe")
-        self.exp = self.args.exp
+        self.exp = self.args["exp"]
         self.input_list = list()
-        self.input_root = os.path.dirname(self.args.img)
+        self.input_root = os.path.dirname(self.args["img"])
         self.generate_input_list()
         print(f"Use NCNN to interpolate from {self.rife_ncnn_root} with input list {str(self.input_list)}")
         pass
