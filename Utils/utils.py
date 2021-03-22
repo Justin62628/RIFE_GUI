@@ -40,7 +40,9 @@ class CommandResult:
 class Utils:
     def __init__(self):
         pass
-
+    def fillQuotation(self, string):
+        if string[0] != '"':
+            return f'"{string}"'
     def get_logger(self, name, log_path):
         logger = logging.getLogger(name)
         logger.setLevel(logging.INFO)
@@ -103,6 +105,7 @@ class ImgSeqIO:
         self.img_list = list()
         self.write_queue = Queue(maxsize=1000)
         self.thread = thread
+        self.use_imdecode = False
         if is_read:
             tmp = os.listdir(folder)
             for p in tmp:
@@ -116,7 +119,16 @@ class ImgSeqIO:
 
     def nextFrame(self):
         for p in self.img_list:
-            p = cv2.imread(p, cv2.IMREAD_UNCHANGED)[:, :, ::-1].copy()
+            if self.use_imdecode:
+                p = cv2.imdecode(np.fromfile(p, dtype=np.uint8), 1)[:, :, ::-1].copy()
+            else:
+                try:
+                    p = cv2.imread(p, cv2.IMREAD_UNCHANGED)[:, :, ::-1].copy()
+                except TypeError:
+                    print("Change to use imdecode")
+                    self.use_imdecode = True
+                    p = cv2.imdecode(np.fromfile(p, dtype=np.uint8), 1)[:, :, ::-1].copy()
+
             yield p
 
     def write_buffer(self):
@@ -125,7 +137,16 @@ class ImgSeqIO:
             if img_data[1] is None:
                 print(f"{threading.current_thread().name}: get None, break")
                 break
-            cv2.imwrite(img_data[0], cv2.cvtColor(img_data[1], cv2.COLOR_RGB2BGR))
+
+            if self.use_imdecode:
+                cv2.imencode('.png', cv2.cvtColor(img_data[1], cv2.COLOR_RGB2BGR))[1].tofile(img_data[0])
+            else:
+                try:
+                    cv2.imwrite(img_data[0], cv2.cvtColor(img_data[1], cv2.COLOR_RGB2BGR))
+                except Exception:
+                    print("Change to use imdecode")
+                    self.use_imdecode = True
+                    cv2.imencode('.png', cv2.cvtColor(img_data[1], cv2.COLOR_RGB2BGR))[1].tofile(img_data[0])
 
     def writeFrame(self, img):
         img_path = os.path.join(self.seq_folder, f"{self.frame_cnt:0>8d}.png")
@@ -141,6 +162,10 @@ class ImgSeqIO:
 
 
 class VideoInfo:
+    def fillQuotation(self, string):
+        if string[0] != '"':
+            return f'"{string}"'
+
     def __init__(self, input, HDR=False, ffmpeg=None, img_input=False, **kwargs):
         self.filepath = input
         self.img_input = img_input
@@ -171,7 +196,8 @@ class VideoInfo:
         result = CommandResult(
             f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
             f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
-            f'color_primaries,color_range,color_space,color_transfer -print_format json {self.filepath}').execute()
+            f'color_primaries,color_range,color_space,color_transfer -print_format json '
+            f'{self.fillQuotation(self.filepath)}').execute()
         video_info = json.loads(result)["streams"][0]  # select first video stream as input
         pprint(video_info)
         # update color info

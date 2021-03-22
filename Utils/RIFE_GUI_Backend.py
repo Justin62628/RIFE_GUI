@@ -15,6 +15,8 @@ from pprint import pprint, pformat
 from Utils import RIFE_GUI
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, CommandResult
 import sys
+import subprocess as sp
+import shlex
 
 MAC = True
 try:
@@ -38,7 +40,7 @@ appData.setValue("FFmpeg", dname)
 appData.setValue("Model", os.path.join(ddname, "train_log"))
 if not os.path.exists(ols_potential):
     appData.setValue("OneLineShotPath",
-                     r"D:\60-fps-Project\arXiv2020-RIFE-main\RIFE_GUI\Utils\one_line_shot_args_v6.2alpha.py")
+                     r"D:\60-fps-Project\arXiv2020-RIFE-main\RIFE_GUI\one_line_shot_args_v6.2alpha.py")
     appData.setValue("FFmpeg", "ffmpeg")
     appData.setValue("Model", r"D:\60-fps-Project\arXiv2020-RIFE-main\RIFE_GUI\Utils\train_log")
     logger.info("Change to Debug Path")
@@ -115,15 +117,16 @@ class MyTextWidget(QtWidgets.QTextEdit):
     def dropEvent(self, event):
         try:
             if event.mimeData().hasUrls:
-                url_list = list()
-                url_list.append(self.toPlainText().strip(";"))
-                for url in event.mimeData().urls():
-                    url_list.append(f"{url.toLocalFile()}")
-                text = ""
-                for url in url_list:
-                    text += f"{url};"
-                text = text.strip(";")
-                self.setText(text)
+                url = event.mimeData().urls()[0]
+                # url_list = list()
+                # url_list.append(self.toPlainText().strip(";"))
+                # for url in event.mimeData().urls():
+                #     url_list.append(f"{url.toLocalFile()}")
+                # text = ""
+                # for url in url_list:
+                #     text += f"{url};"
+                # text = text.strip(";")
+                self.setText(f"{url.toLocalFile()}")
             else:
                 event.ignore()
         except Exception as e:
@@ -132,8 +135,8 @@ class MyTextWidget(QtWidgets.QTextEdit):
 
 class RIFE_Run_Thread(QThread):
     run_signal = pyqtSignal(str)
-
-    def __init__(self, parent=None):
+    kill_proc = pyqtSignal(int)
+    def __init__(self, parent=None, concat_only=False):
         super(RIFE_Run_Thread, self).__init__(parent)
         if getattr(sys, 'frozen', False):
             # we are running in a bundle
@@ -141,8 +144,9 @@ class RIFE_Run_Thread(QThread):
         else:
             # we are running in a normal Python environment
             bundle_dir = os.path.dirname(os.path.abspath(__file__))
-
+        self.concat_only = concat_only
         self.command = ""
+        self.current_proc = None
 
     def fillQuotation(self, string):
         if string[0] != '"':
@@ -164,7 +168,7 @@ class RIFE_Run_Thread(QThread):
             logger.info("[GUI]: OutputPath with FileName detected")
             output_path = appData.value("OutputFolder")
             appData.setValue("OutputFolder", os.path.basename(output_path))
-        self.command += f'--output {appData.value("OutputFolder")} '
+        self.command += f'--output {self.fillQuotation(appData.value("OutputFolder"))} '
         self.command += f'--fps {appData.value("InputFPS")} '
         if appData.value("OutputFPS"):
             self.command += f'--target-fps {appData.value("OutputFPS")} '
@@ -228,13 +232,15 @@ class RIFE_Run_Thread(QThread):
             self.command += f'--use-gpu {appData.value("DiscreteCardSelector")} '
         if len(appData.value("EncoderSelector")):
             self.command += f'--encoder {appData.value("EncoderSelector")} '
-
+        if self.concat_only:
+            self.command += f'--concat-only '
+        self.command = self.command.replace("\\", "/")
         return self.command
 
     def run(self):
         logger.info("[GUI]: Start")
 
-        file_list = appData.value("InputFileName").split(";")
+        file_list = appData.value("InputFileName", "").split(";")
 
         command_list = list()
         for f in file_list:
@@ -255,16 +261,22 @@ class RIFE_Run_Thread(QThread):
             self.run_signal.emit(emit_json)
             return
 
-        for f in command_list:
-            logger.info(f"[GUI]: Designed Command:\n{f}")
-            if appData.value("DebugChecker", type=bool):
-                logger.info(f"DEBUG: {f[1]}")
-            else:
-                os.system(f[1])
-            current_step += 1
-            emit_json = {"input": f[0], "cnt": all_cnt, "current": current_step, "finished": False}
-            emit_json = json.dumps(emit_json)
-            self.run_signal.emit(emit_json)
+        try:
+            for f in command_list:
+                logger.info(f"[GUI]: Designed Command:\n{f}")
+                if appData.value("DebugChecker", type=bool):
+                    logger.info(f"DEBUG: {f[1]}")
+                    continue
+                proc_args = shlex.split(f[1])
+                self.current_proc = sp.Popen(args=proc_args, encoding="utf-8", universal_newlines=True)
+                self.current_proc.communicate(input=None)
+                # os.system(f[1])
+                current_step += 1
+                emit_json = {"input": f[0], "cnt": all_cnt, "current": current_step, "finished": False}
+                emit_json = json.dumps(emit_json)
+                self.run_signal.emit(emit_json)
+        except Exception:
+            logger.error(traceback.format_exc())
 
         emit_json = {"input": None, "cnt": all_cnt, "current": current_step, "finished": True}
         emit_json = json.dumps(emit_json)
@@ -272,11 +284,16 @@ class RIFE_Run_Thread(QThread):
         logger.info("[GUI]: Tasks Finished")
         pass
 
+    def kill_proc_exec(self, kill_com):
+        if self.current_proc is not None:
+            self.current_proc.kill()
+            logger.info("Current Process Killed")
+
     pass
 
 
 class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
-    found = pyqtSignal(int)
+    kill_proc = pyqtSignal(int)
     notfound = pyqtSignal(int)
 
     def __init__(self, parent=None):
@@ -300,6 +317,28 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         if string[0] != '"':
             return f'"{string}"'
 
+    def sendWarning(self, title, string, msg_type=1):
+        """
+
+        :param title:
+        :param string:
+        :param msg_type: 1 warning 2 info
+        :return:
+        """
+        if msg_type == 1:
+            reply = QMessageBox.warning(self,
+                                        f"{title}",
+                                        f"{string}",
+                                        QMessageBox.Yes)
+        elif msg_type == 2:
+            reply = QMessageBox.information(self,
+                                            f"{title}",
+                                            f"{string}",
+                                            QMessageBox.Yes)
+        else:
+            return
+        return reply
+
     def select_file(self, filename, folder=False, _filter=None):
         if folder:
             directory = QFileDialog.getExistingDirectory(None, caption="选取文件夹")
@@ -313,37 +352,28 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         output_v = self.OutputConcat.text()
         self.load_current_settings()
         if not input_v or not input_a or not output_v:
-            reply = QMessageBox.warning(self,
-                                        "Parameters unfilled",
-                                        "请填写输入或输出视频路径！",
-                                        QMessageBox.Yes)
+            self.sendWarning("Parameters unfilled","请填写输入或输出视频路径！")
             return
 
         ffmpeg_command = f"""
             {self.ffmpeg} -i {self.fillQuotation(input_a)} -i {self.fillQuotation(input_v)} 
             -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {self.fillQuotation(output_v)} -y
-        """.strip().strip("\n").replace("\n", "")
+        """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] concat {ffmpeg_command}")
         os.system(ffmpeg_command)
-        QMessageBox.information(self,
-                                "音视频合并操作完成！",
-                                f"请查收",
-                                QMessageBox.Yes)
+        self.sendWarning("音视频合并操作完成！", f"请查收", msg_type=2)
 
     def quick_gif(self):
         input_v = self.GifInput.text()
         output_v = self.GifOutput.text()
         self.load_current_settings()
         if not input_v or not output_v:
-            reply = QMessageBox.warning(self,
-                                        "Parameters unfilled",
-                                        "请填写输入或输出视频路径！",
-                                        QMessageBox.Yes)
+            self.sendWarning("Parameters unfilled","请填写输入或输出视频路径！")
             return
         palette_path = os.path.join(os.path.dirname(input_v), "palette.png")
         ffmpeg_command = f"""
                     {self.ffmpeg} -hide_banner -i {self.fillQuotation(input_v)} -vf "palettegen=stats_mode=diff" -y {palette_path}
-                """.strip().strip("\n").replace("\n", "")
+                """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"ffmpeg_command for create palette: {ffmpeg_command}")
         os.system(ffmpeg_command)
         if not appData.value("OutputFPS"):
@@ -351,13 +381,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             logger.info("Not find output GIF fps, Auto set GIF output fps to 48 as it's smooth enough")
         ffmpeg_command = f"""
                            {self.ffmpeg} -hide_banner -i {self.fillQuotation(input_v)} -i {palette_path} -r {appData.value("OutputFPS")} -lavfi "fps={appData.value("OutputFPS")},scale=960:-1[x];[x][1:v]paletteuse=dither=floyd_steinberg" {self.fillQuotation(output_v)} -y
-                        """.strip().strip("\n").replace("\n", "")
+                        """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
         os.system(ffmpeg_command)
-        QMessageBox.information(self,
-                                "GIF操作完成！",
-                                f'GIF帧率:{appData.value("OutputFPS")}',
-                                QMessageBox.Yes)
+        self.sendWarning("GIF操作完成！",f'GIF帧率:{appData.value("OutputFPS")}', 2)
 
     def set_start_info(self, sf, scf, sc):
         """
@@ -375,14 +402,12 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         output_dir = self.OutputFolder.toPlainText()
         now_text = self.InputFileName.currentItem()
         if now_text is None:
+            self.sendWarning("Select Item first","请先在Step1点击要补帧的条目以恢复进度")
             return
         input_file = now_text.text()
         if not len(output_dir):
             logger.info("OutputFolder path is empty, pls enter it first")
-            reply = QMessageBox.warning(self,
-                                        "Parameters unfilled",
-                                        "请移步Stage1填写输出文件夹！",
-                                        QMessageBox.Yes)
+            self.sendWarning("Parameters unfilled","请移步Stage1填写输出文件夹！")
             return
         if os.path.isfile(output_dir):
             output_dir = os.path.dirname(output_dir)
@@ -391,10 +416,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
         if not os.path.exists(output_dir) or not os.path.exists(input_file):
             logger.info("Not Exists OutputFolder")
-            reply = QMessageBox.warning(self,
-                                        "Output Folder Not Found",
-                                        "输入文件或输出文件夹不存在！请确认输入",
-                                        QMessageBox.Yes)
+            self.sendWarning("Output Folder Not Found","输入文件或输出文件夹不存在！请确认输入")
             return
 
         for f in os.listdir(output_dir):
@@ -420,76 +442,17 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         first_frame = int(match_result[1])
         last_frame = int(match_result[2])
         first_interp_cnt = (last_frame + 1) * (2 ** self.Exp) + 1
-        self.set_start_info(chunk+1,last_frame+1,first_interp_cnt)
+        self.set_start_info(last_frame+1,first_interp_cnt,chunk+1)
         logger.info("AutoSet Ready")
 
         pass
 
-    def on_InputFileName_currentItemChanged(self):
-        if self.InputFileName.currentItem() is None:
-            return
-        text = self.InputFileName.currentItem().text().strip('"')
-        self.InputFileName.disconnect()
-        if text == "":
-            return
-        """empty text"""
-        if self.ImgInputChecker.isChecked():
-            "ignore img input"
-            return
-        input_filename = text.strip(";").split(";")[0]
-        try:
-            input_stream = cv2.VideoCapture(input_filename)
-            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
-            self.InputFPS.setText(f"{input_fps:.5f}")
-            exp = int(math.sqrt(int(self.ExpSelecter.currentText()[1])))
-            output_fps = input_fps * (2**exp)
-            self.OutputFPS.setText(f"{output_fps:.5f}")
-        except Exception:
-            logger.error(traceback.format_exc())
-        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
-        return
-
-    @pyqtSlot(bool)
-    def on_OutputFolder_clicked(self):
-        if self.OutputFolder.toPlainText() != "":
-            """empty text"""
-            return
-        output_folder = self.select_file('输出项目文件夹', folder=True)
-        self.OutputFolder.setText(output_folder)
-
-    @pyqtSlot(bool)
-    def on_AutoSet_clicked(self):
-        self.auto_set()
 
     def get_filename(self, path):
         if not os.path.isfile(path):
             return os.path.basename(path)
         return os.path.splitext(os.path.basename(path))[0]
 
-    @pyqtSlot(bool)
-    def on_ConcatButton_clicked(self):
-        if not self.ConcatInputV.text():
-            input_filename = self.select_file('请输入要进行音视频合并的视频文件')
-            self.ConcatInputV.setText(input_filename)
-            self.ConcatInputA.setText(input_filename)
-            self.OutputConcat.setText(
-                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}_concat.mp4"))
-            return
-        self.quick_concat()
-        # self.auto_set()
-        pass
-
-    @pyqtSlot(bool)
-    def on_GifButton_clicked(self):
-        if not self.GifInput.text():
-            input_filename = self.select_file('请输入要制作成gif的视频文件')
-            self.GifInput.setText(input_filename)
-            self.GifOutput.setText(
-                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}.gif"))
-            return
-        self.quick_gif()
-        # self.auto_set()
-        pass
 
     def get_gpu_info(self):
         json_output = os.path.join(dname, "NVIDIA_info.json")
@@ -507,10 +470,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         model_dir = appData.value("Model")
         if not os.path.exists(model_dir):
             logger.info(f"Not find Module dir at {model_dir}")
-            reply = QMessageBox.warning(self,
-                                        "Model Dir Not Found",
-                                        "未找到补帧模型路径，请检查！",
-                                        QMessageBox.Yes)
+            self.sendWarning("Model Dir Not Found","未找到补帧模型路径，请检查！")
             return
         model_list = list()
         for m in os.listdir(model_dir):
@@ -521,51 +481,9 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         for mod in model_list:
             self.ModuleSelector.addItem(f"{mod}")
 
-    @pyqtSlot(str)
-    def on_ExpSelecter_currentTextChanged(self, currentExp):
-        if self.InputFileName.currentItem() is None:
-            return
-        input_filename = self.InputFileName.currentItem().text().strip(";")
-        input_fps = self.InputFPS.text()
-        if input_filename == "":
-            return
-        if input_fps:
-            selected_exp = currentExp[1:]
-            self.OutputFPS.setText(f"{float(input_fps) * float(selected_exp):.5f}")
-            return
-        try:
-            input_stream = cv2.VideoCapture(input_filename)
-            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
-            self.InputFPS.setText(f"{input_fps:.5f}")
-        except Exception:
-            logger.error(traceback.format_exc())
-
-    @pyqtSlot(int)
-    def on_tabWidget_currentChanged(self, tabIndex):
-        if tabIndex in [2, 3]:
-            """Step 3"""
-            logger.info("[Main]: Start Loading Settings")
-            self.load_current_settings()
-            reply = QMessageBox.warning(self,
-                                        "千叮咛万嘱咐",
-                                        "一定要记得把命令行窗口拉长！不然看不到进度！",
-                                        QMessageBox.Yes)
-        if tabIndex in [1]:
-            gpu_info = self.get_gpu_info()
-            self.get_model_info()
-            if not len(gpu_info):
-                QMessageBox.warning(self,
-                                    "No NVIDIA Card Found",
-                                    "未找到任何N卡，请检查驱动",
-                                    QMessageBox.Yes)
-                return
-            self.DiscreteCardSelector.clear()
-            for gpu in gpu_info:
-                self.DiscreteCardSelector.addItem(f"{gpu}: {gpu_info[gpu]}")
-            pass
 
     def init_before_settings(self):
-        input_list = appData.value("InputFileName").split(";")
+        input_list = appData.value("InputFileName", "").split(";")
         for i in input_list:
             if len(i):
                 self.InputFileName.addItem(i)
@@ -681,30 +599,156 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             self.progressBar.setValue(int(data["current"]))
             self.OptionCheck.setText(now_text)
         if data["finished"]:
-            reply = QMessageBox.information(self,
-                                            "补帧任务完成",
-                                            f"共{data['cnt']}个补帧任务完成",
-                                            QMessageBox.Yes)
+            self.sendWarning("补帧任务完成",f"共{data['cnt']}个补帧任务完成",2)
             now_text += "[当前补帧任务结束]"
             self.ProcessStart.setEnabled(True)
-        # if self.thread is not None and not self.thread.is_alive():
-        #     """Thread Dead out of errors"""
-        #     reply = QMessageBox.warning(self,
-        #                                     "补帧线程崩溃！",
-        #                                     f"补帧出现错误，请截图汇报开发团队",
-        #                                     QMessageBox.Yes)
-        #     self.ProcessStart.setEnabled(True)
+            self.ConcatAllButton.setEnabled(True)
+
+    def on_InputFileName_currentItemChanged(self):
+        if self.InputFileName.currentItem() is None:
+            return
+        text = self.InputFileName.currentItem().text().strip('"')
+        self.InputFileName.disconnect()
+        if text == "":
+            return
+        """empty text"""
+        if self.ImgInputChecker.isChecked():
+            "ignore img input"
+            return
+        input_filename = text.strip(";").split(";")[0]
+        try:
+            input_stream = cv2.VideoCapture(input_filename)
+            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
+            self.InputFPS.setText(f"{input_fps:.5f}")
+            exp = int(math.sqrt(int(self.ExpSelecter.currentText()[1])))
+            output_fps = input_fps * (2**exp)
+            self.OutputFPS.setText(f"{output_fps:.5f}")
+        except Exception:
+            logger.error(traceback.format_exc())
+        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
+        return
+
+    @pyqtSlot(bool)
+    def on_OutputFolder_clicked(self):
+        if self.OutputFolder.toPlainText() != "":
+            """empty text"""
+            return
+        output_folder = self.select_file('输出项目文件夹', folder=True)
+        self.OutputFolder.setText(output_folder)
+
+    @pyqtSlot(bool)
+    def on_AutoSet_clicked(self):
+        self.auto_set()
+
+    @pyqtSlot(bool)
+    def on_ConcatButton_clicked(self):
+        if not self.ConcatInputV.text():
+            input_filename = self.select_file('请输入要进行音视频合并的视频文件')
+            self.ConcatInputV.setText(input_filename)
+            self.ConcatInputA.setText(input_filename)
+            self.OutputConcat.setText(
+                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}_concat.mp4"))
+            return
+        self.quick_concat()
+        # self.auto_set()
+        pass
+
+    @pyqtSlot(bool)
+    def on_GifButton_clicked(self):
+        if not self.GifInput.text():
+            input_filename = self.select_file('请输入要制作成gif的视频文件')
+            self.GifInput.setText(input_filename)
+            self.GifOutput.setText(
+                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}.gif"))
+            return
+        self.quick_gif()
+        # self.auto_set()
+        pass
+
+    @pyqtSlot(str)
+    def on_ExpSelecter_currentTextChanged(self, currentExp):
+        if self.InputFileName.currentItem() is None:
+            return
+        input_filename = self.InputFileName.currentItem().text().strip(";")
+        input_fps = self.InputFPS.text()
+        if input_filename == "":
+            return
+        if input_fps:
+            selected_exp = currentExp[1:]
+            self.OutputFPS.setText(f"{float(input_fps) * float(selected_exp):.5f}")
+            return
+        try:
+            input_stream = cv2.VideoCapture(input_filename)
+            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
+            self.InputFPS.setText(f"{input_fps:.5f}")
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    @pyqtSlot(int)
+    def on_tabWidget_currentChanged(self, tabIndex):
+        if tabIndex in [2, 3]:
+            """Step 3"""
+            if tabIndex == 2:
+                self.progressBar.setValue(0)
+            logger.info("[Main]: Start Loading Settings")
+            self.load_current_settings()
+            self.sendWarning("千叮咛万嘱咐","一定要记得把命令行窗口拉长！不然看不到进度！")
+
+        if tabIndex in [1]:
+            gpu_info = self.get_gpu_info()
+            self.get_model_info()
+            if not len(gpu_info):
+                self.sendWarning( "No NVIDIA Card Found", "未找到任何N卡，请检查驱动")
+                return
+            self.DiscreteCardSelector.clear()
+            for gpu in gpu_info:
+                self.DiscreteCardSelector.addItem(f"{gpu}: {gpu_info[gpu]}")
+            pass
 
     @pyqtSlot(bool)
     def on_ProcessStart_clicked(self):
         self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread()
+        try:
+            self.kill_proc.disconnect()
+        except Exception:
+            pass
+        self.kill_proc.connect(RIFE_thread.kill_proc)
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
         self.OptionCheck.setText("[补帧操作启动，请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
-                                 "如果遇到任何问题，请将命令行（黑色界面）和软件运行界面的Step1、Step2、Step3截图并联系开发人员解决\n\n\n\n\n")
+                                 "如果遇到任何问题，请将命令行（黑色界面）和软件运行界面的Step1、Step2、Step3截图并联系开发人员解决，"
+                                 "群号在首页说明\n\n\n\n\n")
+
+    @pyqtSlot(bool)
+    def on_ConcatAllButton_clicked(self):
+        """
+
+        :return:
+        """
+        self.ConcatAllButton.setEnabled(False)
+        self.progressBar.setValue(0)
+        RIFE_thread = RIFE_Run_Thread(concat_only=True)
+        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.start()
+        self.thread = RIFE_thread
+        self.OptionCheck.setText("[仅合并操作启动，请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
+                                 "如果遇到任何问题，请将命令行（黑色界面）和软件运行界面的Step1、Step2、Step3截图并联系开发人员解决，"
+                                 "群号在首页说明\n\n\n\n\n")
+
+    @pyqtSlot(bool)
+    def on_KillProcButton_clicked(self):
+        """
+        :return:
+        """
+        print("try to kill")
+        try:
+            self.kill_proc.emit(233)
+        except Exception:
+            logger.error(traceback.format_exc())
+
 
     @pyqtSlot(bool)
     def on_CloseButton_clicked(self):

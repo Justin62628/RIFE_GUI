@@ -45,7 +45,7 @@ stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, defaul
 stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='exp', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
-stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=1, help="新增视频的序号(auto)")
+stage2_parser.add_argument('--chunk', dest='chunk', type=int, default=0, help="新增视频的序号(auto)")
 stage2_parser.add_argument('--render-gap', dest='render_gap', type=int, default=1000,
                            help="每一个chunk包含的帧数量, 默认: %(default)s")
 stage2_parser.add_argument('--interp-start', dest='interp_start', type=int, default=0,
@@ -70,6 +70,7 @@ stage3_parser_hardware_set.add_argument('--cpu', dest='use_cpu', action='store_t
 stage3_parser.add_argument('--debug', dest='debug', action='store_true', help='debug')
 stage3_parser.add_argument('--no-scdet', dest='no_scdet', action='store_true', help='关闭转场识别（针对无转场素材）')
 stage3_parser.add_argument('--no-concat', dest='no_concat', action='store_true', help='关闭自动合并（适合磁盘空间少使用）')
+stage3_parser.add_argument('--concat-only', dest='concat_only', action='store_true', help='只执行合并已有区块操作')
 stage3_parser.add_argument('--remove-dup', dest='remove_dup', action='store_true', help='动态去除重复帧（预计会额外花很多时间）')
 stage3_parser.add_argument('--quick-extract', dest='quick_extract', action='store_true', help='快速抽帧')
 stage3_parser.add_argument('--output-only', dest='output_only', action='store_true', help='仅保留输出（删除其他）')
@@ -135,7 +136,15 @@ class InterpWorkFlow:
             self.target_fps = self.args["target_fps"]
         else:
             self.target_fps = (2 ** self.exp) * self.fps
-        self.all_frames_cnt = self.video_info["cnt"]
+        self.all_frames_cnt = int(self.video_info["cnt"])
+        self.crop_par = [0, 0]
+        crop_par = self.args["crop"]
+        if crop_par not in ["", "0", None]:
+            width_black, height_black = crop_par.split(":")
+            width_black = int(width_black)
+            height_black = int(height_black)
+            self.crop_par = [width_black, height_black]
+            self.logger.info(f"Update Crop Parameters to {self.crop_par}")
 
         self.logger.info(
             f"Check Interpolation Source, FPS: {self.fps}, TARGET FPS: {self.target_fps}, "
@@ -170,13 +179,14 @@ class InterpWorkFlow:
             return ImgSeqIO(folder=self.input, is_read=True)
         # input_dict = {"-vsync": "0", "-to": "00:00:01"}
         input_dict = {"-vsync": "0"}
-        output_dict = {}
+        output_dict = {"-vframes": str(int(abs(self.all_frames_cnt)))}  # use read frames cnt to avoid ffprobe
+        # output_dict = {"-vframes": "0"}  # use read frames cnt to avoid ffprobe, assign to auto 0
         vf_args = "copy"
 
         if len(self.args["resize"]):
             output_dict.update({"-sws_flags": "lanczos+full_chroma_inp", "-s": self.args["resize"].replace(":", "x")})
         if start_frame not in [-1, 0]:
-            vf_args += f",trim=start_frame={start_frame - 1}"
+            vf_args += f",trim=start_frame={start_frame}"
         if not self.args["quick_extract"]:
             vf_args += f",format=yuv444p10le,zscale=matrixin=input:chromal=input:cin=input,format=rgb48be,format=rgb24"
         output_dict["-vf"] = vf_args
@@ -186,21 +196,18 @@ class InterpWorkFlow:
     def generate_frame_renderer(self, output_path):
         if self.args["img_output"]:
             return ImgSeqIO(folder=self.output, is_read=False)
-        input_dict = {"-vsync": "0", "-r": f"{self.fps * 2 ** self.exp}"}
-        output_dict = {"-vsync": "0", "-r": f"{self.target_fps}", "-preset": self.args["preset"]}
-        # TODO check CFR
+        input_dict = {"-vsync": "cfr", "-r": f"{self.fps * 2 ** self.exp}"}
+        output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"]}
         output_dict.update(self.color_info)
         vf_args = "copy"
-        if self.args["crop"] != "0":
-            vf_args += f',crop={self.args["crop"]}'
         output_dict.update({"-vf": vf_args})
-        # print(self.args)
         if self.args["encoder"] == "H264":
             output_dict.update({"-pix_fmt": "yuv420p"})
             if self.args["hwaccel"]:
                 output_dict.update({"-c:v": "h264_nvenc", "-rc:v":"vbr_hq"})
             else:
                 output_dict.update({"-c:v": "libx264", "-tune": "grain",})
+
         elif self.args["encoder"] == "HEVC":
             if self.args["hwaccel"]:
                 output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq", "-pix_fmt": "p010le"})
@@ -232,9 +239,9 @@ class InterpWorkFlow:
                     chunk_list.append(f)
         if del_chunk:
             return 1, 0
-        if self.args["interp_start"] != 0 or  self.args["interp_cnt"] != 1:
+        if self.args["interp_start"] != 0 or  self.args["chunk"] != 0:
             """Manually Prioritized"""
-            return 1,  self.args["interp_start"]
+            return self.args["chunk"],  self.args["interp_start"]
         if not len(chunk_list):
             return 1, 0
         """Remove last chunk(high possibility of dilapidation)"""
@@ -322,7 +329,24 @@ class InterpWorkFlow:
             self.scene_stack.append(diff)
             return False
 
-    def run(self):
+    def crop_read_img(self, img):
+        """
+        Crop using self.crop parameters
+        :param img:
+        :return:
+        """
+        if img is None:
+            return img
+        h,w,_ = img.shape
+        if self.crop_par[0] > w or self.crop_par[1] > h:
+            return img
+        return img[self.crop_par[1]:h-self.crop_par[1], self.crop_par[0]:w-self.crop_par[0]]
+
+    def start_all_procedures(self):
+        """
+        Go through all procedures to produce interpolation result
+        :return:
+        """
         _debug = False
         self.rife_core.initiate_rife(args)
         chunk_cnt, start_frame = self.check_chunk()  # start_frame = 0
@@ -331,12 +355,12 @@ class InterpWorkFlow:
                                               args=(chunk_cnt, start_frame,))
         self.render_thread.start()
         videogen = self.frame_reader.nextFrame()
-        img1 = Utils.gen_next(videogen)
+        img1 = self.crop_read_img(Utils.gen_next(videogen))
         now_frame = start_frame
         if img1 is None:
             self.logger.critical(f"Input file not valid: {self.input}")
             self.main_event.clear()
-            sys.exit()
+            sys.exit(0)
 
         is_end = False
         pbar = tqdm.tqdm(total=self.all_frames_cnt)
@@ -362,7 +386,7 @@ class InterpWorkFlow:
                     if now_gap == 8:
                         break
                     before_img1 = img1
-                    img1 = Utils.gen_next(videogen)
+                    img1 = self.crop_read_img(Utils.gen_next(videogen))
                     if img1 is None:
                         img1 = before_img1
                         is_end = True
@@ -426,7 +450,7 @@ class InterpWorkFlow:
                         break
 
             else:
-                img1 = Utils.gen_next(videogen)
+                img1 = self.crop_read_img(Utils.gen_next(videogen))
                 if img1 is None:
                     frames_list.append((now_frame, img0))
                     self.feed_to_render(frames_list, is_end=True)
@@ -462,12 +486,21 @@ class InterpWorkFlow:
         self.logger.info(f"Scedet Status Quo: {scedet_info}")
         while self.render_thread.is_alive():
             time.sleep(0.1)
-        self.concat_all()
+
+        if not self.args["no_concat"] and not self.args["img_output"]:
+            self.concat_all()
+            return
+
+    def run(self):
+        if self.args["concat_only"]:
+            self.concat_all()
+            return
+        self.start_all_procedures()
+        self.logger.info(f"Program finished at {datetime.datetime.now()}")
         pass
 
     def concat_all(self):
-        if self.args["no_concat"]:
-            return
+
         os.chdir(self.project_dir)
         concat_path = os.path.join(self.project_dir, "concat.ini")
         self.logger.info("Final Round Finished, Start Concating")
@@ -484,21 +517,20 @@ class InterpWorkFlow:
             for f in concat_list:
                 w.write(f"file '{f}'\n")
         output_ext = os.path.splitext(self.input)[-1]
-        if output_ext not in [".mp4", ".mov"]:
+        if output_ext not in [".mp4", ".mov", ".mkv"]:
             output_ext = ".mp4"
         concat_filepath = f"{os.path.splitext(os.path.basename(self.input))[0]}_{2 ** self.exp}x" + output_ext
         if self.args["save_audio"]:
             map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
         else:
             map_audio = ""
-        ffmpeg_command = f'{self.ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy {concat_filepath} -y'
+        ffmpeg_command = f'{self.ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy {Utils.fillQuotation(concat_filepath)} -y'
         self.logger.info(f"Concat command: {ffmpeg_command}")
         os.system(ffmpeg_command)
         if self.args["output_only"]:
             self.check_chunk(del_chunk=True)
-        self.logger.info(f"Program finished at {datetime.datetime.now()}")
 
 
 interpworkflow = InterpWorkFlow(args)
 interpworkflow.run()
-sys.exit()
+sys.exit(0)

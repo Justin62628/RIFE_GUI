@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1133</width>
-    <height>720</height>
+    <height>957</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -77,7 +77,7 @@
           <bool>true</bool>
          </property>
          <attribute name="title">
-          <string> Step1：输入文件 </string>
+          <string> Step1：第一步</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_9">
           <item row="1" column="0">
@@ -157,6 +157,12 @@
            <layout class="QGridLayout" name="gridLayout">
             <item row="1" column="0">
              <widget class="QListWidget" name="InputFileName">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
               <property name="tabKeyNavigation">
                <bool>true</bool>
               </property>
@@ -171,26 +177,10 @@
               </property>
              </widget>
             </item>
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_7">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;往下面的框框&lt;span style=&quot; font-weight:600;&quot;&gt;一次性&lt;/span&gt;拖入要补帧的视频文件(只建议&lt;span style=&quot; font-weight:600;&quot;&gt;.mp4&lt;/span&gt;文件作为输入)&lt;span style=&quot; font-weight:600;&quot;&gt;路径不要出现中文或特殊符号&lt;/span&gt;！！！！！！！！！！！&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;不可分批拖入！！ 拖错请直接重来！！&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;当前版本只支持英伟达N卡！！！！！！！！！！！！！！&lt;/span&gt;&lt;/p&gt;&lt;p&gt;对于每一批次的补帧，所有补帧设置相同。拖入相关文件后，&lt;span style=&quot; font-weight:600;&quot;&gt;请点击任意条目以获得输入帧率，并确认输入帧率和输出帧率。&lt;/span&gt;由于帧率设置导致导出有问题的本团队概不负责。&lt;/p&gt;&lt;p&gt;Step1填写完毕后，请&lt;span style=&quot; font-weight:600;&quot;&gt;前往Step2&lt;/span&gt;填写并确认相关参数，并最后前往Step3启动补帧操作&lt;/p&gt;&lt;p&gt;鼠标在每一选项上悬浮可获得相关帮助信息，第一次使用必看！&lt;/p&gt;&lt;p&gt;遇到CUDA Out of Memory错误，请尝试勾上FP16（低显存模式），如错误重复出现，请尝试在&lt;span style=&quot; font-weight:600;&quot;&gt;Step2&lt;/span&gt;输出视频分辨率处按照要求填写分辨率较小的值（如对1080p视频补帧，填960x720以降到720p输出）&lt;/p&gt;&lt;p&gt;批处理功能说明：不推荐进行批量的长片段补帧，在未获得专业指导前，批处理中的每个片段推荐时长在&lt;span style=&quot; font-weight:600;&quot;&gt;20s&lt;/span&gt;以内&lt;/p&gt;&lt;p&gt;使用本软件&lt;span style=&quot; font-weight:600;&quot;&gt;对超过30分钟&lt;/span&gt;的素材补帧时，强烈建议先行联系开发团队获得推荐补帧方案！！！&lt;/p&gt;&lt;p&gt;对于十分钟以上的补帧操作，未先行联系开发团队而发生由于程序错误导致前功尽弃（白补）的情况的，本团队概不负责&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
             <item row="2" column="0">
              <widget class="QTextEdit" name="OutputFolder">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -200,13 +190,51 @@
               </property>
              </widget>
             </item>
+            <item row="0" column="0">
+             <widget class="QScrollArea" name="scrollArea">
+              <property name="widgetResizable">
+               <bool>true</bool>
+              </property>
+              <widget class="QWidget" name="scrollAreaWidgetContents">
+               <property name="geometry">
+                <rect>
+                 <x>0</x>
+                 <y>-39</y>
+                 <width>897</width>
+                 <height>460</height>
+                </rect>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_3">
+                <item>
+                 <widget class="QLabel" name="label_7">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="text">
+                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;补帧前请仔细阅读此页说明。继续操作即代表您已预先清楚本应用程序的使用范围、本软件与使用者的责任分属，并愿意承担补帧过程可能造成的相关风险（包括但不限于显卡损伤、由于用户不恰当行为导致的程序错误等）如不同意上述及下列条例，请直接点击右上角关闭软件&lt;/span&gt;&lt;/p&gt;&lt;p&gt;1. 载入文件：往下面的框框&lt;span style=&quot; font-weight:600;&quot;&gt;一次性&lt;/span&gt;拖入要补帧的视频文件&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;1.1. 不可分批拖入！！如果拖错，请直接重来！！&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;2. 当前版本只支持英伟达N卡！！！！！！！！！！！！！！&lt;/span&gt;&lt;/p&gt;&lt;p&gt;3. 批处理补帧说明：&lt;/p&gt;&lt;p&gt;3.1 对于每一批次的补帧，所有补帧设置相同。拖入要补帧的文件后，&lt;span style=&quot; font-weight:600;&quot;&gt;请先点击任意条目以获得输入帧率，并确认输入帧率和输出帧率，如发现输入帧率或输出帧率错误，请手动调整。&lt;/span&gt;由于帧率设置导致导出问题的情况，本团队概不负责。&lt;/p&gt;&lt;p&gt;3.2 不推荐进行批量的长片段补帧。如未获得开发团队的专业指导，批处理中的每个片段推荐时长在&lt;span style=&quot; font-weight:600;&quot;&gt;20s&lt;/span&gt;以内。&lt;/p&gt;&lt;p&gt;3.3 使用本软件&lt;span style=&quot; font-weight:600;&quot;&gt;对超过30分钟&lt;/span&gt;的素材补帧时，强烈建议先行联系开发团队获得推荐补帧方案！！！对于&lt;span style=&quot; font-weight:600;&quot;&gt;十分钟&lt;/span&gt;以上的补帧操作，未先行联系开发团队而发生由于程序或设置错误导致补帧失败或导出成品有问题情况的，本团队概不负责。&lt;/p&gt;&lt;p&gt;4. 快速补帧流程：该页参数填写完毕后，请&lt;span style=&quot; font-weight:600;&quot;&gt;前往Step2&lt;/span&gt;填写并确认相关参数，并最后前往Step3启动补帧操作。可以在&lt;span style=&quot; font-weight:600;&quot;&gt;工具箱&lt;/span&gt;一页进行gif制作、音视频合并及已有区块合并&lt;/p&gt;&lt;p&gt;5. 鼠标在每一选项上悬浮可获得相关帮助信息，第一次使用必看！&lt;/p&gt;&lt;p&gt;6. &lt;span style=&quot; font-weight:600;&quot;&gt;FAQ&lt;/span&gt;：&lt;/p&gt;&lt;p&gt;6.1 遇到&lt;span style=&quot; font-weight:600;&quot;&gt;CUDA Out of Memory&lt;/span&gt;错误，请尝试勾选Step2的低显存模式。如该错误重复出现，请尝试在&lt;span style=&quot; font-weight:600;&quot;&gt;Step2&lt;/span&gt;输出视频分辨率处按照要求填写分辨率较小的值（如对1080p视频补帧，填960x720以降到720p输出）&lt;/p&gt;&lt;p&gt;6.2 遇到其他错误，请将&lt;span style=&quot; font-weight:600;&quot;&gt;Step1、2、3和命令行窗口&lt;/span&gt;运行结果截图前往Q群264023742洽询&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;软件最终解释权归SVFI开发团队所有&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                  </property>
+                  <property name="scaledContents">
+                   <bool>true</bool>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </widget>
+            </item>
            </layout>
           </item>
          </layout>
         </widget>
         <widget class="QWidget" name="step2">
          <attribute name="title">
-          <string> Step2：选择模式、功能 </string>
+          <string> Step2：第二步</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_2">
           <item row="0" column="0">
@@ -220,7 +248,7 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>补帧状态恢复</string>
+               <string>第三步：补帧状态恢复</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_14">
                <item row="0" column="0">
@@ -334,7 +362,7 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>压制参数设置</string>
+               <string>第一步：压制参数设置</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_12">
                <item row="0" column="0">
@@ -490,7 +518,7 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>转场与重复帧识别参数设置</string>
+               <string>第二步：转场与重复帧识别参数设置</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_13">
                <item row="0" column="0">
@@ -501,7 +529,7 @@
                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;删除并补足素材出现的&lt;span style=&quot; font-weight:600;&quot;&gt;重复帧&lt;/span&gt;， 只推荐对10s以上的&lt;span style=&quot; font-weight:600;&quot;&gt;纯片段&lt;/span&gt;（非长片）使用，有音画不同步风险，&lt;/p&gt;&lt;p&gt;该取值推荐&lt;span style=&quot; font-weight:600;&quot;&gt;0.1~4&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                    </property>
                    <property name="text">
-                    <string>   重复帧识别阈值：</string>
+                    <string>   重复帧识别阈值（越低越灵敏）</string>
                    </property>
                   </widget>
                  </item>
@@ -537,7 +565,7 @@
                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;建议取值25~60&lt;/span&gt;&lt;/p&gt;&lt;p&gt;3D素材（有景深的画面）选20~30&lt;/p&gt;&lt;p&gt;2D素材（平面，如2D动画）选20以下&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                    </property>
                    <property name="text">
-                    <string>转场灵敏度：</string>
+                    <string>转场识别阈值（越低越灵敏）</string>
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -585,21 +613,18 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>输出视频信息</string>
+               <string>第四步：先更改分辨率再裁切</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_20">
                <item row="0" column="0">
                 <layout class="QGridLayout" name="gridLayout_5">
-                 <item row="0" column="0">
-                  <widget class="QLabel" name="CropReminder">
+                 <item row="0" column="5">
+                  <widget class="QLineEdit" name="CropSettings">
                    <property name="toolTip">
-                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;对于一个分辨率为3840x2160的素材，假定它上下有276个像素的黑边，那么裁切参数应为3840:(3840-276*2):0:276=&lt;span style=&quot; font-weight:600;&quot;&gt;3840:1608:0:276&lt;/span&gt;，&lt;/p&gt;&lt;p&gt;其中处于第三个位置的0是竖直裁切方式，推导方式类似&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;视频宽和高的黑边像素个数，如：0:138, 用英文冒号隔开，没有黑边就留空&lt;/p&gt;&lt;p&gt;注意，这里的像素取决于&lt;span style=&quot; font-weight:600;&quot;&gt;输出文件分辨率&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                    </property>
-                   <property name="text">
-                    <string>    裁切参数    </string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignCenter</set>
+                   <property name="placeholderText">
+                    <string>宽、高黑边像素个数，如0:138，没有就不填！</string>
                    </property>
                   </widget>
                  </item>
@@ -610,20 +635,23 @@
                    </property>
                   </widget>
                  </item>
-                 <item row="0" column="1">
-                  <widget class="QLineEdit" name="CropSettings">
-                   <property name="toolTip">
-                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ffmpeg的裁切参数，&lt;span style=&quot; font-weight:600;&quot;&gt;裁切后的视频宽:裁切后的视频高:左右各裁切的像素数:上下各裁切的像素数&lt;/span&gt;，支持ffmpeg自定义参数（iw，ih等）（代码注入的好机会噢~）&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                   </property>
-                   <property name="placeholderText">
-                    <string>如3840:1608:0:276,不裁不填！！！</string>
-                   </property>
-                  </widget>
-                 </item>
                  <item row="0" column="2">
                   <widget class="QLabel" name="ResizeReminder">
                    <property name="text">
-                    <string>  输出文件分辨率 </string>
+                    <string>  1. 输出文件分辨率 </string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="4">
+                  <widget class="QLabel" name="CropReminder">
+                   <property name="toolTip">
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;视频宽和高的黑边像素个数，如：0:138, 用英文冒号隔开，没有黑边就留空&lt;/p&gt;&lt;p&gt;注意，这里的像素取决于&lt;span style=&quot; font-weight:600;&quot;&gt;输出文件分辨率&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                   </property>
+                   <property name="text">
+                    <string>    2. 黑边参数    </string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignCenter</set>
                    </property>
                   </widget>
                  </item>
@@ -655,7 +683,7 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>RIFE补帧设置</string>
+               <string>第六步：RIFE补帧设置</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_22">
                <item row="0" column="0">
@@ -817,7 +845,7 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>补帧工作流设置，可自由组合</string>
+               <string>第五步：补帧工作流设置，可自由组合</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_21">
                <item row="0" column="2">
@@ -839,7 +867,7 @@
                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;输出为图片序列&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;命名格式:0&amp;gt;8d,如 00000008.png&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="text">
-                  <string>输出图片(不勾选则输出视频)</string>
+                  <string>输出为图片序列(不勾选则输出视频)</string>
                  </property>
                 </widget>
                </item>
@@ -866,7 +894,7 @@
                <item row="1" column="1">
                 <widget class="QCheckBox" name="OutputOnlyChecker">
                  <property name="text">
-                  <string>仅保留输出（图片/视频）</string>
+                  <string>仅保留输出（图片序列/视频）</string>
                  </property>
                 </widget>
                </item>
@@ -895,15 +923,57 @@
           <string/>
          </property>
          <attribute name="title">
-          <string> Step3：确认选项，渲染 </string>
+          <string> Step3：第三步</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_24">
           <item row="0" column="0">
            <layout class="QGridLayout" name="gridLayout_8">
             <item row="0" column="0" rowspan="2" colspan="2">
-             <widget class="QTextEdit" name="OptionCheck"/>
+             <widget class="QTextEdit" name="OptionCheck">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
             </item>
-            <item row="3" column="0" colspan="2">
+            <item row="2" column="0">
+             <widget class="QProgressBar" name="progressBar">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>0</number>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QPushButton" name="KillProcButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Abril Fatface</family>
+                <pointsize>20</pointsize>
+               </font>
+              </property>
+              <property name="text">
+               <string>强制结束补帧进程(用不了)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
              <widget class="QPushButton" name="ProcessStart">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -918,23 +988,7 @@
                </font>
               </property>
               <property name="text">
-               <string>按我开始！</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QProgressBar" name="progressBar">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="maximum">
-               <number>100</number>
-              </property>
-              <property name="value">
-               <number>0</number>
+               <string>开始补帧！</string>
               </property>
              </widget>
             </item>
@@ -1072,23 +1126,40 @@
                 </layout>
                </item>
                <item row="1" column="0">
-                <widget class="QPushButton" name="ConcatButton">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Abril Fatface</family>
-                   <pointsize>12</pointsize>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>  合并！  </string>
-                 </property>
-                </widget>
+                <layout class="QHBoxLayout" name="horizontalLayout_2">
+                 <item>
+                  <widget class="QPushButton" name="ConcatButton">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="font">
+                    <font>
+                     <family>Abril Fatface</family>
+                     <pointsize>12</pointsize>
+                    </font>
+                   </property>
+                   <property name="text">
+                    <string>  合并！  </string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="ConcatAllButton">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="text">
+                    <string>合并已有区块</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
                </item>
               </layout>
              </widget>
@@ -1142,7 +1213,7 @@
              <item row="1" column="0">
               <widget class="QPushButton" name="SubBurnButton">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+                <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -1178,7 +1249,6 @@
   <tabstop>StartCntFrame</tabstop>
   <tabstop>DebugChecker</tabstop>
   <tabstop>OptionCheck</tabstop>
-  <tabstop>ProcessStart</tabstop>
   <tabstop>CloseButton</tabstop>
  </tabstops>
  <resources/>
