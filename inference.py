@@ -161,14 +161,16 @@ class NCNNinterpolator(threading.Thread):
             self.input_list.append(new_input)
             if not os.path.exists(new_input):
                 os.mkdir(new_input)
-        shutil.rmtree(os.path.join(self.input_root, "interp"))
-        os.mkdir(os.path.join(self.input_root, "interp"))
         self.input_list.append(os.path.join(self.input_root, "interp"))
         pass
 
     def run(self):
         self.generate_input_list()
         dir_cnt = 1
+
+        shutil.rmtree(os.path.join(self.input_root, "interp"))
+        os.mkdir(os.path.join(self.input_root, "interp"))
+
         for input_dir in self.input_list:
             if os.path.basename(input_dir) == "interp":
                 """Ignore interp"""
@@ -186,10 +188,12 @@ class NCNNinterpolator(threading.Thread):
                                             "input_cnt": input_cnt})
 
             print(f"INFO - [NCNN] Round {output_dir} finished")
-            if input_dir != self.input_list[0]:
+            dir_cnt += 1
+
+        for input_dir in self.input_list:
+            if input_dir != self.input_list[0] and os.path.basename(input_dir) != "interp":
                 """Erase all mid interpolations except the img input"""
                 shutil.rmtree(input_dir)
-            dir_cnt += 1
         pass
 
     def ncnn_interpolate(self, input_dir, output_dir):

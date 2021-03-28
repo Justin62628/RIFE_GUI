@@ -1,4 +1,4 @@
-# coding: utf-8
+# coding: gbk
 import argparse
 import datetime
 import math
@@ -27,15 +27,15 @@ os.chdir(os.path.dirname(dname))
 print("Added {0} to temporary PATH".format(dname))
 sys.path.append(dname)
 
-parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/è¡¥å¸§åˆ†æ­¥è®¾ç½®å‘½ä»¤è¡Œå·¥å…· from Jeanna ####",
+parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/²¹Ö¡·Ö²½ÉèÖÃÃüÁîÐÐ¹¤¾ß from Jeanna ####",
                                  description='Interpolation for sequences of images')
 basic_parser = parser.add_argument_group(title="Basic Settings, Necessary")
 basic_parser.add_argument('-i', '--input', dest='input', type=str, required=True,
-                          help="åŽŸè§†é¢‘/å›¾ç‰‡åºåˆ—æ–‡ä»¶å¤¹è·¯å¾„")
+                          help="Ô­ÊÓÆµ/Í¼Æ¬ÐòÁÐÎÄ¼þ¼ÐÂ·¾¶")
 basic_parser.add_argument('-o', '--output', dest='output', type=str, required=True,
-                          help="æˆå“è¾“å‡ºçš„è·¯å¾„ï¼Œæ³¨æ„é»˜è®¤åœ¨é¡¹ç›®æ–‡ä»¶å¤¹")
-basic_parser.add_argument("-c", '--config', dest='config', type=str, required=True, help="é…ç½®æ–‡ä»¶è·¯å¾„")
-basic_parser.add_argument('--concat-only', dest='concat_only', action='store_true', help='åªæ‰§è¡Œåˆå¹¶å·²æœ‰åŒºå—æ“ä½œ')
+                          help="³ÉÆ·Êä³öµÄÂ·¾¶£¬×¢ÒâÄ¬ÈÏÔÚÏîÄ¿ÎÄ¼þ¼Ð")
+basic_parser.add_argument("-c", '--config', dest='config', type=str, required=True, help="ÅäÖÃÎÄ¼þÂ·¾¶")
+basic_parser.add_argument('--concat-only', dest='concat_only', action='store_true', help='Ö»Ö´ÐÐºÏ²¢ÒÑÓÐÇø¿é²Ù×÷')
 
 args_read = parser.parse_args()
 cp = DefaultConfigParser(allow_no_value=True)
@@ -477,7 +477,7 @@ class InterpWorkFlow:
             rsq = self.render_info_pipe["rendering"]  # render status quo
             """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
             pbar.set_description(
-                f"Process at åŒºå—-{rsq[0]:0>3d}, å·²æ¸²æŸ“å¸§ {rsq[3]:0>6d}, å½“å‰å¸§ {now_frame:0>6d}, æœ€è¿‘çš„è½¬åœº {recent_scene:0>6d}")
+                f"Process at Chunk {rsq[0]:0>3d}, RenderedFrame {rsq[3]:0>6d}, CurrentFrame {now_frame:0>6d}, NearScene {recent_scene:0>6d}")
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
         pbar.close()
@@ -548,7 +548,7 @@ class InterpWorkFlow:
             frame_path = os.path.join(self.input_dir, f"{origianl_frame_cnt:0>8d}.png")
             frame_ioer.write_frame(img0, frame_path)
             pbar.set_description(
-                f"Process at Step 1: æŠ½å¸§ï¼š å½“å‰å¸§ {now_frame:0>6d}, æœ€è¿‘çš„è½¬åœº {recent_scene:0>6d}")
+                f"Process at Step 1: Extract Frames£º Current {now_frame:0>6d}, Scene {recent_scene:0>6d}")
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -576,7 +576,7 @@ class InterpWorkFlow:
                     pbar.update(self.rife_core.supervise_data["now_cnt"] - now_cnt)
                     now_cnt = self.rife_core.supervise_data["now_cnt"]
                     pbar.set_description(
-                        f"Process at Step 2: è¡¥å¸§ ç¬¬ {self.rife_core.supervise_data['now_dir']} è½®")
+                        f"Process at Step 2: Interpolation No. {self.rife_core.supervise_data['now_dir']} Round")
 
                 # generate scene map info
                 for scene in scenes_list:
@@ -600,7 +600,7 @@ class InterpWorkFlow:
                     else:
                         video_renderer.writeFrame(frame_ioer.read_frame(frame_path))
                     pbar.set_description(
-                        f"Process at Step 3: æ¸²æŸ“å¸§ {interp_cnt:0>6d}")
+                        f"Process at Step 3: RenderFrame {interp_cnt:0>6d}")
                     pbar.update(1)
 
                 video_renderer.close()
@@ -680,7 +680,7 @@ class InterpWorkFlow:
             frame_ioer.write_frame(img0, frame_path)
             rsq = self.render_info_pipe["rendering"]  # render status quo
             pbar.set_description(
-                f"Process at Step 1: æ¸²æŸ“åŒºå— {rsq[0]}, æŠ½å¸§ {now_frame:0>8d}, æœ€è¿‘çš„è½¬åœº {recent_scene:0>8d}")
+                f"Process at Step 1: Chunk {rsq[0]}, Extract {now_frame:0>8d}, Scene {recent_scene:0>8d}")
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -709,7 +709,7 @@ class InterpWorkFlow:
                     now_cnt = self.rife_core.supervise_data["now_cnt"]
                     rsq = self.render_info_pipe["rendering"]  # render status quo
                     pbar.set_description(
-                        f"Process at Step 2: æ¸²æŸ“åŒºå— {rsq[0]}, ç¬¬ {self.rife_core.supervise_data['now_dir']} è½®è¡¥å¸§")
+                        f"Process at Step 2: Chunk {rsq[0]}, No. {self.rife_core.supervise_data['now_dir']} Round")
 
                 # generate scene map info
                 for scene in scenes_list:
@@ -741,16 +741,19 @@ class InterpWorkFlow:
                     rsq = self.render_info_pipe["rendering"]  # render status quo
                     """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
                     pbar.set_description(
-                        f"Process at Step 3: æ¸²æŸ“åŒºå— {rsq[0]}, è¾“å…¥å¸§ {interp_cnt:0>6d}, æ¸²æŸ“å¸§ {int(rsq[3]):0>6d}")
+                        f"Process at Step 3: Chunk {rsq[0]}, InputFrame {interp_cnt:0>6d}, RenderFrame {int(rsq[3]):0>6d}")
                     pbar.update(interp_cnt - render_cnt)
                     render_cnt = interp_cnt
 
                 # the last frame is single, with no interpolated frames followed
                 self.feed_to_render(frames_list, False, is_end)
                 frames_list.clear()
-                if self.args["output_only"]:
-                    shutil.rmtree(self.input_dir)
-                    os.mkdir(self.input_dir)
+
+                while not self.frames_output.empty():
+                    """Wait for frames all rendered"""
+                    time.sleep(0.1)
+                shutil.rmtree(self.input_dir)
+                os.mkdir(self.input_dir)
 
                 scenes_list.clear()
                 origianl_frame_cnt = 0
