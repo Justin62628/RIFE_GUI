@@ -13,7 +13,7 @@ from queue import Queue
 import cv2
 import numpy as np
 import tqdm
-from skvideo.io import  FFmpegWriter, FFmpegReader
+from skvideo.io import FFmpegWriter, FFmpegReader
 
 from Utils.utils import Utils, ImgSeqIO, VideoInfo
 import inference
@@ -30,18 +30,19 @@ sys.path.append(dname)
 
 parser = argparse.ArgumentParser(prog="#### RIFE Step by Step CLI tool/补帧分步设置命令行工具 from Jeanna ####",
                                  description='Interpolation for sequences of images')
-stage1_parser = parser.add_argument_group(title="Basic Settings, Necessary")
-stage1_parser.add_argument('-i', '--input', dest='input', type=str, default=None, required=True,
-                           help="原视频/图片序列文件夹路径")
-stage1_parser.add_argument('-o', '--output', dest='output', type=str, default=None, required=True,
-                           help="成品输出的路径，注意默认在项目文件夹")
+basic_parser = parser.add_argument_group(title="Basic Settings, Necessary")
+basic_parser.add_argument('-i', '--input', dest='input', type=str, required=True,
+                          help="原视频/图片序列文件夹路径")
+basic_parser.add_argument('-o', '--output', dest='output', type=str, required=True,
+                          help="成品输出的路径，注意默认在项目文件夹")
+basic_parser.add_argument("-c", '--config', dest='config', type=str, required=True, help="配置文件路径")
 
-stage1_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
-                           help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
-stage1_parser.add_argument('--fps', dest='fps', type=float, default=0,
-                           help="原视频的帧率, 默认0(自动识别)")
-stage1_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
-                           help="目标视频帧率, 默认0(fps * 2 ** exp)")
+basic_parser.add_argument('--ffmpeg', dest='ffmpeg', type=str, default=dname,
+                          help="ffmpeg三件套所在文件夹, 默认当前文件夹：%(default)s")
+basic_parser.add_argument('--fps', dest='fps', type=float, default=0,
+                          help="原视频的帧率, 默认0(自动识别)")
+basic_parser.add_argument('--target-fps', dest='target_fps', type=float, default=0,
+                          help="目标视频帧率, 默认0(fps * 2 ** exp)")
 stage2_parser = parser.add_argument_group(title="Step by Step Settings")
 stage2_parser.add_argument('-r', '--ratio', dest='exp', type=int, choices=range(1, 4), default=2, required=True,
                            help="补帧系数, 2的几次方，23.976->95.904，填2")
@@ -62,7 +63,7 @@ stage3_parser_hardware_set = stage3_parser.add_mutually_exclusive_group()
 stage3_parser.add_argument('--img-input', dest='img_input', action='store_true', help='输入的是图片序列，支持png、jpg、jpeg')
 stage3_parser.add_argument('--img-output', dest='img_output', action='store_true', help='输出的是图片序列')
 stage3_parser.add_argument('--HDR', dest='HDR', action='store_true', help='支持HDR补帧')
-stage3_parser.add_argument('--encoder', dest='encoder',  type=str, choices=("H264", "HEVC"), help='压制编码格式')
+stage3_parser.add_argument('--encoder', dest='encoder', type=str, choices=("H264", "HEVC"), help='压制编码格式')
 stage3_parser_hardware_set.add_argument('--use-gpu', dest='use_specific_gpu', type=int, default=0, help='指定GPU编号，从0开始')
 stage3_parser_hardware_set.add_argument('--multicard', dest='use_multi_card', action='store_true', help='N卡多卡补帧，暂不支持')
 stage3_parser_hardware_set.add_argument('--ncnn', dest='ncnn', action='store_true', help='NCNN补帧')
@@ -88,8 +89,10 @@ stage4_parser.add_argument('--crop', dest='crop', type=str, default="0",
                            help="视频裁切参数，如3840:1608:0:276")
 stage4_parser.add_argument('--resize', dest='resize', type=str, default="", help="ffmpeg -s 缩放参数，默认不开启（为空）")
 stage4_parser.add_argument('--preset', dest='preset', type=str, default="slow", help="压制预设，medium以下可用于收藏。硬件加速推荐hq")
-stage4_render_set.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="", help="成品目标(最高)码率，与crf不共存，默认：%(default)s")
-stage4_render_set.add_argument('--crf', dest='crf', type=int, default=0, help="恒定质量控制，12以下可作为收藏，16能看，与bitrate不共存，默认：%(default)s")
+stage4_render_set.add_argument('-b', '--bitrate', dest='bitrate', type=str, default="",
+                               help="成品目标(最高)码率，与crf不共存，默认：%(default)s")
+stage4_render_set.add_argument('--crf', dest='crf', type=int, default=0,
+                               help="恒定质量控制，12以下可作为收藏，16能看，与bitrate不共存，默认：%(default)s")
 
 args = parser.parse_args()
 args = vars(args)
@@ -107,7 +110,7 @@ class InterpWorkFlow:
         sys.path.append(self.project_dir)
         self.logger = Utils.get_logger("[ARGS]", self.project_dir)
         self.logger.info(f"Initial New Interpolation Project: project_dir: %s, INPUT_FILEPATH: %s", self.project_dir,
-                           self.args["input"])
+                         self.args["input"])
 
         self.ffmpeg = os.path.join(self.args["ffmpeg"], "ffmpeg.exe")
         self.ffplay = os.path.join(self.args["ffmpeg"], "ffplay.exe")
@@ -204,15 +207,16 @@ class InterpWorkFlow:
         if self.args["encoder"] == "H264":
             output_dict.update({"-pix_fmt": "yuv420p"})
             if self.args["hwaccel"]:
-                output_dict.update({"-c:v": "h264_nvenc", "-rc:v":"vbr_hq"})
+                output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq"})
             else:
-                output_dict.update({"-c:v": "libx264", "-tune": "grain",})
+                output_dict.update({"-c:v": "libx264", "-tune": "grain", })
 
         elif self.args["encoder"] == "HEVC":
             if self.args["hwaccel"]:
                 output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq", "-pix_fmt": "p010le"})
             else:
-                output_dict.update({"-c:v": "libx265", "-tune": "grain", "-profile:v": "main10", "-pix_fmt": "yuv420p10le"})
+                output_dict.update(
+                    {"-c:v": "libx265", "-tune": "grain", "-profile:v": "main10", "-pix_fmt": "yuv420p10le"})
 
         if self.args["crf"]:
             if self.args["hwaccel"]:
@@ -239,9 +243,9 @@ class InterpWorkFlow:
                     chunk_list.append(f)
         if del_chunk:
             return 1, 0
-        if self.args["interp_start"] != 0 or  self.args["chunk"] != 0:
+        if self.args["interp_start"] != 0 or self.args["chunk"] != 0:
             """Manually Prioritized"""
-            return self.args["chunk"],  self.args["interp_start"]
+            return self.args["chunk"], self.args["interp_start"]
         if not len(chunk_list):
             return 1, 0
         """Remove last chunk(high possibility of dilapidation)"""
@@ -337,10 +341,10 @@ class InterpWorkFlow:
         """
         if img is None:
             return img
-        h,w,_ = img.shape
+        h, w, _ = img.shape
         if self.crop_par[0] > w or self.crop_par[1] > h:
             return img
-        return img[self.crop_par[1]:h-self.crop_par[1], self.crop_par[0]:w-self.crop_par[0]]
+        return img[self.crop_par[1]:h - self.crop_par[1], self.crop_par[0]:w - self.crop_par[0]]
 
     def start_all_procedures(self):
         """

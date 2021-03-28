@@ -9,7 +9,7 @@ except ImportError as e:
     input("Press Any Key to Quit")
     exit()
 app = QApplication(sys.argv)
-form = QCandyUi.CandyWindow.createWindow(RIFE_GUI_Backend.RIFE_GUI_BACKEND(), theme="blueDeep", ico_path="6.2.2_ico.ico",
-                                         title="Squirrel Video Frame Interpolation Ft. RIFE GUI v6.2.2")
+form = QCandyUi.CandyWindow.createWindow(RIFE_GUI_Backend.RIFE_GUI_BACKEND(), theme="blueDeep", ico_path="ico.ico",
+                                         title="Squirrel Video Frame Interpolation Ft. RIFE GUI v6.2.3")
 form.show()
 app.exec_()

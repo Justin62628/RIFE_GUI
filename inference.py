@@ -4,12 +4,14 @@ import traceback
 import warnings
 
 import numpy as np
+import time
+import threading
 import torch
 from torch.nn import functional as F
-
-from Utils.model.RIFE_HDv2 import Model
+from Utils.utils import Utils
 
 warnings.filterwarnings("ignore")
+Utils = Utils()
 
 
 class RifeInterpolation:
@@ -34,9 +36,6 @@ class RifeInterpolation:
         if not torch.cuda.is_available():
             self.device = torch.device("cpu")
             print("use cpu to interpolate")
-        elif self.args["use_specific_gpu"] != -1:
-            os.environ["CUDA_VISIBLE_DEVICES"] = f"{self.args['use_specific_gpu']}"
-            self.device = torch.device("cuda")
         else:
             self.device = torch.device("cuda")
         torch.backends.cudnn.enabled = True
@@ -51,29 +50,33 @@ class RifeInterpolation:
                 self.args["fp16"] = False
 
         torch.set_grad_enabled(False)
+        from Utils.model.RIFE_HDv2 import Model
         self.model = Model()
-        if self.args["model"] == "":
+        if self.args["SelectedModel".lower()] == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
-            self.model_path = self.args["model"]
+            self.model_path = self.args["SelectedModel".lower()]
         self.model.load_model(self.model_path, -1)
         print(f"Load model at {self.model_path}")
         self.model.eval()
         self.model.device()
         self.initiated = True
 
-    def make_inference(self, i1, i2, scale, exp):
+    def make_inference(self, img1, img2, scale, exp):
+        padding, h, w = self.generate_padding(img1)
+        i1 = self.generate_torch_img(img1, padding)
+        i2 = self.generate_torch_img(img2, padding)
         if self.args["reverse"]:
-            middle = self.model.inference(i2, i1, scale)
+            mid = self.model.inference(i1, i2, scale)
         else:
-            middle = self.model.inference(i1, i2, scale)
-
+            mid = self.model.inference(i2, i1, scale)
+        del i1, i2
+        mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
         if exp == 1:
-            return [middle]
-        # interpolation progression
-        first_half = self.make_inference(i1, middle, scale, exp=exp - 1)
-        second_half = self.make_inference(middle, i2, scale, exp=exp - 1)
-        return [*first_half, middle, *second_half]
+            return [mid]
+        first_half = self.make_inference(img1, mid, scale, exp=exp - 1)
+        second_half = self.make_inference(mid, img2, scale, exp=exp - 1)
+        return [*first_half, mid, *second_half]
 
     def generate_padding(self, img):
         """
@@ -123,32 +126,28 @@ class RifeInterpolation:
             for i in range(2 ** exp):
                 output_gen.append(img1)
             return output_gen
-        padding, h, w = self.generate_padding(img1)
-        i1 = self.generate_torch_img(img1, padding)
-        i2 = self.generate_torch_img(img2, padding)
-        interp_gen = self.make_inference(i1, i2, scale, exp)
-        output_gen = list()
-        for mid in interp_gen:
-            mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))
-            output_gen.append(mid[:h, :w])
-        return output_gen
+        interp_gen = self.make_inference(img1, img2, scale, exp)
+        return interp_gen
 
     def run(self):
         pass
 
 
-class NCNNinterpolator:
+class NCNNinterpolator(threading.Thread):
 
     def __init__(self, __args):
+        super().__init__()
         if __args is not None:
             self.args = __args
-        # same with this file
+
         self.rife_ncnn_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "rife-ncnn")
         self.rife_ncnn = os.path.join(self.rife_ncnn_root, "rife-ncnn-vulkan.exe")
         self.exp = self.args["exp"]
+        self.j_settings = self.args["j_settings"]
         self.input_list = list()
-        self.input_root = os.path.dirname(self.args["img"])
-        self.generate_input_list()
+        self.input_root = os.path.dirname(self.args["input_dir"])
+        self.supervise_thread = None
+        self.supervise_data = {}
         print(f"Use NCNN to interpolate from {self.rife_ncnn_root} with input list {str(self.input_list)}")
         pass
 
@@ -156,37 +155,58 @@ class NCNNinterpolator:
         pass
 
     def generate_input_list(self):
-        self.input_list.append(self.args.img)
+        self.input_list.append(self.args["input_dir"])
         for e in range(self.exp - 1):
-            new_input = os.path.join(self.input_root, f"mid_interp_{e + 1}x")
+            new_input = os.path.join(self.input_root, f"mid_interp_{2 ** (e + 1)}x")
             self.input_list.append(new_input)
             if not os.path.exists(new_input):
                 os.mkdir(new_input)
+        shutil.rmtree(os.path.join(self.input_root, "interp"))
+        os.mkdir(os.path.join(self.input_root, "interp"))
         self.input_list.append(os.path.join(self.input_root, "interp"))
-
         pass
 
-    def supervise_ncnn(self):
-        """
-        Supervise Interpolation process, detect output dir to check
-        :return:
-        """
-        # TODO Supervise NCNN
-
-    def ncnn_interpolate(self):
+    def run(self):
+        self.generate_input_list()
         dir_cnt = 1
         for input_dir in self.input_list:
             if os.path.basename(input_dir) == "interp":
+                """Ignore interp"""
                 break
-            # TODO manually adjust
-            create_command = f"{self.rife_ncnn}  -i {input_dir} -o {self.input_list[dir_cnt]} -m {os.path.join(self.rife_ncnn_root, 'rife-v2.4')} -j 2:4:4"
-            os.system(create_command)
-            print(f"[NCNN] Round {os.path.basename(self.input_list[dir_cnt])} finished")
+            output_dir = self.input_list[dir_cnt]
+            input_cnt = len(os.listdir(input_dir))
+            ncnn_thread = threading.Thread(target=self.ncnn_interpolate, name="NCNN-Interpolate Thread",
+                                           args=(input_dir, output_dir,))
+            ncnn_thread.start()
+            while ncnn_thread.is_alive():
+                time.sleep(0.1)
+                output_frames_cnt = len(os.listdir(output_dir))
+                now_cnt = int(output_frames_cnt/2)
+                self.supervise_data.update({"now_cnt": now_cnt, "now_dir": os.path.basename(output_dir),
+                                            "input_cnt": input_cnt})
+
+            print(f"INFO - [NCNN] Round {output_dir} finished")
             if input_dir != self.input_list[0]:
                 """Erase all mid interpolations except the img input"""
                 shutil.rmtree(input_dir)
             dir_cnt += 1
         pass
+
+    def ncnn_interpolate(self, input_dir, output_dir):
+        if len(self.j_settings):
+            j_settings = f"-j {self.j_settings}"
+        else:
+            j_settings = ""
+        create_command = f"{self.rife_ncnn}  -i {input_dir} -o {output_dir} " \
+                         f"-m {os.path.join(self.rife_ncnn_root, 'rife-v2.4')} {j_settings}"
+        os.system(create_command)
+        pass
+
+    def stop(self):
+        """
+        stop ncnn interpolation
+        :return:
+        """
 
 
 if __name__ == "__main__":
