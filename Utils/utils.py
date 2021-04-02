@@ -112,24 +112,26 @@ class Utils:
         except StopIteration:
             return None
 
-    def generate_prebuild_map(self):
+    def generate_prebuild_map(self, exp, req):
         """
         For Inference duplicate frames removal
         :return:
         """
-        pos_map = dict()
-        for gap in range(2, 8 + 1):
-            exp = round(math.sqrt(gap - 1))
-            interp_t = {i: (i + 1) / (2 ** exp) for i in range(2 ** exp - 1)}
-            real_t = {i: (i + 1) / gap for i in range(gap - 1)}
-            for rt in real_t:
-                min_ans = (99999999, -1)
-                for inp in interp_t:
-                    tmp_ = abs(interp_t[inp] - real_t[rt])
-                    if tmp_ <= min_ans[0]:
-                        min_ans = (tmp_, inp)
-                pos_map[(gap, rt)] = min_ans[1]
-        return pos_map
+        I_step = 1 / (2 ** exp)
+        IL = [x * I_step for x in range(1, 2 ** exp)]
+        N_step = 1 / (req + 1)
+        NL = [x * N_step for x in range(1, req + 1)]
+        KPL = []
+        for x1 in NL:
+            min = 1
+            kpt = 0
+            for x2 in IL:
+                value = abs(x1 - x2)
+                if value < min:
+                    min = value
+                    kpt = x2
+            KPL.append(IL.index(kpt))
+        return KPL
 
     def clean_parsed_config(self, args: dict) -> dict:
         for a in args:

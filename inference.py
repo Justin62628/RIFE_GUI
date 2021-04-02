@@ -202,7 +202,8 @@ class NCNNinterpolator(threading.Thread):
         else:
             j_settings = ""
         create_command = f"{self.rife_ncnn}  -i {input_dir} -o {output_dir} " \
-                         f"-m {os.path.join(self.rife_ncnn_root, 'rife-v2.4')} {j_settings}"
+                         f"-m {Utils.fillQuotation(os.path.join(self.rife_ncnn_root, 'rife-v2.4'))} " \
+                         f"{j_settings}"
         os.system(create_command)
         pass
 

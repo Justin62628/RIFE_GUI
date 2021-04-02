@@ -1,6 +1,13 @@
 import sys
 import QCandyUi
+import traceback
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+
+if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 try:
     from Utils import RIFE_GUI_Backend
@@ -9,7 +16,13 @@ except ImportError as e:
     input("Press Any Key to Quit")
     exit()
 app = QApplication(sys.argv)
-form = QCandyUi.CandyWindow.createWindow(RIFE_GUI_Backend.RIFE_GUI_BACKEND(), theme="blueDeep", ico_path="ico.ico",
-                                         title="Squirrel Video Frame Interpolation Ft. RIFE GUI v6.2.3")
-form.show()
-app.exec_()
+app_backend_module = RIFE_GUI_Backend
+app_backend = app_backend_module.RIFE_GUI_BACKEND()
+try:
+    form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="ico.png",
+                                             title="Squirrel Video Frame Interpolation 2.1.1 alpha")
+    form.show()
+    app.exec_()
+    app_backend.load_current_settings()
+except:
+    app_backend_module.logger.critical(traceback.format_exc())

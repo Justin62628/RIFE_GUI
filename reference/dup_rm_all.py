@@ -10,23 +10,22 @@ import _thread
 import psutil
 import time
 from queue import Queue, Empty
-from skvideo.io import FFmpegWriter
 import sys
 import skvideo
+from skvideo.io import FFmpegWriter, FFmpegReader
 import math
 
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(description='对图片序列进行补帧')
 parser.add_argument('--img', dest='img', type=str,
-                    default='input', help='图片目录')
+                    default='', help='图片路径')
 parser.add_argument('--output', dest='output', type=str,
                     default='out', help='保存目录')
 parser.add_argument('--start', dest='start', type=int,
                     default=0, help='从第start张图片开始补帧')
 parser.add_argument('--resume', dest='resume',
                     action='store_true', help='自动计算count并恢复渲染')
-
 parser.add_argument('--device_id', dest='device_id',
                     type=int, default=0, help='设备ID')
 parser.add_argument('--model', dest='modelDir', type=str,
@@ -41,19 +40,18 @@ parser.add_argument('--predict_mode', dest='predict_mode', type=str,
                     default="safe", help="safe/performance/medium , 36HW/24HW/30HW")
 parser.add_argument('--wthreads', dest='wthreads',
                     type=int, default=4, help='写入线程')
-
 parser.add_argument('--redup', dest='redup',
                     action='store_true', help='去除重复帧并补足')
-parser.add_argument('--dup', dest='dup', type=int, default=1, help='dup数值')
+parser.add_argument('--dup', dest='dup', type=float, default=1.0, help='dup数值')
 parser.add_argument('--scene', dest='scene', type=float,
                     default=50, help='场景识别阈值')
 parser.add_argument('--rescene', dest='rescene', type=str,
                     default="mix", help="copy/mix   帧复制/帧混合")
 parser.add_argument('--exp', dest='exp', type=int,
-                    default=1, help='补2的exp次方-1帧')
+                    default=2, help='补2的exp次方-1帧')
 
 args = parser.parse_args()
-assert args.scale in [0.25, 0.5, 1.0, 2.0, 4.0]
+assert args.scale in [0.125, 0.25, 0.5, 1.0, 2.0, 4.0]
 spent = time.time()
 
 if not os.path.exists(args.output):
@@ -119,8 +117,7 @@ if start != 0:
     videogen = templist
 passed = tot_frame - len(videogen)
 videogen.sort()
-lastframe = cv2.imdecode(np.fromfile(os.path.join(
-    args.img, videogen[0]), dtype=np.uint8), 1)[:, :, ::-1].copy()
+lastframe = cv2.imdecode(np.fromfile(os.path.join(args.img, videogen[0]), dtype=np.uint8), 1)[:, :, ::-1].copy()
 videogen = videogen[1:]
 h, w, _ = lastframe.shape
 
@@ -136,8 +133,7 @@ def clear_write_buffer(user_args, write_buffer):
 def build_read_buffer(dir_path, read_buffer, videogen):
     try:
         for frame in videogen:
-            frame = cv2.imdecode(np.fromfile(os.path.join(
-                dir_path, frame), dtype=np.uint8), 1)[:, :, ::-1].copy()
+            frame = cv2.imdecode(np.fromfile(os.path.join(dir_path, frame), dtype=np.uint8), 1)[:, :, ::-1].copy()
             read_buffer.put(frame)
     except:
         pass
@@ -165,7 +161,7 @@ def make_inference(im0, im1, exp):
     second_half = make_inference(mid, im1, exp=exp - 1)
     return [*first_half, mid, *second_half]
 
-def rescene_req(im0,im1,REQ):
+def rescene(im0,im1,REQ):
     out = []
     if args.rescene == "mix":
         step = 1 / (REQ+1)
@@ -178,22 +174,6 @@ def rescene_req(im0,im1,REQ):
             out.append(mix)
     else:
         for _ in range(REQ):
-            out.append(im0[:, :, ::-1])
-    return out
-
-def rescene_exp(im0,im1,EXP):
-    out = []
-    if args.rescene == "mix":
-        step = 1 / (2 ** EXP)
-        alpha = 0
-        for _ in range((2 ** EXP) - 1):
-            alpha += step
-            beta = 1-alpha
-            mix = cv2.addWeighted(
-                im0[:, :, ::-1], alpha, im1[:, :, ::-1], beta, 0)[:, :, ::-1].copy()
-            out.append(mix)
-    else:
-        for _ in range((2 ** EXP) - 1):
             out.append(im0[:, :, ::-1])
     return out
 
@@ -215,7 +195,11 @@ def drop(EXP,req):
     return KPL
 
 def calc_diff(im0,im1):
-    return cv2.absdiff(im0[:, :, ::-1], im1[:, :, ::-1]).mean()
+    try:
+        return cv2.absdiff(im0[:, :, ::-1], im1[:, :, ::-1]).mean()
+    except:
+        return -1
+    return -1
 
 tmp = max(32, int(32 / args.scale))
 ph = ((h - 1) // tmp + 1) * tmp
@@ -252,53 +236,78 @@ cnt = 0
 cnt = 0 if start == 0 else (start - 1) * (2 ** args.exp) + 1
 cnt += 1
 
-pos = 1
 while True:
     frame = read_buffer.get()
     if frame is None:
         break
-    pos += 1
-    skip = 0
-    try:
-        diff = calc_diff(lastframe,frame)
-    except:
-        print('等待程序退出...')
+
+    skip = 0 #用于记录跳过的帧数
+
+    diff = calc_diff(lastframe,frame)
+
+    #帧读取完了，lastframe或frame会变成none type，值返回-1 跳出循环
+    if diff == -1:
+        print('...')
         break
-    write_buffer.put([cnt, lastframe])
-    cnt += 1
-    pbar.update(1)
+
+    output = []
+    post = []
+    post.append(lastframe) #放入起始帧
+
     if diff > args.scene:
-        output = rescene_exp(frame,lastframe,args.exp)
+        #转场（这一块要改）(我觉得应该放到正常补帧队列里)
+        output = rescene(frame,lastframe,(2**args.exp-1))
+
+        #补出来的转场放到post中
+        for mid in output:
+            post.append(mid)
+
     else:
-        if args.redup and diff < args.dup:
+
+        if diff < args.dup:
+
+            #一直向下一帧，直到非重复帧位置，阈值为args.dup
             while diff < args.dup:
                 skip += 1
                 frame = read_buffer.get()
                 diff = calc_diff(lastframe,frame)
-            require = (skip + 1) * (2 ** args.exp - 1) + skip
-            exp = int(math.log(require,2))+1
+
+            #除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
             if diff > args.scene:
-                output = rescene_req(frame,lastframe,require)
+                #转场（尽量换方差法）
+                output = rescene(frame,lastframe,skip)
+                for mid in output:
+                    post.append(mid)
             else:
+                #推导 exp
+                exp = int(math.log(skip,2))+1 
                 output = make_inference(lastframe, frame, exp)
-                kpl = drop(exp,require)
+                kpl = drop(exp,skip) #打表（exp，需要的帧数）
                 for x in kpl:
-                    write_buffer.put([cnt, output[x]])
-                    cnt += 1
-                    pbar.update(1)
-                output = []
-                print("skip:{} require:{} exp:{} kpl:{}".format(skip,require,exp,kpl))
-        else:
-            output = make_inference(lastframe, frame, args.exp)
-    for mid in output:
-        write_buffer.put([cnt, mid])
-        cnt += 1
-        pbar.update(1)
-    lastframe = frame
-write_buffer.put([cnt, lastframe])
+                    post.append(output[x])
+    output = [] #丢弃output的值
+    
+
+    #post进行到正常补帧序列（可修改）
+    write_buffer.put([cnt,lastframe])
+    cnt += 1
+    i0 = 0
+    lp = len(post)
+    for i1 in range(1,lp):
+        output = make_inference(post[i0],post[i1],args.exp)
+        for mid in output:
+            write_buffer.put([cnt,mid])
+            cnt += 1
+            pbar.update(1)
+        i0 = i1
+
+    lastframe = frame #起始帧 = 结尾帧
+
+write_buffer.put([cnt, lastframe]) #程序结束时放入最后一帧
+
+
 pbar.update(1)
 while(not os.path.exists('{}/{:0>9d}.png'.format(args.output, cnt))):
     time.sleep(1)
 pbar.close()
-print("spent {}s".format(time.time()-spent))
-
+print("spent {}s".format(time.time()-spent)) 

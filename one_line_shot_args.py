@@ -17,7 +17,7 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 from pprint import pprint
 import shutil
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser
-
+# 6.2.6
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -116,11 +116,12 @@ class InterpWorkFlow:
         self.frame_reader = None
         self.render_thread = None
         self.frames_output = Queue(maxsize=int(self.render_gap * 3))
-        self.pos_map = Utils.generate_prebuild_map()
 
         self.render_info_pipe = {"rendering": (0, 0, 0, 0)}
-        self.scene_stack_len = 6
+        self.scene_stack_len = int(0.5 * self.fps)
         self.scene_stack = deque(maxlen=self.scene_stack_len)
+
+        self.dup_skip_limit = int(0.5 * self.fps) + 1
 
         self.main_event = threading.Event()
         self.main_event.set()
@@ -129,7 +130,7 @@ class InterpWorkFlow:
         for k in self.video_info:
             if k.startswith("-"):
                 self.color_info[k] = self.video_info[k]
-        self.output_ext = ".mp4"
+        self.output_ext = "." + self.args["output_ext"]
         if self.args["encoder"] == "ProRes":
             self.output_ext = ".mov"
             # TODO Beautify this
@@ -148,7 +149,8 @@ class InterpWorkFlow:
         vf_args = "copy"
 
         if len(self.args["resize"]):
-            output_dict.update({"-sws_flags": "lanczos+full_chroma_inp", "-s": self.args["resize"].replace(":", "x")})
+            output_dict.update({"-sws_flags": "lanczos+full_chroma_inp",
+                                "-s": self.args["resize"].replace(":", "x").replace("*", "x")})
         if start_frame not in [-1, 0]:
             vf_args += f",trim=start_frame={start_frame}"
         if not self.args["quick_extract"]:
@@ -292,13 +294,13 @@ class InterpWorkFlow:
         for frame_i in range(frames_list_len):
             self.frames_output.put(frames_list[frame_i])
             if frame_i == frames_list_len - 1:
-                if is_end:
-                    self.frames_output.put(None)
-                    self.logger.info("Put None to write_buffer")
-                    return
                 if is_scene:
                     for put_i in range(2 ** self.exp - 1):
                         self.frames_output.put(frames_list[frame_i])
+                    return
+                if is_end:
+                    self.frames_output.put(None)
+                    self.logger.info("Put None to write_buffer")
                     return
         pass
 
@@ -318,7 +320,7 @@ class InterpWorkFlow:
         before_measure = np.var(self.scene_stack)
         self.scene_stack.append(diff)
         after_measure = np.var(self.scene_stack)
-        if after_measure > before_measure + 10:
+        if abs(after_measure) - abs(before_measure) > self.args["scdet_threshold"]:
             """Detect new scene"""
             self.scene_stack.clear()
             return True
@@ -359,9 +361,7 @@ class InterpWorkFlow:
         img1 = self.crop_read_img(Utils.gen_next(videogen))
         now_frame = start_frame
         if img1 is None:
-            self.logger.critical(f"Input file not valid: {self.input}")
-            self.main_event.clear()
-            sys.exit(0)
+            raise OSError(f"Input file not valid: {self.input}")
 
         is_end = False
         pbar = tqdm.tqdm(total=self.all_frames_cnt)
@@ -374,81 +374,88 @@ class InterpWorkFlow:
         while True:
             if is_end:
                 break
-            if slot_img is not None:
-                img0 = slot_img
-                slot_img = None
-            else:
-                img0 = img1
-            img1 = None
+            img0 = img1
             frames_list = []
             if self.args["remove_dup"]:
-                now_gap = 0
-                is_scene = False
-                while True:
-                    if now_gap == 8:
-                        break
-                    before_img1 = img1
-                    img1 = self.crop_read_img(Utils.gen_next(videogen))
-                    if img1 is None:
-                        img1 = before_img1
-                        is_end = True
-                        break
-                    diff = cv2.absdiff(img0, img1).mean()
-                    if self.check_scene(diff):
-                        slot_img = img1
-                        img1 = before_img1
-                        is_scene = True
-                        recent_scene = now_frame + now_gap
-                        break
 
-                    if diff < self.args["dup_threshold"]:
-                        now_gap += 1
-                        continue
+                img1 = self.crop_read_img(Utils.gen_next(videogen))
 
-                    now_gap += 1
+                if img1 is None:
+                    frames_list.append([now_frame, img0])
+                    self.feed_to_render(frames_list, is_end=True)
                     break
 
-                if now_gap == 0:
-                    """Normal frames Encounter scenes"""
-                    frames_list.append((now_frame, img0))
-                    self.feed_to_render(frames_list, is_scene=is_scene, is_end=is_end)
+                gap_frames_list = []  # 用于去除重复帧的临时帧列表
+                gap_frames_list.append(img0)  # 放入当前判断区间头一帧
+                diff = cv2.absdiff(img0, img1).mean()
+                skip = 0  # 用于记录跳过的帧数
+                is_scene = False
+                if self.check_scene(diff):
+                    """!!!scene"""
+                    # 入乡随俗
+                    frames_list.append([now_frame, img0])
+                    self.feed_to_render(frames_list, is_scene=True)
+                    recent_scene = now_frame
+                    now_frame += 1  # to next frame img0 = img1
                     scedet_info["0"] += 1
-                    if is_end:
-                        break
                     continue
-                elif now_gap == 1:
-                    frames_list.append((now_frame, img0))
-                    interp_output = self.rife_core.generate_interp(img0, img1, self.exp, self.args["scale"], _debug)
-                    for interp in interp_output:
-                        frames_list.append((now_frame, interp))
+                else:
+                    # No scene
+                    if diff < self.args["dup_threshold"]:
+                        before_img = img1
+                        while diff < self.args["dup_threshold"]:
+                            skip += 1
+                            scedet_info["1+"] += 1
+                            img1 = self.crop_read_img(Utils.gen_next(videogen))
+                            if img1 is None:
+                                img1 = before_img
+                                is_end = True
+                                break
+                            diff = cv2.absdiff(img0, img1).mean()
+                            self.check_scene(diff, add_diff=True)  # update
+                            if skip == self.dup_skip_limit:
+                                break
+
+                        # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
+                        if self.check_scene(diff):
+                            # 入乡随俗
+                            skip -= 1
+                            if not skip:
+                                gap_frames_list.append(img0)
+                            else:
+                                exp = int(math.log(skip, 2)) + 1
+                                interp_output = self.rife_core.generate_interp(img0, before_img, exp, self.args["scale"])
+                                kpl = Utils.generate_prebuild_map(exp, skip)
+                                for x in kpl:
+                                    gap_frames_list.append(interp_output[x])
+                                gap_frames_list.append(before_img)
+                            is_scene = True
+                            scedet_info["0"] += 1
+                        elif skip != 0:
+                            # 推导 exp
+                            exp = int(math.log(skip, 2)) + 1
+                            interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
+                            kpl = Utils.generate_prebuild_map(exp, skip)
+                            for x in kpl:
+                                gap_frames_list.append(interp_output[x])
+                    else:
+                        scedet_info["1"] += 1
+
+                # post进行到正常补帧序列（可修改）
+                if not is_scene:
+                    gap_frames_list.append(img1)
+                # now_frame += 1
+                for pos in range(len(gap_frames_list) - 1):
+                    frames_list.append([now_frame, gap_frames_list[pos]])
+                    output = self.rife_core.generate_interp(gap_frames_list[pos], gap_frames_list[pos + 1], self.exp,
+                                                            self.args["scale"])
+                    for mid_index in range(len(output)):
+                        frames_list.append([now_frame, output[mid_index]])
                     now_frame += 1
-                    self.feed_to_render(frames_list, is_scene=is_scene, is_end=is_end)
-                    scedet_info["1"] += 1
-
-                    if is_end:
-                        break
-                    continue
-                elif now_gap > 1:
-                    """exists gap > 1"""
-                    exp = round(math.sqrt(now_gap))
-                    gap_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
-                    gap_input = [img0]
-                    for gap_i in range(now_gap - 1):
-                        gap_input.append(gap_output[self.pos_map[(now_gap, gap_i)]])
-                    for gap_i in range(len(gap_input) - 1):
-                        interp_output = self.rife_core.generate_interp(gap_input[gap_i], gap_input[gap_i + 1], self.exp,
-                                                                       self.args["scale"], _debug)
-                        frames_list.append((now_frame + gap_i, gap_input[gap_i]))
-                        for interp_i in range(len(interp_output)):
-                            frames_list.append((now_frame + gap_i, interp_output[interp_i]))
-                        frames_list.append((now_frame + gap_i, gap_input[gap_i + 1]))
-
-                    now_frame += now_gap
-                    self.feed_to_render(frames_list, is_scene=is_scene, is_end=is_end)
-                    scedet_info["1+"] += 1
-                    if is_end:
-                        break
-
+                if is_scene:
+                    frames_list.append([now_frame, gap_frames_list[-1]])
+                    now_frame += 1
+                self.feed_to_render(frames_list, is_scene, is_end)
             else:
                 img1 = self.crop_read_img(Utils.gen_next(videogen))
                 if img1 is None:
@@ -468,8 +475,8 @@ class InterpWorkFlow:
                         continue
                 frames_list.append((now_frame, img0))
                 interp_output = self.rife_core.generate_interp(img0, img1, self.exp, self.args["scale"])
-                for interp in interp_output:
-                    frames_list.append((now_frame, interp))
+                for mid_index in range(len(interp_output)):
+                    frames_list.append([now_frame, interp_output[mid_index]])
                 self.feed_to_render(frames_list)
                 now_frame += 1  # to next frame img0 = img1
                 scedet_info["1"] += 1
@@ -613,8 +620,11 @@ class InterpWorkFlow:
         self.logger.info(f"Scedet Status Quo: {scedet_info}")
         if not self.args["img_output"]:
             shutil.rmtree(self.interp_dir)
-        if not self.args["no_concat"] and not self.args["img_output"] and self.args["save_audio"]:
-            map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
+        if not self.args["no_concat"] and not self.args["img_output"]:
+            if self.args["save_audio"]:
+                map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
+            else:
+                map_audio = ""
             output_video_path = f"{os.path.splitext(self.input)[0]}_{2 ** self.exp}x" + self.output_ext
             ffmpeg_command = f'{self.ffmpeg} -hide_banner -i "{interp_video_path}" {map_audio} -c:v copy {output_video_path} -y'
             self.logger.debug(f"Concat command: {ffmpeg_command}")
@@ -777,6 +787,8 @@ class InterpWorkFlow:
     def run(self):
         if self.args["concat_only"]:
             self.concat_all()
+            self.logger.info(f"Program finished at {datetime.datetime.now()}")
+            return
         if self.args["ncnn"]:
             self.amd_run()
         else:
@@ -803,11 +815,17 @@ class InterpWorkFlow:
         with open(concat_path, "w+", encoding="UTF-8") as w:
             for f in concat_list:
                 w.write(f"file '{f}'\n")
-        # output_ext = os.path.splitext(self.input)[-1]
-        output_ext = self.output_ext
+
+        """Check Input file ext"""
+        output_ext = os.path.splitext(self.input)[-1]
+
+        # TODO Beautify ProRes Special Judge
         if output_ext not in [".mp4", ".mov", ".mkv"]:
-            pass
-        concat_filepath = f"{os.path.splitext(self.input)[0]}_{2 ** self.exp}x" + output_ext
+            output_ext = self.output_ext
+        if self.args["encoder"] == "ProRes":
+            output_ext = ".mov"
+
+        concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{2 ** self.exp}x" + output_ext
         if self.args["save_audio"]:
             map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a:0 -c:a copy -shortest '
         else:
@@ -816,6 +834,8 @@ class InterpWorkFlow:
         self.logger.debug(f"Concat command: {ffmpeg_command}")
         os.system(ffmpeg_command)
         if self.args["output_only"] and os.path.exists(concat_filepath):
+            if not os.path.getsize(concat_filepath):
+                raise FileExistsError("Concat Error, Check Output Extension!!!")
             self.check_chunk(del_chunk=True)
 
 
