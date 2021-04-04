@@ -783,7 +783,7 @@
                      <item>
                       <widget class="QSpinBox" name="RenderGapSelector">
                        <property name="minimum">
-                        <number>1000</number>
+                        <number>200</number>
                        </property>
                        <property name="maximum">
                         <number>99999</number>

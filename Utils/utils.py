@@ -17,6 +17,7 @@ from queue import Queue
 from skvideo.io import ffprobe, check_output
 import math
 import shlex
+import shutil
 from configparser import ConfigParser, NoOptionError, NoSectionError
 
 
@@ -100,8 +101,10 @@ class Utils:
         logger.addHandler(txt_handler)
         return logger
 
-    def make_dirs(self, dir_lists):
+    def make_dirs(self, dir_lists, rm=False):
         for d in dir_lists:
+            if rm and os.path.exists(d):
+                shutil.rmtree(d)
             if not os.path.exists(d):
                 os.mkdir(d)
         pass

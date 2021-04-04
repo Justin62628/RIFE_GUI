@@ -13,16 +13,13 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QTextCursor, QIcon
 from pprint import pprint, pformat
-from Utils import RIFE_GUI
-from Utils.utils import Utils, EncodePresetAssemply
 import sys
 import subprocess as sp
 import shlex
 import time
-import locale
-import io
+from Utils import RIFE_GUI
+from Utils.utils import Utils, EncodePresetAssemply
 
-# sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030')
 MAC = True
 try:
     from PyQt5.QtGui import qt_mac_set_native_menubar
@@ -44,9 +41,9 @@ appData.setValue("ffmpeg", dname)
 appData.setValue("model", os.path.join(ddname, "train_log"))
 if not os.path.exists(ols_potential):
     appData.setValue("OneLineShotPath",
-                     r"D:\60-fps-Project\arXiv2020-RIFE-main\RIFE_GUI\one_line_shot_args.py")
+                     r"D:\60-fps-Project\Projects\RIFE_GUI\one_line_shot_args.py")
     appData.setValue("ffmpeg", "ffmpeg")
-    appData.setValue("model", r"D:\60-fps-Project\arXiv2020-RIFE-main\RIFE_GUI\Utils\train_log")
+    appData.setValue("model", r"D:\60-fps-Project\Projects\RIFE_GUI\Utils\train_log")
     logger.info("Change to Debug Path")
 
 
@@ -55,12 +52,6 @@ class RIFE_Run_Other_Threads(QThread):
 
     def __init__(self, command, parent=None):
         super(RIFE_Run_Other_Threads, self).__init__(parent)
-        if getattr(sys, 'frozen', False):
-            # we are running in a bundle
-            bundle_dir = sys._MEIPASS
-        else:
-            # we are running in a normal Python environment
-            bundle_dir = os.path.dirname(os.path.abspath(__file__))
         self.command = command
 
     def run(self):
@@ -144,12 +135,6 @@ class RIFE_Run_Thread(QThread):
 
     def __init__(self, parent=None, concat_only=False):
         super(RIFE_Run_Thread, self).__init__(parent)
-        if getattr(sys, 'frozen', False):
-            # we are running in a bundle
-            bundle_dir = sys._MEIPASS
-        else:
-            # we are running in a normal Python environment
-            bundle_dir = os.path.dirname(os.path.abspath(__file__))
         self.concat_only = concat_only
         self.command = ""
         self.current_proc = None
@@ -173,13 +158,13 @@ class RIFE_Run_Thread(QThread):
         if appData.value("fps", type=float) <= 0 or appData.value("target_fps", type=float) <= 0:
             return ""
 
-        self.command += f'--input {self.fillQuotation(input_file)} '
+        self.command += f'--input {Utils.fillQuotation(input_file)} '
         if os.path.isfile(appData.value("output")):
             logger.info("[GUI]: OutputPath with FileName detected")
             output_path = appData.value("output")
             appData.setValue("output", os.path.dirname(output_path))
-        self.command += f'--output {self.fillQuotation(appData.value("output"))} '
-        self.command += f'--config {self.fillQuotation(appDataPath)} '
+        self.command += f'--output {Utils.fillQuotation(appData.value("output"))} '
+        self.command += f'--config {Utils.fillQuotation(appDataPath)} '
         if self.concat_only:
             self.command += f"--concat-only "
 
@@ -236,13 +221,10 @@ class RIFE_Run_Thread(QThread):
                         break
                     line = self.current_proc.stdout.readline()
                     self.current_proc.stdout.flush()
-                    # flush_lines += line.strip("").strip("\r").replace("[A", "")
                     flush_lines += line.replace("[A", "")
                     if "error" in flush_lines.lower():
                         logger.error(f"[In ONE LINE SHOT]: f{flush_lines}")
-                        print(flush_lines)
                     if len(flush_lines) and time.time() - interval_time > 0.1:
-                        # flush_lines = "\n".join(list(set(list(flush_lines.splitlines()))))
                         interval_time = time.time()
                         self.update_status(current_step, False, sp_status=f"{flush_lines}")
                         flush_lines = ""
@@ -251,8 +233,6 @@ class RIFE_Run_Thread(QThread):
                 self.update_status(current_step, False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
                 appData.setValue("chunk", 1)
                 appData.setValue("interp_start", 0)
-                # appData.setValue("interp_cnt", 1)
-                # Multi tasks, remove last settings
 
         except Exception:
             logger.error(traceback.format_exc())
@@ -298,9 +278,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.update_gpu_info()
         self.update_model_info()
 
-    def fillQuotation(self, string):
-        if string[0] != '"':
-            return f'"{string}"'
 
     def sendWarning(self, title, string, msg_type=1):
         """
@@ -347,8 +324,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             return
 
         ffmpeg_command = f"""
-            {self.ffmpeg} -i {self.fillQuotation(input_a)} -i {self.fillQuotation(input_v)} 
-            -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {self.fillQuotation(output_v)} -y
+            {self.ffmpeg} -i {Utils.fillQuotation(input_a)} -i {Utils.fillQuotation(input_v)} 
+            -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {Utils.fillQuotation(output_v)} -y
         """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] concat {ffmpeg_command}")
         os.system(ffmpeg_command)
@@ -363,7 +340,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             return
         palette_path = os.path.join(os.path.dirname(input_v), "palette.png")
         ffmpeg_command = f"""
-                    {self.ffmpeg} -hide_banner -i {self.fillQuotation(input_v)} -vf "palettegen=stats_mode=diff" -y {palette_path}
+                    {self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -vf "palettegen=stats_mode=diff" -y {palette_path}
                 """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"ffmpeg_command for create palette: {ffmpeg_command}")
         os.system(ffmpeg_command)
@@ -371,7 +348,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             appData.setValue("target_fps", 48)
             logger.info("Not find output GIF fps, Auto set GIF output fps to 48 as it's smooth enough")
         ffmpeg_command = f"""
-                           {self.ffmpeg} -hide_banner -i {self.fillQuotation(input_v)} -i {palette_path} -r {appData.value("target_fps")} -lavfi "fps={appData.value("target_fps")},scale=960:-1[x];[x][1:v]paletteuse=dither=floyd_steinberg" {self.fillQuotation(output_v)} -y
+                           {self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -i {palette_path} -r {appData.value("target_fps")} -lavfi "fps={appData.value("target_fps")},scale=960:-1[x];[x][1:v]paletteuse=dither=floyd_steinberg" {Utils.fillQuotation(output_v)} -y
                         """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
         os.system(ffmpeg_command)
@@ -889,6 +866,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(bool)
     def on_ProcessStart_clicked(self):
+        if not self.check_args():
+            return
         self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread()
