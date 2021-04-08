@@ -1,10 +1,7 @@
 # coding: utf-8
 from pprint import pprint
-import argparse
 import os
 import re
-import sys
-import subprocess
 import json
 import datetime
 import threading
@@ -14,20 +11,12 @@ import traceback
 import cv2
 import numpy as np
 from queue import Queue
-from skvideo.io import ffprobe, check_output
-import math
-import shlex
 import shutil
 from configparser import ConfigParser, NoOptionError, NoSectionError
 
 
 class CommandResult:
     def __init__(self, command, output_path="output.txt"):
-        # self.output_txt = os.path.join(output_txt)
-        # ffmpeg = os.path.join(ffmpeg_folder, "ffmpeg.exe")
-        # ffprobe = os.path.join(ffmpeg_folder, "ffprobe.exe")
-        # ffplay = os.path.join(ffmpeg_folder, "ffplay.exe")
-        # self.tool_list = {"ffmpeg": ffmpeg, "ffprobe": ffprobe, "ffplay": ffplay}
         self.command = command
         self.output_path = output_path
         pass
@@ -36,7 +25,6 @@ class CommandResult:
         os.system(f"{self.command} > {self.output_path} 2>&1")
         with open(self.output_path, "r") as tool_read:
             content = tool_read.read()
-        # TODO: Warning ffmpeg failed
         return content
 
 
@@ -208,7 +196,7 @@ class ImgSeqIO:
             while not read_flag and retry < 10:
                 try:
                     try:
-                        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)[:, :, ::-1].copy()
+                        img = cv2.imread(path)[:, :, ::-1].copy()
                         return img
                     except TypeError:
                         print("WARNING - [IMG.IO] Change to use imdecode")

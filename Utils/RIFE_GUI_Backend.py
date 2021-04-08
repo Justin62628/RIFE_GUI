@@ -613,11 +613,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             self.SaveAudioChecker.setChecked(False)
 
         logger.info("[Main]: Download all settings")
-        status_check = "[当前导出设置预览]\n\n"
-        for key in appData.allKeys():
-            status_check += f"{key} => {appData.value(key)}\n"
-        if self.thread is None:
-            self.OptionCheck.setText(status_check)
+        # status_check = "[当前导出设置预览]\n\n"
+        # for key in appData.allKeys():
+        #     status_check += f"{key} => {appData.value(key)}\n"
+        # if self.thread is None:
+        #     self.OptionCheck.setText(status_check)
         self.OptionCheck.isReadOnly = True
         appData.sync()
         pass
@@ -854,6 +854,12 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         else:
             logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
 
+    @pyqtSlot(bool)
+    def on_UseAnyFPS_clicked(self):
+        if not self.hasNVIDIA and self.UseAnyFPS.isChecked():
+            reply = self.sendWarning(f"未探测到N卡，不能勾选此项！", 1)
+            self.UseAnyFPS.setChecked(False)
+            self.HwaccelChecker.setChecked(False)
 
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):
@@ -930,7 +936,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             显示“Program finished”则任务完成
             如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
             群号在首页说明\n
-            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}
+            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 使用任意帧率：{self.UseAnyFPS.isChecked()}
         """
         if appData.value("ncnn", type=bool):
             update_text += "使用A卡或核显：True\n"

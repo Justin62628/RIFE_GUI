@@ -19,7 +19,7 @@ from pprint import pprint
 import shutil
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser
 
-# 6.2.6
+# 6.2.7 2021/4/8
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -210,6 +210,9 @@ class InterpWorkFlow:
         input_dict = {"-vsync": "vfr", "-r": f"{self.fps * 2 ** self.exp}"}
 
         output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"], "-pix_fmt": self.args["pix_fmt"]}
+        if self.args["any_fps"]:
+            input_dict.update({"-r": f"{self.target_fps}"})
+            output_dict.update({"-r": f"{self.target_fps}"})
         output_dict.update(self.color_info)
 
         """Slow motion design"""
@@ -454,6 +457,8 @@ class InterpWorkFlow:
         previous_cnt = now_frame  # 上一帧的计数
         scedet_info = {"0": 0, "1": 0, "1+": 0}  # 帧种类，0为转场，1为正常帧，1+为重复帧，即两帧之间的计数关系
 
+        extract_cnt = 0
+
         while True:
             if is_end:
                 break
@@ -464,7 +469,8 @@ class InterpWorkFlow:
                 """任意帧率模式"""
                 frames_list.append([now_frame, img0])
                 img1 = self.crop_read_img(Utils.gen_next(videogen))
-
+                now_frame += 1
+                extract_cnt += 1
                 if img1 is None:
                     self.feed_to_render(frames_list, is_end=True)
                     break
@@ -472,13 +478,12 @@ class InterpWorkFlow:
                 diff = cv2.absdiff(img0, img1).mean()
 
                 skip = 0  # 用于记录跳过的帧数
-                is_scene = False
 
                 """Find Scene"""
                 if self.check_scene(diff):
                     self.feed_to_render(frames_list)  # no need to update scene flag
                     recent_scene = now_frame
-                    now_frame += 1  # to next frame img0 = img1
+                    # now_frame += 1  # to next frame img0 = img1
                     scedet_info["0"] += 1
                     continue
                 else:
@@ -488,6 +493,7 @@ class InterpWorkFlow:
                             skip += 1
                             scedet_info["1+"] += 1
                             img1 = self.crop_read_img(Utils.gen_next(videogen))
+                            extract_cnt += 1
 
                             if img1 is None:
                                 img1 = before_img
@@ -511,11 +517,10 @@ class InterpWorkFlow:
                                 kpl = Utils.generate_prebuild_map(exp, skip)
                                 for x in kpl:
                                     frames_list.append([now_frame, interp_output[x]])
-                                frames_list.append([now_frame, before_img])
+                            frames_list.append([now_frame, before_img])
 
-                            is_scene = True
                             scedet_info["0"] += 1
-                            now_frame += skip
+                            now_frame += skip + 1
 
                         elif skip != 0:
                             exp = int(math.log(skip, 2)) + 1
@@ -527,7 +532,7 @@ class InterpWorkFlow:
                     else:
                         scedet_info["1"] += 1
 
-                self.feed_to_render(frames_list, is_scene, is_end)
+                self.feed_to_render(frames_list)
                 pass
             elif self.args["remove_dup"]:
                 """Remove duplicated Frames"""

@@ -247,7 +247,7 @@
                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;任意输出帧率：无视输入帧率、补帧倍率，直接生成指定输出帧率的补帧成品。&lt;/p&gt;&lt;p&gt;比如输入24fps，填写的输出帧率为60，则直接补帧补到60帧，不废话，对标SVP、Dm&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PS：动漫优化模式（重复帧移除）将默认开启&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;当前版本不可选&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                 <property name="text">
-                 <string>使用任意输出帧率（看说明）</string>
+                 <string>使用任意输出帧率（仅N卡，倍率失效）</string>
                 </property>
                </widget>
               </item>
@@ -562,7 +562,7 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>动漫优化模式（重复帧优化）(N卡限定)</string>
+                        <string>动漫优化模式（重复帧优化）(仅N卡)</string>
                        </property>
                       </widget>
                      </item>
@@ -711,7 +711,7 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;0代表无损&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>渲染质量：</string>
+                        <string>渲染质量CRF：</string>
                        </property>
                        <property name="checked">
                         <bool>true</bool>
@@ -882,7 +882,7 @@
                      <item>
                       <widget class="QLabel" name="PresetReminder">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;slow的压制质量一般是最好的，速度慢&lt;/span&gt;&lt;/p&gt;&lt;p&gt;ll代表low latency，低延迟，速度快，质量不高&lt;/p&gt;&lt;p&gt;hq代表high quality，相对高质量，但不会比slow高&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;slow的压制质量一般是最好的，速度慢&lt;/span&gt;&lt;/p&gt;&lt;p&gt;ll代表low latency，低延迟，速度快，质量不高&lt;/p&gt;&lt;p&gt;hq代表high quality，相对高质量，但不会比slow高&lt;/p&gt;&lt;p&gt;其他都是字面意思&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>再选择压制预设：</string>
@@ -899,6 +899,9 @@
                          <horstretch>0</horstretch>
                          <verstretch>0</verstretch>
                         </sizepolicy>
+                       </property>
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;slow的压制质量一般是最好的，速度慢&lt;/span&gt;&lt;/p&gt;&lt;p&gt;ll代表low latency，低延迟，速度快，质量不高&lt;/p&gt;&lt;p&gt;hq代表high quality，相对高质量，但不会比slow高&lt;/p&gt;&lt;p&gt;其他都是字面意思&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="currentText">
                         <string>slow</string>
@@ -930,6 +933,9 @@
                          <horstretch>0</horstretch>
                          <verstretch>0</verstretch>
                         </sizepolicy>
+                       </property>
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;自行百度&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <item>
                         <property name="text">
