@@ -9,6 +9,72 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+class MyLineWidget(QtWidgets.QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasText():  # 是否文本文件格式
+            url = e.mimeData().urls()[0]
+            self.setText(url.toLocalFile())
+        else:
+            e.ignore()
+
+
+class MyListWidget(QtWidgets.QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dropEvent(self, e):
+        if e.mimeData().hasText():  # 是否文本文件格式
+            self.clear()
+            for url in e.mimeData().urls():
+                self.addItem(url.toLocalFile())
+        else:
+            e.ignore()
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasText():  # 是否文本文件格式
+            self.clear()
+            for url in e.mimeData().urls():
+                self.addItem(url.toLocalFile())
+        else:
+            e.ignore()
+
+    def get_items(self):
+        widgetres = []
+        # 获取listwidget中条目数
+        count = self.count()
+        # 遍历listwidget中的内容
+        for i in range(count):
+            widgetres.append(self.item(i).text())
+        return widgetres
+
+
+class MyTextWidget(QtWidgets.QTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dropEvent(self, event):
+        try:
+            if event.mimeData().hasUrls:
+                url = event.mimeData().urls()[0]
+                # url_list = list()
+                # url_list.append(self.toPlainText().strip(";"))
+                # for url in event.mimeData().urls():
+                #     url_list.append(f"{url.toLocalFile()}")
+                # text = ""
+                # for url in url_list:
+                #     text += f"{url};"
+                # text = text.strip(";")
+                self.setText(f"{url.toLocalFile()}")
+            else:
+                event.ignore()
+        except Exception as e:
+            print(e)
 
 
 class Ui_RIFEDialog(object):
@@ -97,7 +163,7 @@ class Ui_RIFEDialog(object):
         self.InputFPSReminder.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.InputFPSReminder.setObjectName("InputFPSReminder")
         self.horizontalLayout.addWidget(self.InputFPSReminder)
-        self.InputFPS = QtWidgets.QLineEdit(self.step1)
+        self.InputFPS = MyLineWidget(self.step1)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -123,7 +189,7 @@ class Ui_RIFEDialog(object):
         self.OutputFPSReminder.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.OutputFPSReminder.setObjectName("OutputFPSReminder")
         self.horizontalLayout.addWidget(self.OutputFPSReminder)
-        self.OutputFPS = QtWidgets.QLineEdit(self.step1)
+        self.OutputFPS = MyLineWidget(self.step1)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -137,7 +203,7 @@ class Ui_RIFEDialog(object):
         self.UseAnyFPS.setObjectName("UseAnyFPS")
         self.horizontalLayout.addWidget(self.UseAnyFPS)
         self.gridLayout.addLayout(self.horizontalLayout, 10, 0, 1, 1)
-        self.OutputFolder = QtWidgets.QLineEdit(self.step1)
+        self.OutputFolder = MyLineWidget(self.step1)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -212,7 +278,7 @@ class Ui_RIFEDialog(object):
         self.line_4.setFrameShadow(QtWidgets.QFrame.Sunken)
         self.line_4.setObjectName("line_4")
         self.gridLayout.addWidget(self.line_4, 9, 0, 1, 1)
-        self.InputFileName = QtWidgets.QListWidget(self.step1)
+        self.InputFileName = MyListWidget(self.step1)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -251,10 +317,10 @@ class Ui_RIFEDialog(object):
         self.gridLayout_14.setObjectName("gridLayout_14")
         self.gridLayout_4 = QtWidgets.QGridLayout()
         self.gridLayout_4.setObjectName("gridLayout_4")
-        self.StartFrame = QtWidgets.QLineEdit(self.groupBox_3)
+        self.StartFrame = MyLineWidget(self.groupBox_3)
         self.StartFrame.setObjectName("StartFrame")
         self.gridLayout_4.addWidget(self.StartFrame, 2, 2, 1, 1)
-        self.StartChunk = QtWidgets.QLineEdit(self.groupBox_3)
+        self.StartChunk = MyLineWidget(self.groupBox_3)
         self.StartChunk.setObjectName("StartChunk")
         self.gridLayout_4.addWidget(self.StartChunk, 2, 1, 1, 1)
         self.label = QtWidgets.QLabel(self.groupBox_3)
@@ -342,10 +408,10 @@ class Ui_RIFEDialog(object):
         self.gridLayout_20.setObjectName("gridLayout_20")
         self.gridLayout_5 = QtWidgets.QGridLayout()
         self.gridLayout_5.setObjectName("gridLayout_5")
-        self.CropSettings = QtWidgets.QLineEdit(self.groupBox_4)
+        self.CropSettings = MyLineWidget(self.groupBox_4)
         self.CropSettings.setObjectName("CropSettings")
         self.gridLayout_5.addWidget(self.CropSettings, 0, 5, 1, 1)
-        self.ResizeSettings = QtWidgets.QLineEdit(self.groupBox_4)
+        self.ResizeSettings = MyLineWidget(self.groupBox_4)
         self.ResizeSettings.setObjectName("ResizeSettings")
         self.gridLayout_5.addWidget(self.ResizeSettings, 0, 3, 1, 1)
         self.ResizeReminder = QtWidgets.QLabel(self.groupBox_4)
@@ -506,7 +572,7 @@ class Ui_RIFEDialog(object):
         self.slowmotion.setObjectName("slowmotion")
         self.horizontalLayout_5.addWidget(self.slowmotion)
         self.verticalLayout_4.addLayout(self.horizontalLayout_5)
-        self.FFmpegCustomer = QtWidgets.QLineEdit(self.groupBox)
+        self.FFmpegCustomer = MyLineWidget(self.groupBox)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -689,13 +755,13 @@ class Ui_RIFEDialog(object):
         self.ProcessStart.setFont(font)
         self.ProcessStart.setObjectName("ProcessStart")
         self.gridLayout_8.addWidget(self.ProcessStart, 4, 0, 1, 1)
-        self.OptionCheck = QtWidgets.QTextEdit(self.step3)
+        self.OptionCheck = MyTextWidget(self.step3)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.MinimumExpanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.OptionCheck.sizePolicy().hasHeightForWidth())
         self.OptionCheck.setSizePolicy(sizePolicy)
-        self.OptionCheck.setAutoFormatting(QtWidgets.QTextEdit.AutoAll)
+        self.OptionCheck.setAutoFormatting(MyTextWidget.AutoAll)
         self.OptionCheck.setReadOnly(True)
         self.OptionCheck.setObjectName("OptionCheck")
         self.gridLayout_8.addWidget(self.OptionCheck, 1, 0, 2, 2)
@@ -729,7 +795,7 @@ class Ui_RIFEDialog(object):
         self.GifMaker.setObjectName("GifMaker")
         self.gridLayout_25 = QtWidgets.QGridLayout(self.GifMaker)
         self.gridLayout_25.setObjectName("gridLayout_25")
-        self.GifInput = QtWidgets.QLineEdit(self.GifMaker)
+        self.GifInput = MyLineWidget(self.GifMaker)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -738,7 +804,7 @@ class Ui_RIFEDialog(object):
         self.GifInput.setDragEnabled(True)
         self.GifInput.setObjectName("GifInput")
         self.gridLayout_25.addWidget(self.GifInput, 0, 0, 1, 1)
-        self.GifOutput = QtWidgets.QLineEdit(self.GifMaker)
+        self.GifOutput = MyLineWidget(self.GifMaker)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -768,7 +834,7 @@ class Ui_RIFEDialog(object):
         self.gridLayout_17.setObjectName("gridLayout_17")
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
-        self.ConcatInputV = QtWidgets.QLineEdit(self.VAConcat)
+        self.ConcatInputV = MyLineWidget(self.VAConcat)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -777,7 +843,7 @@ class Ui_RIFEDialog(object):
         self.ConcatInputV.setDragEnabled(True)
         self.ConcatInputV.setObjectName("ConcatInputV")
         self.verticalLayout.addWidget(self.ConcatInputV)
-        self.ConcatInputA = QtWidgets.QLineEdit(self.VAConcat)
+        self.ConcatInputA = MyLineWidget(self.VAConcat)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -786,7 +852,7 @@ class Ui_RIFEDialog(object):
         self.ConcatInputA.setDragEnabled(True)
         self.ConcatInputA.setObjectName("ConcatInputA")
         self.verticalLayout.addWidget(self.ConcatInputA)
-        self.OutputConcat = QtWidgets.QLineEdit(self.VAConcat)
+        self.OutputConcat = MyLineWidget(self.VAConcat)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
