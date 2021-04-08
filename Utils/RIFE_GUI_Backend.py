@@ -12,6 +12,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QTextCursor, QIcon
+import html
 from pprint import pprint, pformat
 import sys
 import subprocess as sp
@@ -30,7 +31,7 @@ Utils = Utils()
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(os.path.dirname(abspath))
 ddname = os.path.dirname(abspath)
-appDataPath = os.path.join(dname, "RIFE_GUI.ini")
+appDataPath = os.path.join(dname, "SVFI.ini")
 appData = QSettings(appDataPath, QSettings.IniFormat)
 appData.setIniCodec("UTF-8")
 
@@ -50,13 +51,27 @@ if not os.path.exists(ols_potential):
 class RIFE_Run_Other_Threads(QThread):
     run_signal = pyqtSignal(str)
 
-    def __init__(self, command, parent=None):
+    def __init__(self, command, task_id=0, data=None, parent=None):
+        """
+
+        :param command:
+        :param task_id:
+        :param data: 信息回传时的数据
+        :param parent:
+        """
         super(RIFE_Run_Other_Threads, self).__init__(parent)
         self.command = command
+        self.task_id = task_id
+        self.data = data
+
+    def fire_finish_signal(self):
+        emit_json = {"id": self.task_id, "status": 1, "data": self.data}
+        self.run_signal.emit(json.dumps(emit_json))
 
     def run(self):
         logger.info(f"[CMD Thread]: Start execute {self.command}")
         os.system(self.command)
+        self.fire_finish_signal()
         pass
 
     pass
@@ -195,9 +210,13 @@ class RIFE_Run_Thread(QThread):
 
         current_step = 0
         self.all_cnt = len(command_list)
+
+        appData.setValue("batch", False)
         if self.all_cnt > 1:
             """MultiTask"""
             appData.setValue("output_only", True)
+            appData.setValue("batch", True)
+
         if not self.all_cnt:
             logger.info("[GUI]: Task List Empty, Please Check Your Settings! (input fps for example)")
             self.update_status(current_step, True, "\nTask List is Empty!\n")
@@ -275,21 +294,21 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.formatted_option_check = []
 
         """Initiate and Check GPU"""
+        self.hasNVIDIA = True
         self.update_gpu_info()
         self.update_model_info()
-
 
     def sendWarning(self, title, string, msg_type=1):
         """
 
         :param title:
         :param string:
-        :param msg_type: 1 warning 2 info
+        :param msg_type: 1 warning 2 info 3 question
         :return:
         """
         if self.silent:
             return
-        QMessageBox.setWindowIcon(self, QIcon('ico.png'))
+        QMessageBox.setWindowIcon(self, QIcon('svfi.png'))
         if msg_type == 1:
             reply = QMessageBox.warning(self,
                                         f"{title}",
@@ -300,6 +319,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                                             f"{title}",
                                             f"{string}",
                                             QMessageBox.Yes)
+        elif msg_type == 3:
+            reply = QMessageBox.information(self,
+                                            f"{title}",
+                                            f"{string}",
+                                            QMessageBox.Yes | QMessageBox.No)
         else:
             return
         return reply
@@ -331,6 +355,12 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         os.system(ffmpeg_command)
         self.sendWarning("音视频合并操作完成！", f"请查收", msg_type=2)
 
+    def update_gif_making(self, emit_json: str):
+        self.GifButton.setEnabled(True)
+        emit_json = json.loads(emit_json)
+        target_fps = emit_json.get("data", {"target_fps": appData.value("target_fps", 50)})["target_fps"]
+        self.sendWarning("GIF操作完成！", f'GIF帧率:{target_fps}', 2)
+
     def quick_gif(self):
         input_v = self.GifInput.text()
         output_v = self.GifOutput.text()
@@ -338,21 +368,24 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         if not input_v or not output_v:
             self.sendWarning("Parameters unfilled", "请填写输入或输出视频路径！")
             return
-        palette_path = os.path.join(os.path.dirname(input_v), "palette.png")
-        ffmpeg_command = f"""
-                    {self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -vf "palettegen=stats_mode=diff" -y {palette_path}
-                """.strip().strip("\n").replace("\n", "").replace("\\", "/")
-        logger.info(f"ffmpeg_command for create palette: {ffmpeg_command}")
-        os.system(ffmpeg_command)
         if not appData.value("target_fps"):
-            appData.setValue("target_fps", 48)
-            logger.info("Not find output GIF fps, Auto set GIF output fps to 48 as it's smooth enough")
-        ffmpeg_command = f"""
-                           {self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -i {palette_path} -r {appData.value("target_fps")} -lavfi "fps={appData.value("target_fps")},scale=960:-1[x];[x][1:v]paletteuse=dither=floyd_steinberg" {Utils.fillQuotation(output_v)} -y
-                        """.strip().strip("\n").replace("\n", "").replace("\\", "/")
+            appData.setValue("target_fps", 50)
+            logger.info("Not find output GIF fps, Auto set GIF output fps to 50 as it's smooth enough")
+        target_fps = appData.value("target_fps", 50, type=float)
+        if target_fps > 50:
+            target_fps = 50
+            logger.info("Auto set GIF output fps to 50 as it's smooth enough")
+        resize = self.ResizeSettings.text()
+        ffmpeg_command = f'{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps} ' \
+                         f'-lavfi "scale={resize},split[s0][s1];' \
+                         f'[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" ' \
+                         f'{Utils.fillQuotation(output_v)} -y'.strip().strip("\n").replace("\n", "").replace("\\", "/")
+
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
-        os.system(ffmpeg_command)
-        self.sendWarning("GIF操作完成！", f'GIF帧率:{appData.value("target_fps")}', 2)
+        self.GifButton.setEnabled(False)
+        GIF_Thread = RIFE_Run_Other_Threads(ffmpeg_command, 23333, data={"target_fps": target_fps})
+        GIF_Thread.run_signal.connect(self.update_gif_making)
+        GIF_Thread.start()
 
     def set_start_info(self, sf, scf, sc):
         """
@@ -396,10 +429,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             logger.info("AutoSet Remove last chunk and found none")
             return
 
-        reply = QMessageBox.warning(self,
-                                    f"恢复进度？",
-                                    f"检测到上次还有未完成的补帧，要继续吗？",
-                                    QMessageBox.Yes | QMessageBox.No)
+        reply = self.sendWarning(f"恢复进度？", f"检测到上次还有未完成的补帧，要继续吗？", 3)
         if reply == QMessageBox.No:
             self.set_start_info(0, 1, 1)
             for c in chunk_list:
@@ -420,20 +450,19 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         return os.path.splitext(os.path.basename(path))[0]
 
     def update_gpu_info(self):
-        json_output = os.path.join(dname, "NVIDIA_info.json")
         infos = {}
         for i in range(torch.cuda.device_count()):
             card = torch.cuda.get_device_properties(i)
             info = f"{card.name}, {card.total_memory / 1024 ** 3:.1f} GB"
             infos[f"{i}"] = info
-        with open(json_output, "w", encoding="UTF-8") as w:
-            json.dump(infos, w)  # dump info anyway
         logger.info(f"NVIDIA data: {infos}")
 
         if not len(infos):
+            self.hasNVIDIA = True
             self.sendWarning("No NVIDIA Card Found", "未找到N卡，将使用A卡或核显")
             appData.setValue("ncnn", True)
             self.UseNCNNButton.setChecked(True)
+            self.UseNCNNButton.setEnabled(False)
             return
         else:
             if self.UseNCNNButton.isChecked():
@@ -477,15 +506,16 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.UseTargetBitrate.setChecked(appData.value("UseTargetBitrate", False, type=bool))
         self.BitrateSelector.setValue(appData.value("bitrate", 90, type=int))
         self.PresetSelector.setCurrentText(appData.value("preset", "fast[软编, 硬编]"))
-        self.EncoderSelector.setCurrentText(appData.value("encoder", "HEVC"))
+        self.EncoderSelector.setCurrentText(appData.value("encoder", "H264/AVC"))
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
         self.ScedetChecker.setChecked(not appData.value("no_scdet", False, type=bool))
         self.RenderGapSelector.setValue(appData.value("render_gap", 1000, type=int))
         self.SaveAudioChecker.setChecked(appData.value("save_audio", True, type=bool))
 
-        self.ScdetSelector.setValue(appData.value("scdet_threshold", 30, type=int))
+        self.ScdetSelector.setValue(appData.value("scdet_threshold", 12, type=int))
         self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
+        self.UseAnyFPS.setChecked(appData.value("any_fps", False, type=bool))
         self.CropSettings.setText(appData.value("crop"))
         self.ResizeSettings.setText(appData.value("resize"))
         self.FFmpegCustomer.setText(appData.value("ffmpeg_customized", ""))
@@ -505,10 +535,12 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.ncnnInterpThreadCnt.setValue(j_settings_values[1])
         self.ncnnOutputThreadCnt.setValue(j_settings_values[2])
         self.slowmotion.setChecked(appData.value("slow_motion", False, type=bool))
+        appData.setValue("img_input", appData.value("img_input", False))
 
         desktop = QApplication.desktop()
         pos = appData.value("pos", QVariant(QPoint(960, 540)))
-        size = appData.value("size", QVariant(QSize(desktop.width() * 0.4, desktop.height() * 0.4)))
+        size = appData.value("size", QVariant(QSize(int(desktop.width() * 0.25), int(desktop.height() * 0.25))))
+
         self.resize(size)
         self.move(pos)
 
@@ -536,7 +568,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("hwaccel", self.HwaccelChecker.isChecked())
         appData.setValue("no_scdet", not self.ScedetChecker.isChecked())
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
+        appData.setValue("any_fps", self.UseAnyFPS.isChecked())
+        if self.UseAnyFPS.isChecked():
+            self.DupRmChecker.setChecked(True)
         appData.setValue("remove_dup", self.DupRmChecker.isChecked())
+
         appData.setValue("dup_threshold", self.DupFramesTSelector.value())
         appData.setValue("crop", self.CropSettings.text())
         appData.setValue("resize", self.ResizeSettings.text())
@@ -591,64 +627,62 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         Communicate with RIFE Thread
         :return:
         """
+
+        def remove_last_line():
+            cursor = self.OptionCheck.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            cursor.select(QTextCursor.LineUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deletePreviousChar()
+            self.OptionCheck.setTextCursor(cursor)
+
         data = json.loads(json_data)
-        now_text = self.OptionCheck.toPlainText()
         self.progressBar.setMaximum(int(data["cnt"]))
         self.progressBar.setValue(int(data["current"]))
+        new_text = ""
+
         if len(data.get("notice", "")):
-            now_text += data["notice"] + "\n"
+            new_text += data["notice"] + "\n"
 
         if len(data.get("subprocess", "")):
-            # now_text = re.sub("\n+", "\n", now_text)
-            if "Process at" in data["subprocess"] or "frame=" in data["subprocess"]:
-                data["subprocess"] = data["subprocess"].splitlines()[-1]
-                now_text = self.tqdm_re.sub("", now_text)
-            t = data["subprocess"]
-            now_text += t
-        self.OptionCheck.setText(now_text)
+            dup_keys_list = ["Process at", "frame="]
+            if any([i in data["subprocess"] for i in dup_keys_list]):
+                tmp = ""
+                lines = data["subprocess"].splitlines()
+                for line in lines:
+                    if not any([i in line for i in dup_keys_list]):
+                        tmp += line + "\n"
+                if tmp.strip() == lines[-1].strip():
+                    lines[-1] = ""
+                data["subprocess"] = tmp + lines[-1]
+                remove_last_line()
+            new_text += data["subprocess"]
 
-        new_text = []
-        option_html = re.sub(r"font-weight:.*?;", "", self.OptionCheck.toHtml())
-        option_html = re.sub(r"color:.*?;", "", option_html)
-
-        for t in option_html.splitlines():
-            t = re.sub(r">(.*?Process at.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600;">%s</span></p>' % x.group(1), t, flags=re.I)
-            t = re.sub(r">(.*?INFO.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#0000ff;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?ERROR.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ff0000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?Invalid.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ff0000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?Incorrect.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ff0000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?Critical.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ff0000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?fail.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ff0000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?WARN.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#ffaa00;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r">(.*?Duration.*?)</p>",
-                       lambda x: f'><span style=" font-weight:600; color:#550000;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-            t = re.sub(r"><span .*?><span .*?>(.*?Program finished.*?)</span></span></p>",
-                       lambda x: f'><span style=" font-weight:600; color:#55aa00;">%s</span></p>' % x.group(1), t,
-                       flags=re.I)
-
-            new_text.append(t)
-        now_text = "\n".join(new_text)
+        for line in new_text.splitlines():
+            line = html.escape(line)
+            if "process at" in line.lower():
+                add_line = f'<p><span style=" font-weight:600;">{line}</span></p>'
+            elif "program finished" in line.lower():
+                add_line = f'<p><span style=" font-weight:600; color:#55aa00;">{line}</span></p>'
+            elif "info" in line.lower():
+                add_line = f'<p><span style=" font-weight:600; color:#0000ff;">{line}</span></p>'
+            elif any([i in line.lower() for i in ["error", "invalid", "incorrect", "critical", "fail", "can't", "can not"]]):
+                add_line = f'<p><span style=" font-weight:600; color:#ff0000;">{line}</span></p>'
+            elif "warn" in line.lower():
+                add_line = f'<p><span style=" font-weight:600; color:#ffaa00;">{line}</span></p>'
+            elif "duration" in line.lower():
+                add_line = f'<p><span style=" font-weight:600; color:#550000;">{line}</span></p>'
+            else:
+                add_line = f'<p><span>{line}</span></p>'
+            self.OptionCheck.append(add_line)
 
         if data["finished"]:
             """Error Handle"""
-            if "CUDA out of memory" in now_text and not self.current_failed:
-                self.sendWarning("CUDA Failed", "你的显存不够啦！快去'高级设置'把补帧精度调低/降低视频分辨率/使用半精度模式~", )
+            if "CUDA out of memory" in new_text and not self.current_failed:
+                self.sendWarning("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式~", )
+                self.current_failed = True
+            if "JSON" in new_text and not self.current_failed:
+                self.sendWarning("Input File Failed", "文件信息读取失败，请确保软件和视频文件路径均为纯英文、无空格且无特殊字符", )
                 self.current_failed = True
             if "error" in data.get("subprocess", "").lower() and not self.current_failed:
                 logger.error(f"[At the end of One Line Shot]: \n {data.get('subprocess')}")
@@ -659,13 +693,17 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             complete_msg = f"共 {data['cnt']} 个补帧任务\n"
             if returncode == 0:
                 complete_msg += '成功！'
+                os.startfile(self.OutputFolder.text())
             else:
                 complete_msg += f'失败, 返回码：{returncode}\n请尝试前往高级设置恢复补帧进度'
+                log_path = os.path.join(self.OutputFolder.text(), "log")
+                if os.path.exists(log_path):
+                    os.startfile(log_path)
 
             self.sendWarning("补帧任务完成", complete_msg, 2)
             self.ProcessStart.setEnabled(True)
             self.ConcatAllButton.setEnabled(True)
-        self.OptionCheck.setText(now_text)
+
         self.OptionCheck.moveCursor(QTextCursor.End)
 
     def on_InputFileName_currentItemChanged(self):
@@ -805,6 +843,18 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         logger.info("Switch To HWACCEL Mode: %s" % self.HwaccelChecker.isChecked())
         self.on_EncoderSelector_currentTextChanged()
 
+    @pyqtSlot(bool)
+    def on_UseNCNNButton_clicked(self):
+        if self.hasNVIDIA and self.UseNCNNButton.isChecked():
+            reply = self.sendWarning(f"确定使用NCNN？", f"你有N卡，确定使用A卡/核显？", 3)
+            if reply == QMessageBox.Yes:
+                logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
+            else:
+                self.UseNCNNButton.setChecked(False)
+        else:
+            logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
+
+
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):
         self.PresetSelector.clear()
@@ -812,7 +862,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         currentEncoder = self.EncoderSelector.currentText()
         presets = []
         pixfmts = []
-        if currentEncoder == "HEVC":
+        if currentEncoder == "H265/HEVC":
             if not self.HwaccelChecker.isChecked():
                 # x265
                 presets = EncodePresetAssemply.preset["HEVC"]["x265"]
@@ -821,7 +871,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 # hevc_nvenc
                 presets = EncodePresetAssemply.preset["HEVC"]["NVENC"]
                 pixfmts = EncodePresetAssemply.pixfmt["HEVC"]["NVENC"]
-        elif currentEncoder == "H264":
+        elif currentEncoder == "H264/AVC":
             if not self.HwaccelChecker.isChecked():
                 # x265
                 presets = EncodePresetAssemply.preset["H264"]["x264"]
@@ -868,17 +918,19 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def on_ProcessStart_clicked(self):
         if not self.check_args():
             return
+        # self.auto_set()
         self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread()
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
-        update_text = """
+        update_text = f"""
             [补帧操作启动]
             显示“Program finished”则任务完成
             如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
             群号在首页说明\n
+            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}
         """
         if appData.value("ncnn", type=bool):
             update_text += "使用A卡或核显：True\n"

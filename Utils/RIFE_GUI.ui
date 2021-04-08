@@ -36,7 +36,7 @@
   </property>
   <property name="windowIcon">
    <iconset theme="Frozen">
-    <normaloff>../icon.ico</normaloff>../icon.ico</iconset>
+    <normaloff>../../../arXiv2020-RIFE-main/RIFE_GUI/icon.ico</normaloff>../../../arXiv2020-RIFE-main/RIFE_GUI/icon.ico</iconset>
   </property>
   <property name="windowOpacity">
    <double>13.000000000000000</double>
@@ -86,7 +86,7 @@
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>点我来设置输入文件（支持批处理）</string>
+                 <string>点我来输入视频文件（支持批处理）</string>
                 </property>
                </widget>
               </item>
@@ -98,8 +98,11 @@
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;不支持交错图像源处理&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
                 <property name="text">
-                 <string>点我来设置输入文件夹（支持批处理）</string>
+                 <string>点我来输入帧/图片序列（支持批处理）</string>
                 </property>
                </widget>
               </item>
@@ -235,6 +238,19 @@
                 </property>
                </widget>
               </item>
+              <item>
+               <widget class="QCheckBox" name="UseAnyFPS">
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;任意输出帧率：无视输入帧率、补帧倍率，直接生成指定输出帧率的补帧成品。&lt;/p&gt;&lt;p&gt;比如输入24fps，填写的输出帧率为60，则直接补帧补到60帧，不废话，对标SVP、Dm&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PS：动漫优化模式（重复帧移除）将默认开启&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;当前版本不可选&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+                <property name="text">
+                 <string>使用任意输出帧率（看说明）</string>
+                </property>
+               </widget>
+              </item>
              </layout>
             </item>
             <item row="2" column="0">
@@ -349,8 +365,8 @@
                 <rect>
                  <x>0</x>
                  <y>0</y>
-                 <width>1109</width>
-                 <height>286</height>
+                 <width>1092</width>
+                 <height>522</height>
                 </rect>
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -363,7 +379,7 @@
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;快速补帧流程：（鼠标悬浮在选项上可见帮助信息）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;1. 选择要补帧的文件。可以选择多个视频文件进行批量补帧，也可以选择包括图片序列的文件夹，后者需要手动填写输入帧率&lt;/p&gt;&lt;p&gt;2. 确认&lt;span style=&quot; font-weight:600;&quot;&gt;输入和输出&lt;/span&gt;帧率&lt;/p&gt;&lt;p&gt;3. 按“&lt;span style=&quot; font-weight:600;&quot;&gt;一键补帧&lt;/span&gt;”完成补帧操作，也可以在&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;高级设置&lt;/span&gt;界面设置相关参数，并在输出界面点击&lt;span style=&quot; font-weight:600;&quot;&gt;开始补帧&lt;/span&gt;按钮补帧（A卡补帧需要在高级设置手动设置参数）&lt;/p&gt;&lt;p&gt;4. 在&lt;span style=&quot; font-weight:600;&quot;&gt;工具箱&lt;/span&gt;一页进行&lt;span style=&quot; font-weight:600;&quot;&gt;gif制作&lt;/span&gt;、&lt;span style=&quot; font-weight:600;&quot;&gt;音视频合并&lt;/span&gt;及&lt;span style=&quot; font-weight:600;&quot;&gt;已有区块合并（视频合并失败使用）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;软件最终解释权归SVFI开发团队所有&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;必看！！快速补帧流程：（鼠标悬浮在选项上可见帮助信息）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;0. 请确保本软件在&lt;span style=&quot; font-weight:600;&quot;&gt;纯英文、无特殊标点符号及空格的路径&lt;/span&gt;下运行&lt;/p&gt;&lt;p&gt;1. 选择要补帧的文件。可以选择多个视频文件进行批量补帧，也可以选择包括图片序列的文件夹，后者需要手动填写输入帧率&lt;/p&gt;&lt;p&gt;2. 确认&lt;span style=&quot; font-weight:600;&quot;&gt;输入和输出&lt;/span&gt;帧率&lt;/p&gt;&lt;p&gt;3. 按“&lt;span style=&quot; font-weight:600;&quot;&gt;一键补帧&lt;/span&gt;”完成补帧操作，也可以在&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;高级设置&lt;/span&gt;界面设置相关参数，并在输出界面点击&lt;span style=&quot; font-weight:600;&quot;&gt;开始补帧&lt;/span&gt;按钮补帧（A卡补帧需要在高级设置手动设置参数）&lt;/p&gt;&lt;p&gt;4. 在&lt;span style=&quot; font-weight:600;&quot;&gt;工具箱&lt;/span&gt;一页进行&lt;span style=&quot; font-weight:600;&quot;&gt;gif制作&lt;/span&gt;、&lt;span style=&quot; font-weight:600;&quot;&gt;音视频合并&lt;/span&gt;及&lt;span style=&quot; font-weight:600;&quot;&gt;已有区块合并（视频合并失败使用）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;软件最终解释权归SVFI开发团队所有&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;其他说明：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;本软件 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;Squirrel Video Frame Interpolation&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;是基于&lt;/span&gt;&lt;span style=&quot; font-family:'-apple-system','BlinkMacSystemFont','Segoe UI','Helvetica','Arial','sans-serif','Apple Color Emoji','Segoe UI Emoji'; font-size:16px; font-weight:600; color:#24292e;&quot;&gt;RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;AI补帧算法的可视化图形界面集成.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;RIFE算法作者&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt; Zhewei Huang, Tianyuan Zhang, Wen Heng, Boxin Shi, Shuchang Zhou &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/hzwer/arXiv2020-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI作者 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;YiWeiHuang-stack, Justin62628, ABlyh-LEO, NULL204 &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/YiWeiHuang-stack/Squirrel-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/Justin62628/RIFE_GUI&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;其中RIFE GUI已与SVFI版本合并&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;市面上的&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI 1.x, RIFE GUI 6.2.x&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;均为旧版本&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                   </property>
                   <property name="scaledContents">
                    <bool>true</bool>
@@ -535,7 +551,7 @@
                    </sizepolicy>
                   </property>
                   <property name="title">
-                   <string>第二步：转场与重复帧识别参数设置，这里两个值都是越低越灵敏，默认值就好</string>
+                   <string>第二步：转场与重复帧识别参数设置，这里两个值都是越低越灵敏，默认值就好，不懂不要碰</string>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_13">
                    <item row="0" column="0">
@@ -543,17 +559,17 @@
                      <item row="1" column="3">
                       <widget class="QCheckBox" name="DupRmChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低越灵敏，去除的重复帧越少，动作可能越不流畅&lt;/p&gt;&lt;p&gt;可能会导致画质下降&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~1.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>开启重复帧优化？(N卡限定)</string>
+                        <string>动漫优化模式（重复帧优化）(N卡限定)</string>
                        </property>
                       </widget>
                      </item>
                      <item row="1" column="0">
                       <widget class="QCheckBox" name="ScedetChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值3~10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值30~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>开启转场识别？设置灵敏度（值越低越灵敏）</string>
@@ -565,11 +581,17 @@
                      </item>
                      <item row="1" column="4">
                       <widget class="QDoubleSpinBox" name="DupFramesTSelector">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
                        <property name="minimum">
-                        <double>0.000000000000000</double>
+                        <double>0.010000000000000</double>
                        </property>
                        <property name="maximum">
-                        <double>40.000000000000000</double>
+                        <double>99.000000000000000</double>
+                       </property>
+                       <property name="value">
+                        <double>2.000000000000000</double>
                        </property>
                       </widget>
                      </item>
@@ -582,13 +604,16 @@
                         </sizepolicy>
                        </property>
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值3~10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值30~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="minimum">
-                        <number>10</number>
+                        <number>1</number>
+                       </property>
+                       <property name="maximum">
+                        <number>999</number>
                        </property>
                        <property name="value">
-                        <number>30</number>
+                        <number>12</number>
                        </property>
                       </widget>
                      </item>
@@ -613,7 +638,7 @@
                    </sizepolicy>
                   </property>
                   <property name="title">
-                   <string>第三步：先更改分辨率再裁切，鼠标悬浮在输入框上可查看参数说明</string>
+                   <string>第三步：先更改分辨率再裁切，鼠标悬浮在输入框上可查看参数说明，注意要填英文标点符号</string>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_20">
                    <item row="0" column="0">
@@ -708,7 +733,7 @@
                         <number>51</number>
                        </property>
                        <property name="value">
-                        <number>9</number>
+                        <number>16</number>
                        </property>
                       </widget>
                      </item>
@@ -769,7 +794,7 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用&lt;span style=&quot; font-weight:600;&quot;&gt;ffmpeg&lt;/span&gt;的hevc_nvenc或h264_nvenc编码器压制中间产品及成品&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>使用硬件编码渲染视频（质量比CPU低）</string>
+                        <string>使用硬件编码渲染视频（仅N卡，质量比CPU低）</string>
                        </property>
                       </widget>
                      </item>
@@ -783,10 +808,16 @@
                      <item>
                       <widget class="QSpinBox" name="RenderGapSelector">
                        <property name="minimum">
-                        <number>200</number>
+                        <number>100</number>
                        </property>
                        <property name="maximum">
-                        <number>99999</number>
+                        <number>100000</number>
+                       </property>
+                       <property name="singleStep">
+                        <number>100</number>
+                       </property>
+                       <property name="value">
+                        <number>1000</number>
                        </property>
                       </widget>
                      </item>
@@ -833,12 +864,12 @@
                        </property>
                        <item>
                         <property name="text">
-                         <string>H264</string>
+                         <string>H264/AVC</string>
                         </property>
                        </item>
                        <item>
                         <property name="text">
-                         <string>HEVC</string>
+                         <string>H265/HEVC</string>
                         </property>
                        </item>
                        <item>
@@ -932,7 +963,7 @@
                           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用ffmpeg内置视频导出图片算法，速度稍快，但可能出现颜色偏差&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
                          <property name="text">
-                          <string>快速拆帧（可能导致色差，但速度快）</string>
+                          <string>快速拆帧（此项可能导致色差色偏，但速度快）</string>
                          </property>
                          <property name="checked">
                           <bool>true</bool>
@@ -1016,10 +1047,10 @@
                      <item>
                       <widget class="QLabel" name="InterpScaleReminder">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;对分辨率较小&lt;span style=&quot; font-weight:600;&quot;&gt;（&amp;lt;720p）&lt;/span&gt;的素材进行补帧，这个值要拉大：&lt;span style=&quot; font-weight:600;&quot;&gt;2.0~4.0&lt;/span&gt;&lt;/p&gt;&lt;p&gt;可减小对有大量花纹的画面补帧出现的坏帧情况&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;对4K视频补帧推荐取值0.5&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;普通1080p视频推荐取值1.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，画面细节撕裂越少，画面崩坏概率越高；&lt;/p&gt;&lt;p&gt;值越大，补帧速度越慢，物件消失问题越严重&lt;/p&gt;&lt;p&gt;不是越大或者越小越好&lt;/p&gt;&lt;p&gt;分辨率720p以下视频推荐&lt;span style=&quot; font-weight:600;&quot;&gt;1~2&lt;/span&gt;&lt;/p&gt;&lt;p&gt;分辨率4K及以上视频推荐&lt;span style=&quot; font-weight:600;&quot;&gt;0.25~0.5&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;其余推荐1.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>补帧精度倍数（值越低，速度越快）  </string>
+                        <string>补帧精度倍数  </string>
                        </property>
                        <property name="alignment">
                         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -1065,7 +1096,7 @@
                      <item>
                       <widget class="QLabel" name="label_5">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;默认情况下内置2.1~2.4四种模型&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.4&lt;/span&gt;对2D素材做了专门优化&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.2~2.3&lt;/span&gt;对3D素材处理较好&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;默认情况下内置2.1~2.4四种模型&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.3表现最好，3D、2D通用&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.1最久远，可能有特别的优化效果&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.2中规中矩&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.4烂得一批&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>使用的补帧模型：（数字越大越新）</string>
@@ -1076,7 +1107,11 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="ModuleSelector"/>
+                      <widget class="QComboBox" name="ModuleSelector">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;默认情况下内置2.1~2.4四种模型&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.3表现最好，3D、2D通用&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.1最久远，可能有特别的优化效果&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.2中规中矩&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.4烂得一批&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
+                      </widget>
                      </item>
                     </layout>
                    </item>

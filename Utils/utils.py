@@ -81,7 +81,9 @@ class Utils:
         logger = logging.getLogger(name)
         logger.setLevel(logging.INFO)
         logger_formatter = logging.Formatter(f'%(asctime)s - %(module)s - %(lineno)s - %(levelname)s - %(message)s')
-
+        log_path = os.path.join(log_path, "log")  # private dir for logs
+        if not os.path.exists(log_path):
+            os.mkdir(log_path)
         logger_path = os.path.join(log_path,
                                    f"{datetime.datetime.now().date()}.txt")
         txt_handler = logging.FileHandler(logger_path)
@@ -156,17 +158,19 @@ class Utils:
             except ValueError:
                 pass
             if not len(args[a]):
-                print(f"Find Empty Args at '{a}'")
+                print(f"Warning: Find Empty Args at '{a}'")
                 args[a] = ""
         return args
         pass
 
 
 class ImgSeqIO:
-    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, ):
+    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0):
         if folder is None or os.path.isfile(folder):
             print(f"ERROR - [IMG.IO] Invalid ImgSeq Folder: {folder}")
             return
+        if start_frame in [-1, 0]:
+            start_frame = 0
         self.seq_folder = folder
         self.frame_cnt = 0
         self.img_list = list()
@@ -179,8 +183,11 @@ class ImgSeqIO:
             tmp = os.listdir(folder)
             for p in tmp:
                 if os.path.splitext(p)[-1] in [".jpg", ".png", ".jpeg"]:
+                    if self.frame_cnt < start_frame:
+                        self.frame_cnt += 1
+                        continue
                     self.img_list.append(os.path.join(self.seq_folder, p))
-            print(f"INFO - [IMG.IO] Load {len(self.img_list)} frames from {self.seq_folder}")
+            print(f"INFO - [IMG.IO] Load {len(self.img_list)} frames from {self.seq_folder} at {start_frame}")
         else:
             png_re = re.compile("\d+\.png")
             write_png = sorted([i for i in os.listdir(self.seq_folder) if png_re.match(i)],
@@ -306,6 +313,7 @@ class VideoInfo:
         self.frames_cnt = 0
         self.frames_size = (0, 0)
         self.fps = 0
+        self.duration = 0
 
     def update_frames_info_ffprobe(self):
         result = CommandResult(
@@ -333,19 +341,20 @@ class VideoInfo:
         if "r_frame_rate" in video_info:
             fps_info = video_info["r_frame_rate"].split('/')
             self.fps = int(fps_info[0]) / int(fps_info[1])
-            print(f"Auto Find FPS in r_frame_rate: {self.fps}")
+            print(f"INFO - Auto Find FPS in r_frame_rate: {self.fps}")
         else:
-            print("Auto Find FPS Failed")
+            print("WARNING - Auto Find FPS Failed")
             return False
 
         if "nb_frames" in video_info:
             self.frames_cnt = int(video_info["nb_frames"])
-            print(f"Auto Find frames cnt in nb_frames: {self.frames_cnt}")
+            print(f"INFO - Auto Find frames cnt in nb_frames: {self.frames_cnt}")
         elif "duration" in video_info:
-            self.frames_cnt = round(float(video_info["duration"]) * self.fps)
-            print(f"Auto Find Frames Cnt by duration deduction: {self.frames_cnt}")
+            self.duration = float(video_info["duration"])
+            self.frames_cnt = round(float(self.duration * self.fps))
+            print(f"INFO - Auto Find Frames Cnt by duration deduction: {self.frames_cnt}")
         else:
-            print("Not Find Frames Cnt")
+            print("WARNING - FFprobe Not Find Frames Cnt")
             return False
         return True
 
@@ -355,6 +364,8 @@ class VideoInfo:
             self.fps = video_input.get(cv2.CAP_PROP_FPS)
         if not self.frames_cnt:
             self.frames_cnt = video_input.get(cv2.CAP_PROP_FRAME_COUNT)
+        if not self.duration:
+            self.duration = self.frames_cnt / self.fps
         self.frames_size = (video_input.get(cv2.CAP_PROP_FRAME_WIDTH), video_input.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     def update_info(self):
@@ -372,6 +383,7 @@ class VideoInfo:
         get_dict["fps"] = self.fps
         get_dict["size"] = self.frames_size
         get_dict["cnt"] = self.frames_cnt
+        get_dict["duration"] = self.duration
         return get_dict
 
 
