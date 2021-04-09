@@ -17,6 +17,7 @@ import tqdm
 from skvideo.io import FFmpegWriter, FFmpegReader
 from pprint import pprint
 import shutil
+import traceback
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser
 
 # 6.2.7 2021/4/8
@@ -51,7 +52,13 @@ if int(args["use_specific_gpu"]) != -1:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
     os.environ["CUDA_VISIBLE_DEVICES"] = f"{args['use_specific_gpu']}"
 
-import inference  # 导入补帧模块
+try:
+    import inference  # 导入补帧模块
+except Exception:
+    import inference_A as inference
+    print("Error: Import Torch Failed, use NCNN instead")
+    traceback.print_exc()
+    args.update({"ncnn": True})
 
 
 class InterpWorkFlow:

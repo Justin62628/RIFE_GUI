@@ -12,18 +12,18 @@ if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 try:
-    from Utils import RIFE_GUI_Backend
+    from Utils import RIFE_GUI_Backend_ST
 except ImportError as e:
     print("Not Find RIFE GUI Backend, please contact developers for support")
     input("Press Any Key to Quit")
     exit()
 
 app = QApplication(sys.argv)
-app_backend_module = RIFE_GUI_Backend
+app_backend_module = RIFE_GUI_Backend_ST
 app_backend = app_backend_module.RIFE_GUI_BACKEND()
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 2.1 beta")
+                                             title="Squirrel Video Frame Interpolation 2.0.1")
     form.show()
     app.exec_()
     """Save Settings"""

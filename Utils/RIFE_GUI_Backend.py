@@ -247,6 +247,7 @@ class RIFE_Run_Thread(QThread):
                         interval_time = time.time()
                         self.update_status(current_step, False, sp_status=f"{flush_lines}")
                         flush_lines = ""
+                self.update_status(current_step, False, sp_status=f"{flush_lines}")  # emit last possible img
 
                 current_step += 1
                 self.update_status(current_step, False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
