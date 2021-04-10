@@ -66,7 +66,7 @@ class NCNNinterpolator(threading.Thread):
                 self.supervise_data.update({"now_cnt": now_cnt, "now_dir": os.path.basename(output_dir),
                                             "input_cnt": input_cnt})
 
-            print(f"INFO - [NCNN] Round {output_dir} finished")
+            print(f"INFO - [NCNN] Round {output_dir.encode('utf-8', 'ignore').decode('utf-8')} finished")
             dir_cnt += 1
 
         for input_dir in self.input_list:

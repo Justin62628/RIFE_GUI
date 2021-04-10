@@ -8,8 +8,8 @@ from PyQt5.QtCore import *
 if hasattr(Qt, 'AA_EnableHighDpiScaling'):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 
-if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+# if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+#     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 try:
     from Utils import RIFE_GUI_Backend
@@ -23,7 +23,7 @@ app_backend_module = RIFE_GUI_Backend
 app_backend = app_backend_module.RIFE_GUI_BACKEND()
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 2.1 beta")
+                                             title="Squirrel Video Frame Interpolation 2.2.0 alpha")
     form.show()
     app.exec_()
     """Save Settings"""

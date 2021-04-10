@@ -556,20 +556,10 @@
                   <layout class="QGridLayout" name="gridLayout_13">
                    <item row="0" column="0">
                     <layout class="QGridLayout" name="gridLayout_15">
-                     <item row="1" column="3">
-                      <widget class="QCheckBox" name="DupRmChecker">
-                       <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                       </property>
-                       <property name="text">
-                        <string>动漫优化模式（重复帧优化）(仅N卡)</string>
-                       </property>
-                      </widget>
-                     </item>
                      <item row="1" column="0">
                       <widget class="QCheckBox" name="ScedetChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值3~10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值30~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值6~20&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值20~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值50~100&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>开启转场识别？设置灵敏度（值越低越灵敏）</string>
@@ -579,7 +569,14 @@
                        </property>
                       </widget>
                      </item>
-                     <item row="1" column="4">
+                     <item row="1" column="3">
+                      <widget class="Line" name="line">
+                       <property name="orientation">
+                        <enum>Qt::Vertical</enum>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="5">
                       <widget class="QDoubleSpinBox" name="DupFramesTSelector">
                        <property name="toolTip">
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -617,10 +614,20 @@
                        </property>
                       </widget>
                      </item>
+                     <item row="1" column="4">
+                      <widget class="QCheckBox" name="DupRmChecker">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
+                       <property name="text">
+                        <string>动漫优化模式（重复帧优化）(仅N卡)</string>
+                       </property>
+                      </widget>
+                     </item>
                      <item row="1" column="2">
-                      <widget class="Line" name="line">
-                       <property name="orientation">
-                        <enum>Qt::Vertical</enum>
+                      <widget class="QCheckBox" name="UseFixedScdet">
+                       <property name="text">
+                        <string>固定转场阈值</string>
                        </property>
                       </widget>
                      </item>
@@ -1291,48 +1298,46 @@
          <layout class="QGridLayout" name="gridLayout_24">
           <item row="0" column="0">
            <layout class="QGridLayout" name="gridLayout_8">
-            <item row="5" column="0">
-             <widget class="QPushButton" name="KillProcButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Abril Fatface</family>
-                <pointsize>20</pointsize>
-               </font>
-              </property>
-              <property name="text">
-               <string>强制结束补帧进程</string>
-              </property>
-             </widget>
+            <item row="6" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_14">
+              <item>
+               <widget class="QLabel" name="label_17">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>总完成进度</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QProgressBar" name="progressBar">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+                <property name="value">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
-            <item row="4" column="0">
-             <widget class="QPushButton" name="ProcessStart">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Abril Fatface</family>
-                <pointsize>20</pointsize>
-               </font>
-              </property>
-              <property name="text">
-               <string>开始补帧！</string>
-              </property>
-             </widget>
+            <item row="3" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_3"/>
             </item>
             <item row="1" column="0" rowspan="2" colspan="2">
              <widget class="QTextEdit" name="OptionCheck">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -1352,22 +1357,6 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
-            <item row="3" column="0">
-             <widget class="QProgressBar" name="progressBar">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="maximum">
-               <number>100</number>
-              </property>
-              <property name="value">
-               <number>0</number>
-              </property>
-             </widget>
-            </item>
             <item row="0" column="0">
              <widget class="QLabel" name="label_15">
               <property name="sizePolicy">
@@ -1378,6 +1367,44 @@ p, li { white-space: pre-wrap; }
               </property>
               <property name="text">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#000000;&quot;&gt;输出窗口&lt;/span&gt;&lt;span style=&quot; font-size:12pt; color:#000000;&quot;&gt;页面，字体的不同颜色意义如下：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ff0000;&quot;&gt;红色——错误，请将各页面截图并联系开发团队，群号264023742&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ffaa00;&quot;&gt;橙色——警告，视频导出可能有问题&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#00aa00;&quot;&gt;绿色——当前任务完成&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+             </widget>
+            </item>
+            <item row="7" column="0">
+             <widget class="QPushButton" name="ProcessStart">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Abril Fatface</family>
+                <pointsize>20</pointsize>
+               </font>
+              </property>
+              <property name="text">
+               <string>开始补帧！</string>
+              </property>
+             </widget>
+            </item>
+            <item row="8" column="0">
+             <widget class="QPushButton" name="KillProcButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Abril Fatface</family>
+                <pointsize>20</pointsize>
+               </font>
+              </property>
+              <property name="text">
+               <string>强制结束补帧进程</string>
               </property>
              </widget>
             </item>

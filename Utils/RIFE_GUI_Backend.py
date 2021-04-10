@@ -510,6 +510,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.EncoderSelector.setCurrentText(appData.value("encoder", "H264/AVC"))
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
         self.ScedetChecker.setChecked(not appData.value("no_scdet", False, type=bool))
+        self.UseFixedScdet.setChecked(appData.value("fixed_scdet", False, type=bool))
         self.RenderGapSelector.setValue(appData.value("render_gap", 1000, type=int))
         self.SaveAudioChecker.setChecked(appData.value("save_audio", True, type=bool))
 
@@ -540,7 +541,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
         desktop = QApplication.desktop()
         pos = appData.value("pos", QVariant(QPoint(960, 540)))
-        size = appData.value("size", QVariant(QSize(int(desktop.width() * 0.25), int(desktop.height() * 0.25))))
+        size = appData.value("size", QVariant(QSize(int(desktop.width() * 0.25), int(desktop.height() * 0.4))))
 
         self.resize(size)
         self.move(pos)
@@ -568,6 +569,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("encoder", self.EncoderSelector.currentText())
         appData.setValue("hwaccel", self.HwaccelChecker.isChecked())
         appData.setValue("no_scdet", not self.ScedetChecker.isChecked())
+        appData.setValue("fixed_scdet", self.UseFixedScdet.isChecked())
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
         appData.setValue("any_fps", self.UseAnyFPS.isChecked())
         if self.UseAnyFPS.isChecked():
@@ -795,6 +797,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 return False
         else:
             appData.setValue("img_input", False)
+
         return True
 
     @pyqtSlot(bool)
@@ -813,11 +816,15 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
     @pyqtSlot(bool)
     def on_AutoSet_clicked(self):
+        if not len(self.load_input_files()) or not len(self.OutputFolder.text()):
+            self.sendWarning("Invalid Inputs", "请检查你的输入和输出文件夹")
+            return
         self.auto_set()
 
     @pyqtSlot(bool)
     def on_ConcatButton_clicked(self):
         if not self.ConcatInputV.text():
+            self.load_current_settings()  # update settings
             input_filename = self.select_file('请输入要进行音视频合并的视频文件')
             self.ConcatInputV.setText(input_filename)
             self.ConcatInputA.setText(input_filename)
@@ -831,6 +838,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     @pyqtSlot(bool)
     def on_GifButton_clicked(self):
         if not self.GifInput.text():
+            self.load_current_settings()  # update settings
             input_filename = self.select_file('请输入要制作成gif的视频文件')
             self.GifInput.setText(input_filename)
             self.GifOutput.setText(
@@ -925,7 +933,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def on_ProcessStart_clicked(self):
         if not self.check_args():
             return
-        # self.auto_set()
+        reply = self.sendWarning("Confirm Start Info", f"补帧将会从区块[{self.StartChunk.text()}], "
+                                                       f"起始帧[{self.StartFrame.text()}]启动。\n请确保上述两者皆不为空。"
+                                                       f"是否执行补帧？", 3)
+        if reply == QMessageBox.No:
+            return
         self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread()

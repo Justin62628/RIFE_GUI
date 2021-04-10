@@ -309,7 +309,11 @@ class VideoInfo:
             f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
             f'color_primaries,color_range,color_space,color_transfer -print_format json '
             f'{self.fillQuotation(self.filepath)}').execute()
-        video_info = json.loads(result)["streams"][0]  # select first video stream as input
+        try:
+            video_info = json.loads(result)["streams"][0]  # select first video stream as input
+        except Exception as e:
+            print(f"Error: Parse Video Info Failed: {result}")
+            raise e
         print("\nInput Video Info:")
         pprint(video_info)
         # update color info

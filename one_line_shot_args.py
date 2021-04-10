@@ -15,12 +15,13 @@ import cv2
 import numpy as np
 import tqdm
 from skvideo.io import FFmpegWriter, FFmpegReader
+from sklearn import linear_model
 from pprint import pprint
 import shutil
 import traceback
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser
 
-# 6.2.7 2021/4/8
+# 6.2.8 2021/4/11
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -56,6 +57,7 @@ try:
     import inference  # 导入补帧模块
 except Exception:
     import inference_A as inference
+
     print("Error: Import Torch Failed, use NCNN instead")
     traceback.print_exc()
     args.update({"ncnn": True})
@@ -138,7 +140,7 @@ class InterpWorkFlow:
         self.frames_output = Queue(maxsize=int(self.render_gap * 3))  # 补出来的帧序列队列（消费者）
 
         self.render_info_pipe = {"rendering": (0, 0, 0, 0)}  # 有关渲染的实时信息，目前只有一个key
-        self.scene_stack_len = int(0.3 * self.fps)  # 用于判断转场的帧的absdiff的值的固定长队列的长度
+        self.scene_stack_len = int(0.2 * self.fps)  # 用于判断转场的帧的absdiff的值的固定长队列的长度
         self.scene_stack = deque(maxlen=self.scene_stack_len)  # absdiff队列
 
         self.dup_skip_limit = int(0.5 * self.fps) + 1  # 当前跳过的帧计数超过这个值，将结束当前判断循环
@@ -213,8 +215,7 @@ class InterpWorkFlow:
             return ImgSeqIO(folder=self.output, is_read=False)
 
         """Output Video"""
-        # TODO check vfr
-        input_dict = {"-vsync": "vfr", "-r": f"{self.fps * 2 ** self.exp}"}
+        input_dict = {"-vsync": "cfr", "-r": f"{self.fps * 2 ** self.exp}"}
 
         output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"], "-pix_fmt": self.args["pix_fmt"]}
         if self.args["any_fps"]:
@@ -387,21 +388,36 @@ class InterpWorkFlow:
                     return
         pass
 
-    def check_scene(self, diff, add_diff=False) -> bool:
+    def check_scene(self, diff, add_diff=False, no_diff=False) -> bool:
         """
         Check if current scene is scene
         :param diff:
         :param add_diff:
         :return: 是转场则返回帧
         """
+
+        if self.args.get("fixed_scdet", False):
+            if diff < self.args["scdet_threshold"]:
+                return False
+            else:
+                return True
+        if diff == 0:
+            """重复帧，不可能是转场，也不用添加到判断队列里"""
+            return False
+
+        if len(self.scene_stack) < self.scene_stack_len:
+            self.scene_stack.append(diff)
+            return False
+
         if add_diff:  # 只更新当前帧信息
             self.scene_stack.append(diff)
             return False
 
-        """Scene Stack not full, append only"""
-        if len(self.scene_stack) < self.scene_stack_len:
-            self.scene_stack.append(diff)
-            return False
+        """Duplicate Frames Special Judge"""
+        if no_diff:
+            self.scene_stack.pop()
+            if not len(self.scene_stack):
+                return False
 
         """Judge"""
         before_measure = np.var(self.scene_stack)  # 判断当前帧放入队列前的帧序列absdiff的方差
@@ -412,7 +428,6 @@ class InterpWorkFlow:
             self.scene_stack.clear()
             return True
         else:
-            self.scene_stack.append(diff)
             return False
 
     def crop_read_img(self, img):
@@ -466,6 +481,10 @@ class InterpWorkFlow:
 
         extract_cnt = 0
 
+        """Update Mode Info"""
+        if self.args["any_fps"]:
+            self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.5 else 0.5
+
         while True:
             if is_end:
                 break
@@ -487,7 +506,7 @@ class InterpWorkFlow:
                 skip = 0  # 用于记录跳过的帧数
 
                 """Find Scene"""
-                if self.check_scene(diff):
+                if not self.args["no_scdet"] and self.check_scene(diff):
                     self.feed_to_render(frames_list)  # no need to update scene flag
                     recent_scene = now_frame
                     # now_frame += 1  # to next frame img0 = img1
@@ -496,6 +515,7 @@ class InterpWorkFlow:
                 else:
                     if diff < self.args["dup_threshold"]:
                         before_img = img1
+                        last_diff = diff
                         while diff < self.args["dup_threshold"]:
                             skip += 1
                             scedet_info["1+"] += 1
@@ -508,13 +528,15 @@ class InterpWorkFlow:
                                 break
 
                             diff = cv2.absdiff(img0, img1).mean()
-                            self.check_scene(diff, add_diff=True)  # update scene stack
+                            if diff != last_diff:  # detect duplicated frames
+                                self.check_scene(diff, add_diff=True)  # update scene stack
+                                last_diff = diff
                             if skip == int(self.dup_skip_limit * self.target_fps / self.fps):
                                 """超过重复帧计数限额，直接跳出"""
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if self.check_scene(diff):
+                        if not self.args["no_scdet"] and self.check_scene(diff, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if skip:
                                 # 将转场前一帧作为img1，补足
@@ -559,7 +581,7 @@ class InterpWorkFlow:
                 is_scene = False
 
                 """Find Scene"""
-                if self.check_scene(diff):
+                if not self.args["no_scdet"] and self.check_scene(diff):
                     frames_list.append([now_frame, img0])
                     self.feed_to_render(frames_list, is_scene=True)
                     recent_scene = now_frame
@@ -586,7 +608,7 @@ class InterpWorkFlow:
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if self.check_scene(diff):
+                        if not self.args["no_scdet"] and self.check_scene(diff):
                             skip -= 1  # 两帧间隔计数器-1
                             if not skip:
                                 gap_frames_list.append(img0)
@@ -628,7 +650,7 @@ class InterpWorkFlow:
                     now_frame += 1
                 self.feed_to_render(frames_list, is_scene, is_end)
             else:
-                """No Duplicated Frames Removal"""
+                """No Duplicated Frames Removal, nor Any FPS mode"""
                 img1 = self.crop_read_img(Utils.gen_next(videogen))
 
                 if img1 is None:
@@ -667,7 +689,7 @@ class InterpWorkFlow:
 
             pbar.set_description(
                 f"Process at Chunk {rsq[0]:0>3d}")
-            pbar.set_postfix({"RenderedFrame": f"{rsq[3]:0>6d}", "CurrentFrame": f"{now_frame:0>6d}", "NearScene": f"{recent_scene:0>6d}"})
+            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -682,8 +704,7 @@ class InterpWorkFlow:
             """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
             pbar.set_description(
                 f"Process at Chunk {rsq[0]:0>3d}")
-            pbar.set_postfix({"RenderedFrame": f"{rsq[3]:0>6d}", "CurrentFrame": f"{now_frame:0>6d}",
-                              "NearScene": f"{recent_scene:0>6d}"})
+            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
             time.sleep(0.1)
@@ -757,7 +778,7 @@ class InterpWorkFlow:
             rsq = self.render_info_pipe["rendering"]  # render status quo
             pbar.set_description(
                 f"Process at Step 1, Extract Frames: Chunk {rsq[0]}")
-            pbar.set_postfix({"Frame": f"{now_frame:0>8d}", "Scene": f"{recent_scene:0>8d}"})
+            pbar.set_postfix({"Frame": f"{now_frame}", "Scene": f"{recent_scene}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -789,7 +810,8 @@ class InterpWorkFlow:
                     rsq = self.render_info_pipe["rendering"]  # render status quo
                     pbar.set_description(
                         f"Process at Step 2, Interpolation: Chunk {rsq[0]}")
-                    pbar.set_postfix({"Round": f"{self.rife_core.supervise_data['now_dir']}", "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
+                    pbar.set_postfix({"Round": f"{self.rife_core.supervise_data['now_dir']}",
+                                      "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
 
                 # generate scene map info
                 for scene in scenes_list:
@@ -826,7 +848,8 @@ class InterpWorkFlow:
                     """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
                     pbar.set_description(
                         f"Process at Step 3, Render: Chunk {rsq[0]}")
-                    pbar.set_postfix({"Frame": f"{interp_cnt:0>6d}", "Render": f"{int(rsq[3]):0>6d}", "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
+                    pbar.set_postfix({"Frame": f"{interp_cnt}", "Render": f"{int(rsq[3])}",
+                                      "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
                     pbar.update(interp_cnt - render_cnt)
                     render_cnt = interp_cnt
 
@@ -840,7 +863,8 @@ class InterpWorkFlow:
                     """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
                     pbar.set_description(
                         f"Process at Step 3, Render: Chunk {rsq[0]}")
-                    pbar.set_postfix({"Frame": f"{render_cnt:0>6d}", "Render": f"{int(rsq[3]):0>6d}", "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
+                    pbar.set_postfix({"Frame": f"{render_cnt}", "Render": f"{int(rsq[3])}",
+                                      "Status": f"{now_frame / self.all_frames_cnt * 100:.2f}%"})
                     time.sleep(0.1)
 
                 """Clean out"""
@@ -850,7 +874,7 @@ class InterpWorkFlow:
                 scenes_list.clear()
                 origianl_frame_cnt = 0
                 pbar.close()
-                pbar = tqdm.tqdm(total=self.all_frames_cnt, unit=" frames")
+                pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="frames")
                 pbar.update(n=now_frame)
                 pbar.unpause()
 
@@ -915,6 +939,8 @@ class InterpWorkFlow:
             output_ext = ".mov"
 
         concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{2 ** self.exp}x" + output_ext
+        if self.args["any_fps"]:
+            concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{int(self.target_fps)}fps" + output_ext
         if self.args["save_audio"]:
             map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
         else:
@@ -925,6 +951,7 @@ class InterpWorkFlow:
         os.system(ffmpeg_command)
         if self.args["output_only"] and os.path.exists(concat_filepath):
             if not os.path.getsize(concat_filepath):
+                self.logger.error(f"Concat Error, {output_ext}")
                 raise FileExistsError("Concat Error, Check Output Extension!!!")
             self.check_chunk(del_chunk=True)
 
