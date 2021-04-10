@@ -22,7 +22,7 @@ class CommandResult:
         pass
 
     def execute(self, ):
-        os.system(f"{self.command} > {self.output_path} 2>&1")
+        os.system(f"{self.command} > {Utils().fillQuotation(self.output_path)} 2>&1")
         with open(self.output_path, "r") as tool_read:
             content = tool_read.read()
         return content

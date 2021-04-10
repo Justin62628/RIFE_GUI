@@ -525,7 +525,7 @@ class InterpWorkFlow:
                                 for x in kpl:
                                     frames_list.append([now_frame, interp_output[x]])
                             frames_list.append([now_frame, before_img])
-
+                            recent_scene = now_frame
                             scedet_info["0"] += 1
                             now_frame += skip + 1
 
@@ -539,7 +539,7 @@ class InterpWorkFlow:
                     else:
                         scedet_info["1"] += 1
 
-                self.feed_to_render(frames_list)
+                self.feed_to_render(frames_list, is_end=is_end)
                 pass
             elif self.args["remove_dup"]:
                 """Remove duplicated Frames"""
