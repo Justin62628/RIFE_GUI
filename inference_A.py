@@ -1,9 +1,7 @@
 import os
 import shutil
-import traceback
 import warnings
 
-import numpy as np
 import time
 import threading
 from Utils.utils import Utils
@@ -62,7 +60,7 @@ class NCNNinterpolator(threading.Thread):
             while ncnn_thread.is_alive():
                 time.sleep(0.1)
                 output_frames_cnt = len(os.listdir(output_dir))
-                now_cnt = int(output_frames_cnt/2)
+                now_cnt = int(output_frames_cnt / 2)
                 self.supervise_data.update({"now_cnt": now_cnt, "now_dir": os.path.basename(output_dir),
                                             "input_cnt": input_cnt})
 

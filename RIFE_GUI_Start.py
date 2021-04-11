@@ -14,6 +14,7 @@ if hasattr(Qt, 'AA_EnableHighDpiScaling'):
 try:
     from Utils import RIFE_GUI_Backend
 except ImportError as e:
+    traceback.print_exc()
     print("Not Find RIFE GUI Backend, please contact developers for support")
     input("Press Any Key to Quit")
     exit()
@@ -23,7 +24,7 @@ app_backend_module = RIFE_GUI_Backend
 app_backend = app_backend_module.RIFE_GUI_BACKEND()
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 2.2.0 alpha")
+                                             title="Squirrel Video Frame Interpolation 2.2.1 alpha")
     form.show()
     app.exec_()
     """Save Settings"""

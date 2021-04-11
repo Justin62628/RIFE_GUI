@@ -179,7 +179,7 @@
                </widget>
               </item>
               <item>
-               <widget class="QComboBox" name="ExpSelecter">
+               <widget class="MyComboBox" name="ExpSelecter">
                 <item>
                  <property name="text">
                   <string>x2</string>
@@ -224,6 +224,9 @@
               </item>
               <item>
                <widget class="QLineEdit" name="OutputFPS">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -254,7 +257,7 @@
              </layout>
             </item>
             <item row="2" column="0">
-             <widget class="QLineEdit" name="OutputFolder">
+             <widget class="MyLineWidget" name="OutputFolder">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -321,7 +324,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QComboBox" name="ExtSelector">
+                 <widget class="MyComboBox" name="ExtSelector">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
@@ -401,7 +404,7 @@
              </widget>
             </item>
             <item row="1" column="0">
-             <widget class="QListWidget" name="InputFileName">
+             <widget class="MyListWidget" name="InputFileName">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                 <horstretch>0</horstretch>
@@ -559,7 +562,7 @@
                      <item row="1" column="0">
                       <widget class="QCheckBox" name="ScedetChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值6~20&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值20~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值50~100&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若使用固定转场识别(absdiff)&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若不使用固定转场识别则不用管，全自动的&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>开启转场识别？设置灵敏度（值越低越灵敏）</string>
@@ -577,7 +580,7 @@
                       </widget>
                      </item>
                      <item row="1" column="5">
-                      <widget class="QDoubleSpinBox" name="DupFramesTSelector">
+                      <widget class="MyDoubleSpinBox" name="DupFramesTSelector">
                        <property name="toolTip">
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
@@ -588,12 +591,15 @@
                         <double>99.000000000000000</double>
                        </property>
                        <property name="value">
-                        <double>2.000000000000000</double>
+                        <double>1.000000000000000</double>
                        </property>
                       </widget>
                      </item>
                      <item row="1" column="1">
-                      <widget class="QSpinBox" name="ScdetSelector">
+                      <widget class="MySpinBox" name="ScdetSelector">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -601,7 +607,7 @@
                         </sizepolicy>
                        </property>
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值3~10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值30~50&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若使用固定转场识别(absdiff)&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若不使用固定转场识别则不用管，全自动的&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -617,7 +623,7 @@
                      <item row="1" column="4">
                       <widget class="QCheckBox" name="DupRmChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，去除的重复帧越少。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值0.3~5.0&lt;/span&gt;&lt;/p&gt;&lt;p&gt;真人/3D实拍&lt;span style=&quot; font-weight:600;&quot;&gt;：建议值0.5&lt;/span&gt;&lt;/p&gt;&lt;p&gt;2D动画：&lt;span style=&quot; font-weight:600;&quot;&gt;建议值1.0~4.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>动漫优化模式（重复帧优化）(仅N卡)</string>
@@ -626,6 +632,9 @@
                      </item>
                      <item row="1" column="2">
                       <widget class="QCheckBox" name="UseFixedScdet">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若使用固定转场识别(absdiff)&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若不使用固定转场识别则不用管，全自动的&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
                        <property name="text">
                         <string>固定转场阈值</string>
                        </property>
@@ -726,7 +735,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="CRFSelector">
+                      <widget class="MySpinBox" name="CRFSelector">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
                          <horstretch>0</horstretch>
@@ -761,7 +770,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QDoubleSpinBox" name="BitrateSelector">
+                      <widget class="MyDoubleSpinBox" name="BitrateSelector">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
                          <horstretch>0</horstretch>
@@ -813,7 +822,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="RenderGapSelector">
+                      <widget class="MySpinBox" name="RenderGapSelector">
                        <property name="minimum">
                         <number>100</number>
                        </property>
@@ -862,7 +871,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="EncoderSelector">
+                      <widget class="MyComboBox" name="EncoderSelector">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -900,7 +909,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="PresetSelector">
+                      <widget class="MyComboBox" name="PresetSelector">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -934,7 +943,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="PixFmtSelector">
+                      <widget class="MyComboBox" name="PixFmtSelector">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -1071,7 +1080,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="InterpScaleSelector">
+                      <widget class="MyComboBox" name="InterpScaleSelector">
                        <property name="currentText">
                         <string>1.00</string>
                        </property>
@@ -1120,7 +1129,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="ModuleSelector">
+                      <widget class="MyComboBox" name="ModuleSelector">
                        <property name="toolTip">
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;默认情况下内置2.1~2.4四种模型&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.3表现最好，3D、2D通用&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.1最久远，可能有特别的优化效果&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.2中规中矩&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2.4烂得一批&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
@@ -1138,7 +1147,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="DiscreteCardSelector"/>
+                      <widget class="MyComboBox" name="DiscreteCardSelector"/>
                      </item>
                     </layout>
                    </item>
@@ -1172,7 +1181,10 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="ncnnReadThreadCnt">
+                      <widget class="MySpinBox" name="ncnnReadThreadCnt">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -1198,7 +1210,10 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="ncnnInterpThreadCnt">
+                      <widget class="MySpinBox" name="ncnnInterpThreadCnt">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -1224,7 +1239,10 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="ncnnOutputThreadCnt">
+                      <widget class="MySpinBox" name="ncnnOutputThreadCnt">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -1250,7 +1268,10 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QSpinBox" name="ncnnGPUCnt">
+                      <widget class="MySpinBox" name="ncnnGPUCnt">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                          <horstretch>0</horstretch>
@@ -1335,7 +1356,7 @@
              <layout class="QHBoxLayout" name="horizontalLayout_3"/>
             </item>
             <item row="1" column="0" rowspan="2" colspan="2">
-             <widget class="QTextEdit" name="OptionCheck">
+             <widget class="MyTextWidget" name="OptionCheck">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                 <horstretch>0</horstretch>
@@ -1426,7 +1447,7 @@ p, li { white-space: pre-wrap; }
               </property>
               <layout class="QGridLayout" name="gridLayout_25">
                <item row="0" column="0">
-                <widget class="QLineEdit" name="GifInput">
+                <widget class="MyLineWidget" name="GifInput">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                    <horstretch>0</horstretch>
@@ -1442,7 +1463,7 @@ p, li { white-space: pre-wrap; }
                 </widget>
                </item>
                <item row="1" column="0">
-                <widget class="QLineEdit" name="GifOutput">
+                <widget class="MyLineWidget" name="GifOutput">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                    <horstretch>0</horstretch>
@@ -1490,7 +1511,7 @@ p, li { white-space: pre-wrap; }
                  <item row="0" column="0">
                   <layout class="QVBoxLayout" name="verticalLayout">
                    <item>
-                    <widget class="QLineEdit" name="ConcatInputV">
+                    <widget class="MyLineWidget" name="ConcatInputV">
                      <property name="sizePolicy">
                       <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
                        <horstretch>0</horstretch>
@@ -1506,7 +1527,7 @@ p, li { white-space: pre-wrap; }
                     </widget>
                    </item>
                    <item>
-                    <widget class="QLineEdit" name="ConcatInputA">
+                    <widget class="MyLineWidget" name="ConcatInputA">
                      <property name="sizePolicy">
                       <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
                        <horstretch>0</horstretch>
@@ -1522,7 +1543,7 @@ p, li { white-space: pre-wrap; }
                     </widget>
                    </item>
                    <item>
-                    <widget class="QLineEdit" name="OutputConcat">
+                    <widget class="MyLineWidget" name="OutputConcat">
                      <property name="sizePolicy">
                       <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
                        <horstretch>0</horstretch>
@@ -1591,6 +1612,38 @@ p, li { white-space: pre-wrap; }
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MyComboBox</class>
+   <extends>QComboBox</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+  <customwidget>
+   <class>MySpinBox</class>
+   <extends>QSpinBox</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+  <customwidget>
+   <class>MyDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+  <customwidget>
+   <class>MyLineWidget</class>
+   <extends>QLineEdit</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+  <customwidget>
+   <class>MyListWidget</class>
+   <extends>QListWidget</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+  <customwidget>
+   <class>MyTextWidget</class>
+   <extends>QTextEdit</extends>
+   <header location="global">Utils.RIFE_GUI_Custom</header>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>tabWidget</tabstop>
   <tabstop>InputButton</tabstop>

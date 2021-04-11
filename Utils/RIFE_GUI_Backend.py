@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import math
 import os
 import re
@@ -8,12 +7,10 @@ import traceback
 
 import cv2
 import torch
-from PyQt5 import QtWidgets
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QTextCursor, QIcon
 import html
-from pprint import pprint, pformat
 import sys
 import subprocess as sp
 import shlex
@@ -77,74 +74,6 @@ class RIFE_Run_Other_Threads(QThread):
     pass
 
 
-class MyLineWidget(QtWidgets.QLineEdit):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-
-    def dragEnterEvent(self, e):
-        if e.mimeData().hasText():  # 是否文本文件格式
-            url = e.mimeData().urls()[0]
-            self.setText(url.toLocalFile())
-        else:
-            e.ignore()
-
-
-class MyListWidget(QtWidgets.QListWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-
-    def dropEvent(self, e):
-        if e.mimeData().hasText():  # 是否文本文件格式
-            self.clear()
-            for url in e.mimeData().urls():
-                self.addItem(url.toLocalFile())
-        else:
-            e.ignore()
-
-    def dragEnterEvent(self, e):
-        if e.mimeData().hasText():  # 是否文本文件格式
-            self.clear()
-            for url in e.mimeData().urls():
-                self.addItem(url.toLocalFile())
-        else:
-            e.ignore()
-
-    def get_items(self):
-        widgetres = []
-        # 获取listwidget中条目数
-        count = self.count()
-        # 遍历listwidget中的内容
-        for i in range(count):
-            widgetres.append(self.item(i).text())
-        return widgetres
-
-
-class MyTextWidget(QtWidgets.QTextEdit):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-
-    def dropEvent(self, event):
-        try:
-            if event.mimeData().hasUrls:
-                url = event.mimeData().urls()[0]
-                # url_list = list()
-                # url_list.append(self.toPlainText().strip(";"))
-                # for url in event.mimeData().urls():
-                #     url_list.append(f"{url.toLocalFile()}")
-                # text = ""
-                # for url in url_list:
-                #     text += f"{url};"
-                # text = text.strip(";")
-                self.setText(f"{url.toLocalFile()}")
-            else:
-                event.ignore()
-        except Exception as e:
-            print(e)
-
-
 class RIFE_Run_Thread(QThread):
     run_signal = pyqtSignal(str)
 
@@ -170,7 +99,8 @@ class RIFE_Run_Thread(QThread):
         if not len(input_file) or not os.path.exists(input_file):
             self.command = ""
             return ""
-        if appData.value("fps", type=float) <= 0 or appData.value("target_fps", type=float) <= 0:
+        if float(appData.value("fps", -1.0, type=float)) <= 0 or float(
+                appData.value("target_fps", -1.0, type=float)) <= 0:
             return ""
 
         self.command += f'--input {Utils.fillQuotation(input_file)} '
@@ -411,7 +341,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def auto_set(self):
         chunk_list = list()
         output_dir = self.OutputFolder.text()
-
         for f in os.listdir(output_dir):
             if re.match("chunk-[\d+].*?\.(mp4|mov)", f):
                 chunk_list.append(os.path.join(output_dir, f))
@@ -464,6 +393,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             appData.setValue("ncnn", True)
             self.UseNCNNButton.setChecked(True)
             self.UseNCNNButton.setEnabled(False)
+            self.on_UseNCNNButton_clicked()
             return
         else:
             if self.UseNCNNButton.isChecked():
@@ -669,7 +599,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 add_line = f'<p><span style=" font-weight:600; color:#55aa00;">{line}</span></p>'
             elif "info" in line.lower():
                 add_line = f'<p><span style=" font-weight:600; color:#0000ff;">{line}</span></p>'
-            elif any([i in line.lower() for i in ["error", "invalid", "incorrect", "critical", "fail", "can't", "can not"]]):
+            elif any([i in line.lower() for i in
+                      ["error", "invalid", "incorrect", "critical", "fail", "can't", "can not"]]):
                 add_line = f'<p><span style=" font-weight:600; color:#ff0000;">{line}</span></p>'
             elif "warn" in line.lower():
                 add_line = f'<p><span style=" font-weight:600; color:#ffaa00;">{line}</span></p>'
@@ -819,6 +750,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         if not len(self.load_input_files()) or not len(self.OutputFolder.text()):
             self.sendWarning("Invalid Inputs", "请检查你的输入和输出文件夹")
             return
+        self.check_args()
         self.auto_set()
 
     @pyqtSlot(bool)
@@ -853,6 +785,11 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.on_EncoderSelector_currentTextChanged()
 
     @pyqtSlot(bool)
+    def on_UseFixedScdet_clicked(self):
+        logger.info("Switch To FixedScdetThreshold Mode: %s" % self.UseFixedScdet.isChecked())
+        self.ScdetSelector.setEnabled(self.UseFixedScdet.isChecked())
+
+    @pyqtSlot(bool)
     def on_UseNCNNButton_clicked(self):
         if self.hasNVIDIA and self.UseNCNNButton.isChecked():
             reply = self.sendWarning(f"确定使用NCNN？", f"你有N卡，确定使用A卡/核显？", 3)
@@ -862,6 +799,27 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 self.UseNCNNButton.setChecked(False)
         else:
             logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
+        if self.UseNCNNButton.isChecked():
+            """Nvidia Special Functions"""
+            self.HwaccelChecker.setChecked(False)
+            self.DupRmChecker.setChecked(False)
+            self.UseAnyFPS.setChecked(False)
+        bool_result = not self.UseNCNNButton.isChecked()
+        self.FP16Checker.setEnabled(bool_result)
+        self.ReverseChecker.setEnabled(bool_result)
+        self.InterpScaleSelector.setEnabled(bool_result)
+        self.ModuleSelector.setEnabled(bool_result)
+        self.DiscreteCardSelector.setEnabled(bool_result)
+        self.ncnnReadThreadCnt.setEnabled(not bool_result)
+        self.ncnnInterpThreadCnt.setEnabled(not bool_result)
+        self.ncnnOutputThreadCnt.setEnabled(not bool_result)
+        self.ncnnGPUCnt.setEnabled(not bool_result)
+        self.UseAnyFPS.setEnabled(bool_result)
+        self.DupRmChecker.setEnabled(bool_result)
+        self.DupFramesTSelector.setEnabled(bool_result)
+        self.HwaccelChecker.setEnabled(bool_result)
+        self.on_UseAnyFPS_clicked()
+        self.on_ExpSelecter_currentTextChanged()
 
     @pyqtSlot(bool)
     def on_UseAnyFPS_clicked(self):
@@ -869,6 +827,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             reply = self.sendWarning(f"未探测到N卡，不能勾选此项！", 1)
             self.UseAnyFPS.setChecked(False)
             self.HwaccelChecker.setChecked(False)
+            return
+        bool_result = self.UseAnyFPS.isChecked()
+        self.ExpSelecter.setEnabled(not bool_result)
+        self.OutputFPS.setEnabled(bool_result)
 
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):
@@ -949,7 +911,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             显示“Program finished”则任务完成
             如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
             群号在首页说明\n
-            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 使用任意帧率：{self.UseAnyFPS.isChecked()}
+            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 使用任意帧率：{self.UseAnyFPS.isChecked()}， 使用动漫优化：{self.DupRmChecker.isChecked()}
         """
         if appData.value("ncnn", type=bool):
             update_text += "使用A卡或核显：True\n"

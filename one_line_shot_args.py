@@ -15,10 +15,10 @@ import cv2
 import numpy as np
 import tqdm
 from skvideo.io import FFmpegWriter, FFmpegReader
-from sklearn import linear_model
-from pprint import pprint
+# from sklearn import linear_model
 import shutil
 import traceback
+import psutil
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser
 
 # 6.2.8 2021/4/11
@@ -137,10 +137,17 @@ class InterpWorkFlow:
         self.render_gap = self.args["render_gap"]  # 每个chunk的帧数
         self.frame_reader = None  # 读帧的迭代器／帧生成器
         self.render_thread = None  # 帧渲染器
-        self.frames_output = Queue(maxsize=int(self.render_gap * 3))  # 补出来的帧序列队列（消费者）
+
+        mem = psutil.virtual_memory()
+        free_mem = round(mem.free / 1024 / 1024)
+        self.frames_output_size = round(free_mem / (sys.getsizeof(
+            np.random.rand(3, round(self.video_info["size"][0]), round(self.video_info["size"][1])))/1024/1024) * 0.8)
+        if self.frames_output_size < 100:
+            self.frames_output_size = 100
+        self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
 
         self.render_info_pipe = {"rendering": (0, 0, 0, 0)}  # 有关渲染的实时信息，目前只有一个key
-        self.scene_stack_len = int(0.2 * self.fps)  # 用于判断转场的帧的absdiff的值的固定长队列的长度
+        self.scene_stack_len = int(0.3 * self.fps)  # 用于判断转场的帧的absdiff的值的固定长队列的长度
         self.scene_stack = deque(maxlen=self.scene_stack_len)  # absdiff队列
 
         self.dup_skip_limit = int(0.5 * self.fps) + 1  # 当前跳过的帧计数超过这个值，将结束当前判断循环
@@ -396,6 +403,24 @@ class InterpWorkFlow:
         :return: 是转场则返回帧
         """
 
+        # def check_coef():
+        #     reg = linear_model.LinearRegression()
+        #     reg.fit(np.array(range(len(self.scene_stack))).reshape(-1, 1), np.array(self.scene_stack).reshape(-1, 1))
+        #     return reg.coef_
+
+        def judge_mean():
+            before_measure = np.mean(self.scene_stack) * 2.5  # 判断当前帧放入队列前的帧序列absdiff的方差
+            if before_measure < diff and np.max(self.scene_stack) * 0.9 < diff and diff > 2:
+                """Detect new scene"""
+                self.scene_stack.clear()
+                return True
+            else:
+                self.scene_stack.append(diff)
+                return False
+
+        def judge_var():
+            pass
+
         if self.args.get("fixed_scdet", False):
             if diff < self.args["scdet_threshold"]:
                 return False
@@ -405,12 +430,40 @@ class InterpWorkFlow:
             """重复帧，不可能是转场，也不用添加到判断队列里"""
             return False
 
-        if len(self.scene_stack) < self.scene_stack_len:
-            self.scene_stack.append(diff)
+        if len(self.scene_stack) < self.scene_stack_len or add_diff:
+            if diff not in self.scene_stack:
+                self.scene_stack.append(diff)
             return False
 
-        if add_diff:  # 只更新当前帧信息
-            self.scene_stack.append(diff)
+        """Duplicate Frames Special Judge"""
+        if no_diff:
+            self.scene_stack.pop()
+            if not len(self.scene_stack):
+                return False
+
+        """Judge"""
+        return judge_mean()
+
+    def check_scene_ST(self, diff, add_diff=False, no_diff=False) -> bool:
+        """
+        Check if current scene is scene
+        :param diff:
+        :param add_diff:
+        :return: 是转场则返回帧
+        """
+
+        if self.args.get("fixed_scdet", False):
+            if diff < self.args["scdet_threshold"]:
+                return False
+            else:
+                return True
+        if diff == 0:
+            """重复帧，不可能是转场，也不用添加到判断队列里"""
+            return False
+
+        if len(self.scene_stack) < self.scene_stack_len or add_diff:
+            if diff not in self.scene_stack:
+                self.scene_stack.append(diff)
             return False
 
         """Duplicate Frames Special Judge"""
@@ -608,7 +661,7 @@ class InterpWorkFlow:
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if not self.args["no_scdet"] and self.check_scene(diff):
+                        if not self.args["no_scdet"] and self.check_scene(diff, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if not skip:
                                 gap_frames_list.append(img0)

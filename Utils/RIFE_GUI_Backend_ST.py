@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import math
 import os
 import re
@@ -13,13 +12,12 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QTextCursor, QIcon
 import html
-from pprint import pprint, pformat
 import sys
 import subprocess as sp
 import shlex
 import time
 from Utils import RIFE_GUI_ST as RIFE_GUI
-from Utils.utils import Utils, EncodePresetAssemply
+from Utils import Utils, EncodePresetAssemply
 
 MAC = True
 try:

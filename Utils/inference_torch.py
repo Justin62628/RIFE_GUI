@@ -9,10 +9,9 @@ import warnings
 import _thread
 import psutil
 import time
-from queue import Queue, Empty
+from queue import Queue
 from skvideo.io import FFmpegWriter
 import sys
-import skvideo
 
 warnings.filterwarnings("ignore")
 
@@ -63,12 +62,12 @@ if args.device_id != -1:
     if args.fp16:
         torch.set_default_tensor_type(torch.cuda.HalfTensor)    
     try:
-        from Utils.model.RIFE_HDv2 import Model
+        from Utils import Model
         model = Model()
         model.load_model(args.modelDir, -1)
         print("Loaded v2.x HD model.")
     except:
-        from Utils.model.RIFE_HD import Model
+        from Utils import Model
         model = Model()
         model.load_model(args.modelDir, -1)
         print("Loaded v1.x HD model")

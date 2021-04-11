@@ -179,7 +179,7 @@ class ImgSeqIO:
         else:
             png_re = re.compile("\d+\.png")
             write_png = sorted([i for i in os.listdir(self.seq_folder) if png_re.match(i)],
-                               key=lambda x:int(x[:-4]), reverse=True)
+                               key=lambda x: int(x[:-4]), reverse=True)
             if len(write_png):
                 self.frame_cnt = int(os.path.splitext(write_png[0])[0]) + 1
             for t in range(self.thread):
@@ -246,30 +246,32 @@ class ImgSeqIO:
     def close(self):
         return
 
+
 class EncodePresetAssemply:
     preset = {
-        "HEVC":{
-            "x265":["slow", "ultrafast", "fast", "medium",  "veryslow"],
-            "NVENC":["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+        "HEVC": {
+            "x265": ["slow", "ultrafast", "fast", "medium", "veryslow"],
+            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
         },
-        "H264":{
-            "x264":["slow", "ultrafast",  "fast",  "medium",   "veryslow", "placebo",],
-            "NVENC":["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+        "H264": {
+            "x264": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
+            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
         },
-        "ProRes":["hq", "4444", "4444xq"]
+        "ProRes": ["hq", "4444", "4444xq"]
     }
     pixfmt = {
-        "HEVC":{
-            "x265":[ "yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le",  "yuv444p10le", "yuv420p12le",
-                    "yuv422p12le","yuv444p12le"],
-            "NVENC":["p010le", "yuv420p",  "yuv444p", "p016le",  "yuv444p16le"],
+        "HEVC": {
+            "x265": ["yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le", "yuv444p10le", "yuv420p12le",
+                     "yuv422p12le", "yuv444p12le"],
+            "NVENC": ["p010le", "yuv420p", "yuv444p", "p016le", "yuv444p16le"],
         },
-        "H264":{
-            "x264":["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le",  "yuv444p10le",],
-            "NVENC":["yuv420p", "p010le", "yuv444p", "p016le",  "yuv444p16le"],
+        "H264": {
+            "x264": ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", ],
+            "NVENC": ["yuv420p", "p010le", "yuv444p", "p016le", "yuv444p16le"],
         },
-        "ProRes":["yuv422p10le", "yuv444p10le"]
+        "ProRes": ["yuv422p10le", "yuv444p10le"]
     }
+
 
 class VideoInfo:
     def fillQuotation(self, string):
