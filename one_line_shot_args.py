@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 import tqdm
 from skvideo.io import FFmpegWriter, FFmpegReader
-# from sklearn import linear_model
+from sklearn import linear_model
 import shutil
 import traceback
 import psutil
@@ -167,6 +167,8 @@ class InterpWorkFlow:
         if self.args["encoder"] == "ProRes":
             self.output_ext = ".mov"
             # TODO optimize this
+
+        self.scdet_cnt = 0
         pass
 
     def generate_frame_reader(self, start_frame=-1):
@@ -180,7 +182,7 @@ class InterpWorkFlow:
             return ImgSeqIO(folder=self.input, is_read=True, start_frame=start_frame)
 
         """If input is a video"""
-        input_dict = {"-vsync": "0"}
+        input_dict = {"-vsync": "0", "-hwaccel": "auto"}
         output_dict = {
             "-vframes": str(int(abs(self.all_frames_cnt * 100)))}  # use read frames cnt to avoid ffprobe, fuck
 
@@ -395,7 +397,87 @@ class InterpWorkFlow:
                     return
         pass
 
-    def check_scene(self, diff, add_diff=False, no_diff=False) -> bool:
+    def check_scene(self, img1, img2, add_diff=False, no_diff=False) -> bool:
+        """
+        Check if current scene is scene
+        :param img2:
+        :param img1:
+        :param add_diff:
+        :return: 是转场则返回帧
+        """
+
+        def check_coef():
+            reg = linear_model.LinearRegression()
+            reg.fit(np.array(range(len(self.scene_stack))).reshape(-1, 1), np.array(self.scene_stack).reshape(-1, 1))
+            return reg.coef_, reg.intercept_
+
+        def check_var():
+            coef, intercept = check_coef()
+            coef_array = coef * np.array(range(len(self.scene_stack))).reshape(-1, 1) + intercept
+            diff_array = np.array(self.scene_stack)
+            sub_array = diff_array - coef_array
+            return math.sqrt(sub_array.var())
+
+        dead_thres = 80
+        born_thres = 2
+
+        def see_result(title):
+            return
+            comp_stack = np.hstack((img1, img2))
+            cv2.imshow(title, cv2.cvtColor(comp_stack, cv2.COLOR_BGR2RGB))
+            cv2.moveWindow(title, 1000, 1000)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+        def judge_mean():
+            var_before = check_var()
+            self.scene_stack.append(diff)
+            var_after = check_var()
+            if var_after - var_before > 5 and diff > born_thres:
+                """Detect new scene"""
+                see_result(f"compare: True, diff: {diff:.3f}, before: {var_before:.3f}, after: {var_after:.3f}, cnt: {self.scdet_cnt + 1}")
+                self.scene_stack.clear()
+                return True
+            else:
+                if diff > dead_thres:
+                    self.scene_stack.clear()
+                    see_result(f"compare: True, diff: {diff:.3f}, False Alarm, cnt: {self.scdet_cnt + 1}")
+                    return True
+                # see_result(f"compare: False, diff: {diff}, bm: {before_measure}")
+                return False
+
+        diff = Utils.get_norm_img_diff(img1, img2)
+
+        if self.args.get("fixed_scdet", False):
+            if diff < self.args["scdet_threshold"]:
+                return False
+            else:
+                return True
+
+        # if diff == 0:
+        #     """重复帧，不可能是转场，也不用添加到判断队列里"""
+        #     return False
+
+        if len(self.scene_stack) < self.scene_stack_len or add_diff:
+            if diff not in self.scene_stack:
+                self.scene_stack.append(diff)
+            # if diff > dead_thres:
+            #     if not add_diff:
+            #         see_result(f"compare: True, diff: {diff:.3f}, Sparse Stack, cnt: {self.scdet_cnt + 1}")
+            #     self.scene_stack.clear()
+            #     return True
+            return False
+
+        """Duplicate Frames Special Judge"""
+        if no_diff and len(self.scene_stack):
+            self.scene_stack.pop()
+            if not len(self.scene_stack):
+                return False
+
+        """Judge"""
+        return judge_mean()
+
+    def check_scene_ST2(self, diff, add_diff=False, no_diff=False) -> bool:
         """
         Check if current scene is scene
         :param diff:
@@ -559,16 +641,17 @@ class InterpWorkFlow:
                 skip = 0  # 用于记录跳过的帧数
 
                 """Find Scene"""
-                if not self.args["no_scdet"] and self.check_scene(diff):
+                if not self.args["no_scdet"] and self.check_scene(img0, img1):
                     self.feed_to_render(frames_list)  # no need to update scene flag
                     recent_scene = now_frame
                     # now_frame += 1  # to next frame img0 = img1
                     scedet_info["0"] += 1
+                    self.scdet_cnt += 1
+
                     continue
                 else:
                     if diff < self.args["dup_threshold"]:
                         before_img = img1
-                        last_diff = diff
                         while diff < self.args["dup_threshold"]:
                             skip += 1
                             scedet_info["1+"] += 1
@@ -581,32 +664,39 @@ class InterpWorkFlow:
                                 break
 
                             diff = cv2.absdiff(img0, img1).mean()
-                            if diff != last_diff:  # detect duplicated frames
-                                self.check_scene(diff, add_diff=True)  # update scene stack
-                                last_diff = diff
+
+                            self.check_scene(img0, img1, add_diff=True)  # update scene stack
                             if skip == int(self.dup_skip_limit * self.target_fps / self.fps):
                                 """超过重复帧计数限额，直接跳出"""
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if not self.args["no_scdet"] and self.check_scene(diff, no_diff=True):
+                        if not self.args["no_scdet"] and self.check_scene(img0, img1, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if skip:
                                 # 将转场前一帧作为img1，补足
                                 exp = int(math.log(skip, 2)) + 1
-                                interp_output = self.rife_core.generate_interp(img0, before_img, exp,
-                                                                               self.args["scale"])
+                                if _debug:
+                                    interp_output = [img0 for i in range(2**exp - 1)]
+                                else:
+
+                                    interp_output = self.rife_core.generate_interp(img0, before_img, exp,
+                                                                                   self.args["scale"])
                                 kpl = Utils.generate_prebuild_map(exp, skip)
                                 for x in kpl:
                                     frames_list.append([now_frame, interp_output[x]])
                             frames_list.append([now_frame, before_img])
                             recent_scene = now_frame
                             scedet_info["0"] += 1
+                            self.scdet_cnt += 1
                             now_frame += skip + 1
 
                         elif skip != 0:
                             exp = int(math.log(skip, 2)) + 1
-                            interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
+                            if _debug:
+                                interp_output = [img0 for i in range(2 ** exp - 1)]
+                            else:
+                                interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
                             kpl = Utils.generate_prebuild_map(exp, skip)
                             for x in kpl:
                                 frames_list.append([now_frame, interp_output[x]])
@@ -634,12 +724,13 @@ class InterpWorkFlow:
                 is_scene = False
 
                 """Find Scene"""
-                if not self.args["no_scdet"] and self.check_scene(diff):
+                if not self.args["no_scdet"] and self.check_scene(img0, img1):
                     frames_list.append([now_frame, img0])
                     self.feed_to_render(frames_list, is_scene=True)
                     recent_scene = now_frame
                     now_frame += 1  # to next frame img0 = img1
                     scedet_info["0"] += 1
+                    self.scdet_cnt += 1
                     continue
                 else:
                     if diff < self.args["dup_threshold"]:
@@ -655,20 +746,23 @@ class InterpWorkFlow:
                                 break
 
                             diff = cv2.absdiff(img0, img1).mean()
-                            self.check_scene(diff, add_diff=True)  # update scene stack
+                            self.check_scene(img0, img1, add_diff=True)  # update scene stack
                             if skip == self.dup_skip_limit:
                                 """超过重复帧计数限额，直接跳出"""
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if not self.args["no_scdet"] and self.check_scene(diff, no_diff=True):
+                        if not self.args["no_scdet"] and self.check_scene(img0,img1, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if not skip:
                                 gap_frames_list.append(img0)
                             else:
                                 # 将转场前一帧作为img1，补足
                                 exp = int(math.log(skip, 2)) + 1
-                                interp_output = self.rife_core.generate_interp(img0, before_img, exp,
+                                if _debug:
+                                    interp_output = [img0 for i in range(2**exp - 1)]
+                                else:
+                                    interp_output = self.rife_core.generate_interp(img0, before_img, exp,
                                                                                self.args["scale"])
                                 kpl = Utils.generate_prebuild_map(exp, skip)
                                 for x in kpl:
@@ -677,9 +771,14 @@ class InterpWorkFlow:
 
                             is_scene = True
                             scedet_info["0"] += 1
+                            self.scdet_cnt += 1
+
                         elif skip != 0:
                             exp = int(math.log(skip, 2)) + 1
-                            interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
+                            if _debug:
+                                interp_output = [img0 for i in range(2 ** exp - 1)]
+                            else:
+                                interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
                             kpl = Utils.generate_prebuild_map(exp, skip)
                             for x in kpl:
                                 gap_frames_list.append(interp_output[x])
@@ -712,18 +811,15 @@ class InterpWorkFlow:
                     # is_end = True
                     break
 
-                if not self.args["no_scdet"]:
-
-                    diff = cv2.absdiff(img0, img1).mean()
-
-                    if self.check_scene(diff):
-                        """!!!scene"""
-                        frames_list.append((now_frame, img0))
-                        self.feed_to_render(frames_list, is_scene=True)
-                        recent_scene = now_frame
-                        now_frame += 1  # to next frame img0 = img1
-                        scedet_info["0"] += 1
-                        continue
+                if not self.args["no_scdet"] and self.check_scene(img0, img1):
+                    """!!!scene"""
+                    frames_list.append((now_frame, img0))
+                    self.feed_to_render(frames_list, is_scene=True)
+                    recent_scene = now_frame
+                    now_frame += 1  # to next frame img0 = img1
+                    scedet_info["0"] += 1
+                    self.scdet_cnt += 1
+                    continue
 
                 frames_list.append((now_frame, img0))
 
@@ -814,12 +910,13 @@ class InterpWorkFlow:
                 is_end = True
 
             if not self.args["no_scdet"] and img1 is not None:
-                diff = cv2.absdiff(img0, img1).mean()
-                if self.check_scene(diff):
+                if self.check_scene(img0, img1):
                     """!!!scene"""
                     recent_scene = now_frame
                     scenes_list.append(origianl_frame_cnt)
                     scedet_info["0"] += 1
+                    self.scdet_cnt += 1
+
                 else:
                     scedet_info["1"] += 1
 

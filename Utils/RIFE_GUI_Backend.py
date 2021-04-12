@@ -172,8 +172,11 @@ class RIFE_Run_Thread(QThread):
                     self.current_proc.stdout.flush()
                     flush_lines += line.replace("[A", "")
                     if "error" in flush_lines.lower():
+                        """Imediately Upload"""
                         logger.error(f"[In ONE LINE SHOT]: f{flush_lines}")
-                    if len(flush_lines) and time.time() - interval_time > 0.1:
+                        self.update_status(current_step, False, sp_status=f"{flush_lines}")
+                        flush_lines = ""
+                    elif len(flush_lines) and time.time() - interval_time > 0.1:
                         interval_time = time.time()
                         self.update_status(current_step, False, sp_status=f"{flush_lines}")
                         flush_lines = ""
@@ -632,7 +635,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 complete_msg += f'失败, 返回码：{returncode}\n请尝试前往高级设置恢复补帧进度'
                 log_path = os.path.join(self.OutputFolder.text(), "log")
                 if os.path.exists(log_path):
-                    os.startfile(log_path)
+                    # os.startfile(log_path)
+                    pass
 
             self.sendWarning("补帧任务完成", complete_msg, 2)
             self.ProcessStart.setEnabled(True)

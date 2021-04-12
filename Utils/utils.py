@@ -59,6 +59,8 @@ class DefaultConfigParser(ConfigParser):
 
 class Utils:
     def __init__(self):
+        self.resize_param = (480, 270)
+        self.crop_param = (0,0,0,0)
         pass
 
     def fillQuotation(self, string):
@@ -150,6 +152,105 @@ class Utils:
                 args[a] = ""
         return args
         pass
+
+    def get_norm_img(self, img1):
+        img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
+        img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
+        img1 = cv2.equalizeHist(img1) #进行直方图均衡化
+        # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        # _, img1 = cv2.threshold(img1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        return img1
+
+    def get_norm_img_diff(self, img1, img2) -> float:
+        """
+        Normalize Difference
+        :param img1: cv2
+        :param img2: cv2
+        :return: float
+        """
+        img1 = self.get_norm_img(img1)
+        img2 = self.get_norm_img(img2)
+        # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
+        diff = cv2.absdiff(img1, img2).mean()
+        return diff
+
+    def rm_edge(self, img):
+        """
+        return img info of edges
+        :param img:
+        :return:
+        """
+        gray = img
+        x = gray.shape[1]
+        y = gray.shape[0]
+
+        if np.var(gray) == 0:
+            """pure image, like white or black"""
+            return 0, y, 0, x
+
+        # if np.mean(self.crop_param) != 0:
+        #     return self.crop_param
+
+        edges_x = []
+        edges_y = []
+        edges_x_up = []
+        edges_y_up = []
+        edges_x_down = []
+        edges_y_down = []
+        edges_x_left = []
+        edges_y_left = []
+        edges_x_right = []
+        edges_y_right = []
+
+        for i in range(x):
+            for j in range(y):
+                if int(gray[j][i]) > 10:
+                    edges_x_left.append(i)
+                    edges_y_left.append(j)
+            if len(edges_x_left) != 0 or len(edges_y_left) != 0:
+                break
+
+        for i in range(x):
+            for j in range(y):
+                if int(gray[j][x - i - 1]) > 10:
+                    edges_x_right.append(i)
+                    edges_y_right.append(j)
+            if len(edges_x_right) != 0 or len(edges_y_right) != 0:
+                break
+
+        for j in range(y):
+            for i in range(x):
+                if int(gray[j][i]) > 10:
+                    edges_x_up.append(i)
+                    edges_y_up.append(j)
+            if len(edges_x_up) != 0 or len(edges_y_up) != 0:
+                break
+
+        for j in range(y):
+            for i in range(x):
+                if int(gray[y - j - 1][i]) > 10:
+                    edges_x_down.append(i)
+                    edges_y_down.append(j)
+            if len(edges_x_down) != 0 or len(edges_y_down) != 0:
+                break
+
+        edges_x.extend(edges_x_left)
+        edges_x.extend(edges_x_right)
+        edges_x.extend(edges_x_up)
+        edges_x.extend(edges_x_down)
+        edges_y.extend(edges_y_left)
+        edges_y.extend(edges_y_right)
+        edges_y.extend(edges_y_up)
+        edges_y.extend(edges_y_down)
+
+        left = min(edges_x) if len(edges_x) else 0  # 左边界
+        right = max(edges_x) if len(edges_x) else x # 右边界
+        bottom = min(edges_y) if len(edges_y) else 0 # 底部
+        top = max(edges_y) if len(edges_y) else y # 顶部
+
+        # image2 = img[bottom:top, left:right]
+        self.crop_param = (bottom, top, left, right)
+        return bottom, top, left, right
 
 
 class ImgSeqIO:
