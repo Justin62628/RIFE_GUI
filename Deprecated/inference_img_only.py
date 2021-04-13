@@ -75,9 +75,9 @@ class RifeInterpolation:
             args.png = True
 
         if args.model == 1:
-            from Utils.model.RIFE_HD import Model
+            from Utils import Model
         else:
-            from Utils.model.RIFE_HDv2 import Model
+            from Utils import Model
 
         self.model = Model()
         self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')

@@ -562,7 +562,7 @@
                      <item row="1" column="0">
                       <widget class="QCheckBox" name="ScedetChecker">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若使用固定转场识别(absdiff)&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若不使用固定转场识别则不用管，全自动的&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若不使用固定转场识别：&lt;/p&gt;&lt;p&gt;2D推荐值&lt;span style=&quot; font-weight:600;&quot;&gt;13&lt;/span&gt;&lt;/p&gt;&lt;p&gt;3D推荐值&lt;span style=&quot; font-weight:600;&quot;&gt;8&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若使用固定转场识别(absdiff)：&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐使用自动设置（不勾选固定转场识别）&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
                         <string>开启转场识别？设置灵敏度（值越低越灵敏）</string>
@@ -598,7 +598,7 @@
                      <item row="1" column="1">
                       <widget class="MySpinBox" name="ScdetSelector">
                        <property name="enabled">
-                        <bool>false</bool>
+                        <bool>true</bool>
                        </property>
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -607,7 +607,7 @@
                         </sizepolicy>
                        </property>
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若使用固定转场识别(absdiff)&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若不使用固定转场识别则不用管，全自动的&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;若不使用固定转场识别：&lt;/p&gt;&lt;p&gt;2D推荐值&lt;span style=&quot; font-weight:600;&quot;&gt;13&lt;/span&gt;&lt;/p&gt;&lt;p&gt;3D推荐值&lt;span style=&quot; font-weight:600;&quot;&gt;8&lt;/span&gt;&lt;/p&gt;&lt;p&gt;若使用固定转场识别(absdiff)：&lt;/p&gt;&lt;p&gt;大量静止画面（如非fps游戏录屏）&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;大量运动画面&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;2D动画推荐值10&lt;/span&gt;&lt;/p&gt;&lt;p&gt;其他场景&lt;span style=&quot; font-weight:600;&quot;&gt;推荐值10~30&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;推荐使用自动设置（不勾选固定转场识别）&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="minimum">
                         <number>1</number>
@@ -616,7 +616,7 @@
                         <number>999</number>
                        </property>
                        <property name="value">
-                        <number>12</number>
+                        <number>8</number>
                        </property>
                       </widget>
                      </item>

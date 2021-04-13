@@ -180,7 +180,7 @@ class RIFE_Run_Thread(QThread):
                         interval_time = time.time()
                         self.update_status(current_step, False, sp_status=f"{flush_lines}")
                         flush_lines = ""
-                self.update_status(current_step, False, sp_status=f"{flush_lines}")  # emit last possible img
+                self.update_status(current_step, False, sp_status=f"{flush_lines}")  # emit last possible infos
 
                 current_step += 1
                 self.update_status(current_step, False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
@@ -209,7 +209,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         super(RIFE_GUI_BACKEND, self).__init__()
         self.setupUi(self)
         self.thread = None
-        self.init_before_settings()
         self.Exp = int(math.log(float(appData.value("exp", "2")), 2))
 
         if appData.value("ffmpeg") != "ffmpeg":
@@ -231,6 +230,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.hasNVIDIA = True
         self.update_gpu_info()
         self.update_model_info()
+        self.init_before_settings()
 
     def sendWarning(self, title, string, msg_type=1):
         """
@@ -344,6 +344,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def auto_set(self):
         chunk_list = list()
         output_dir = self.OutputFolder.text()
+        ratio = float(self.OutputFPS.text()) / float(self.InputFPS.text())
         for f in os.listdir(output_dir):
             if re.match("chunk-[\d+].*?\.(mp4|mov)", f):
                 chunk_list.append(os.path.join(output_dir, f))
@@ -354,13 +355,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
         logger.info("Found Previous Chunks")
         chunk_list.sort(key=lambda x: int(os.path.basename(x).split('-')[2]))
-        last_chunk = chunk_list[-1]
-        os.remove(last_chunk)
-        chunk_list.pop(-1)
-        if not len(chunk_list):
-            self.set_start_info(0, 1, 1)
-            logger.info("AutoSet Remove last chunk and found none")
-            return
 
         reply = self.sendWarning(f"恢复进度？", f"检测到上次还有未完成的补帧，要继续吗？", 3)
         if reply == QMessageBox.No:
@@ -372,7 +366,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         match_result = re.findall("chunk-(\d+)-(\d+)-(\d+)\.(mp4|mov)", last_chunk)[0]
         chunk = int(match_result[0])
         last_frame = int(match_result[2])
-        first_interp_cnt = (last_frame + 1) * (2 ** self.Exp) + 1
+        first_interp_cnt = (last_frame + 1) * ratio + 1
         self.set_start_info(last_frame + 1, first_interp_cnt, chunk + 1)
         logger.info("AutoSet Ready")
         pass
@@ -451,6 +445,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
         self.UseAnyFPS.setChecked(appData.value("any_fps", False, type=bool))
+        self.on_UseAnyFPS_clicked()
+
         self.CropSettings.setText(appData.value("crop"))
         self.ResizeSettings.setText(appData.value("resize"))
         self.FFmpegCustomer.setText(appData.value("ffmpeg_customized", ""))
@@ -549,11 +545,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             self.SaveAudioChecker.setChecked(False)
 
         logger.info("[Main]: Download all settings")
-        # status_check = "[当前导出设置预览]\n\n"
-        # for key in appData.allKeys():
-        #     status_check += f"{key} => {appData.value(key)}\n"
-        # if self.thread is None:
-        #     self.OptionCheck.setText(status_check)
         self.OptionCheck.isReadOnly = True
         appData.sync()
         pass
@@ -564,6 +555,20 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         :return:
         """
 
+        def generate_error_log():
+            status_check = "[导出设置预览]\n\n"
+            for key in appData.allKeys():
+                status_check += f"{key} => {appData.value(key)}\n"
+            status_check += "\n\n[错误信息]\n\n"
+            status_check += self.OptionCheck.toPlainText()
+            error_path = os.path.join(self.OutputFolder.text(), "log", f"{datetime.datetime.now().date()}.error.log")
+            error_path_dir = os.path.dirname(error_path)
+            if not os.path.exists(error_path_dir):
+                os.mkdir(error_path_dir)
+            with open(error_path, "w", encoding="utf-8") as w:
+                w.write(status_check)
+            os.startfile(error_path_dir)
+
         def remove_last_line():
             cursor = self.OptionCheck.textCursor()
             cursor.movePosition(QTextCursor.End)
@@ -571,6 +576,36 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             cursor.removeSelectedText()
             cursor.deletePreviousChar()
             self.OptionCheck.setTextCursor(cursor)
+
+        def error_handle():
+            now_text = self.OptionCheck.toPlainText()
+            if self.current_failed:
+                return
+            if "Input File not valid" in now_text:
+                self.sendWarning("Inputs Failed", "你的输入文件有问题！请检查输入文件是否能播放，路径有无特殊字符", )
+                self.current_failed = True
+                return
+            elif "JSON" in now_text:
+                self.sendWarning("Input File Failed", "文件信息读取失败，请确保软件和视频文件路径均为纯英文、无空格且无特殊字符", )
+                self.current_failed = True
+                return
+            elif "ascii" in now_text:
+                self.sendWarning("Software Path Failure", "请把软件所在文件夹移到纯英文、无中文、无空格路径下", )
+                self.current_failed = True
+                return
+            elif "CUDA out of memory" in now_text:
+                self.sendWarning("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式~", )
+                self.current_failed = True
+                return
+            elif "Concat Test Error" in now_text:
+                self.sendWarning("Concat Failed", "区块合并音轨测试失败，请检查输出文件格式是否支持源文件音频", )
+                self.current_failed = True
+                return
+            elif "error" in data.get("subprocess", "").lower():
+                logger.error(f"[At the end of One Line Shot]: \n {data.get('subprocess')}")
+                self.sendWarning("Something Went Wrong", f"程序运行出现错误！\n{data.get('subprocess')}\n联系开发人员解决", )
+                self.current_failed = True
+                return
 
         data = json.loads(json_data)
         self.progressBar.setMaximum(int(data["cnt"]))
@@ -612,35 +647,23 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             else:
                 add_line = f'<p><span>{line}</span></p>'
             self.OptionCheck.append(add_line)
-
         if data["finished"]:
             """Error Handle"""
-            if "CUDA out of memory" in new_text and not self.current_failed:
-                self.sendWarning("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式~", )
-                self.current_failed = True
-            if "JSON" in new_text and not self.current_failed:
-                self.sendWarning("Input File Failed", "文件信息读取失败，请确保软件和视频文件路径均为纯英文、无空格且无特殊字符", )
-                self.current_failed = True
-            if "error" in data.get("subprocess", "").lower() and not self.current_failed:
-                logger.error(f"[At the end of One Line Shot]: \n {data.get('subprocess')}")
-                self.sendWarning("Something Went Wrong", f"程序运行出现错误！\n{data.get('subprocess')}\n联系开发人员解决", )
-                self.current_failed = True
-
             returncode = data["returncode"]
             complete_msg = f"共 {data['cnt']} 个补帧任务\n"
             if returncode == 0:
                 complete_msg += '成功！'
                 os.startfile(self.OutputFolder.text())
             else:
-                complete_msg += f'失败, 返回码：{returncode}\n请尝试前往高级设置恢复补帧进度'
-                log_path = os.path.join(self.OutputFolder.text(), "log")
-                if os.path.exists(log_path):
-                    # os.startfile(log_path)
-                    pass
+                complete_msg += f'失败, 返回码：{returncode}\n请将弹出的文件夹内error.txt发送至交流群排疑，' \
+                                f'并尝试前往高级设置恢复补帧进度'
+                error_handle()
+                generate_error_log()
 
             self.sendWarning("补帧任务完成", complete_msg, 2)
             self.ProcessStart.setEnabled(True)
             self.ConcatAllButton.setEnabled(True)
+            self.current_failed = False
 
         self.OptionCheck.moveCursor(QTextCursor.End)
 
@@ -733,6 +756,13 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         else:
             appData.setValue("img_input", False)
 
+        try:
+            input_fps = float(self.InputFPS.text())
+            output_fps = float(self.OutputFPS.text())
+        except Exception:
+            self.sendWarning("Wrong Inputs", "请确认输入和输出帧率")
+            return False
+
         return True
 
     @pyqtSlot(bool)
@@ -754,8 +784,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         if not len(self.load_input_files()) or not len(self.OutputFolder.text()):
             self.sendWarning("Invalid Inputs", "请检查你的输入和输出文件夹")
             return
-        self.check_args()
-        self.auto_set()
+        if self.check_args():
+            self.auto_set()
 
     @pyqtSlot(bool)
     def on_ConcatButton_clicked(self):
@@ -828,13 +858,15 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     @pyqtSlot(bool)
     def on_UseAnyFPS_clicked(self):
         if not self.hasNVIDIA and self.UseAnyFPS.isChecked():
-            reply = self.sendWarning(f"未探测到N卡，不能勾选此项！", 1)
+            reply = self.sendWarning(f"未检测到N卡，不能勾选此项！", 1)
             self.UseAnyFPS.setChecked(False)
             self.HwaccelChecker.setChecked(False)
             return
         bool_result = self.UseAnyFPS.isChecked()
         self.ExpSelecter.setEnabled(not bool_result)
         self.OutputFPS.setEnabled(bool_result)
+        if not bool_result:
+            self.on_ExpSelecter_currentTextChanged()
 
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):

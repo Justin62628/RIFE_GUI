@@ -317,7 +317,7 @@ class Ui_RIFEDialog(object):
         self.DupFramesTSelector.setObjectName("DupFramesTSelector")
         self.gridLayout_15.addWidget(self.DupFramesTSelector, 1, 5, 1, 1)
         self.ScdetSelector = MySpinBox(self.groupBox_2)
-        self.ScdetSelector.setEnabled(False)
+        self.ScdetSelector.setEnabled(True)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)

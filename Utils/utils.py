@@ -1,4 +1,5 @@
 # coding: utf-8
+import math
 from pprint import pprint
 import os
 import re
@@ -11,8 +12,11 @@ import traceback
 import cv2
 import numpy as np
 from queue import Queue
+from collections import deque
 import shutil
 from configparser import ConfigParser, NoOptionError, NoSectionError
+
+from sklearn import linear_model
 
 
 class CommandResult:
@@ -480,6 +484,117 @@ class VideoInfo:
         get_dict["cnt"] = self.frames_cnt
         get_dict["duration"] = self.duration
         return get_dict
+
+class TransitionDetection:
+    def __init__(self, scene_stack_length, fixed_scdet=False, scdet_threshold=50, output="", **kwargs):
+        self.scdet_threshold=scdet_threshold
+        self.fixed_scdet = fixed_scdet
+        self.scdet_cnt = 0
+        self.scene_stack_len = scene_stack_length
+        self.absdiff_queue = deque(maxlen=self.scene_stack_len)  # absdiff队列
+        self.utils = Utils()
+        self.dead_thres = 80
+        self.born_thres = 2
+        self.img1 = None
+        self.img2 = None
+        self.scdet_cnt = 0
+        self.scene_dir = os.path.join(os.path.dirname(output), "scene")
+        if not os.path.exists(self.scene_dir):
+            os.mkdir(self.scene_dir, )
+        self.scene_stack = Queue(maxsize=scene_stack_length)
+
+    def __check_coef(self):
+        reg = linear_model.LinearRegression()
+        reg.fit(np.array(range(len(self.absdiff_queue))).reshape(-1, 1), np.array(self.absdiff_queue).reshape(-1, 1))
+        return reg.coef_, reg.intercept_
+
+    def __check_var(self):
+        coef, intercept = self.__check_coef()
+        coef_array = coef * np.array(range(len(self.absdiff_queue))).reshape(-1, 1) + intercept
+        diff_array = np.array(self.absdiff_queue)
+        sub_array = diff_array - coef_array
+        return math.sqrt(sub_array.var())
+
+    def __judge_mean(self, diff):
+        var_before = self.__check_var()
+        self.absdiff_queue.append(diff)
+        var_after = self.__check_var()
+        if var_after - var_before > self.scdet_threshold and diff > self.born_thres:
+            """Detect new scene"""
+            self.see_result(
+                f"diff: {diff:.3f}, before: {var_before:.3f}, after: {var_after:.3f}, cnt: {self.scdet_cnt + 1}")
+            self.absdiff_queue.clear()
+            self.scdet_cnt += 1
+            return True
+        else:
+            if diff > self.dead_thres:
+                self.absdiff_queue.clear()
+                self.see_result(f"diff: {diff:.3f}, False Alarm, cnt: {self.scdet_cnt + 1}")
+                self.scdet_cnt += 1
+                return True
+            # see_result(f"compare: False, diff: {diff}, bm: {before_measure}")
+            return False
+
+    def end_view(self):
+        self.scene_stack.put(None)
+        while True:
+            scene_data = self.scene_stack.get()
+            if scene_data is None:
+                return
+            title = scene_data[0]
+            scene = scene_data[1]
+            self.see_result(title)
+
+
+    def see_result(self, title):
+        return
+        comp_stack = np.hstack((self.img1, self.img2))
+        cv2.imshow(title, cv2.cvtColor(comp_stack, cv2.COLOR_BGR2RGB))
+        cv2.moveWindow(title, 1000, 1000)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    def check_scene(self, img1, img2, add_diff=False, no_diff=False) -> bool:
+        """
+        Check if current scene is scene
+        :param img2:
+        :param img1:
+        :param add_diff:
+        :param no_diff: check after "add_diff" mode
+        :return: 是转场则返回帧
+        """
+
+        diff = self.utils.get_norm_img_diff(img1, img2)
+        if self.fixed_scdet:
+            if diff < self.scdet_threshold:
+                return False
+            else:
+                self.scdet_cnt += 1
+                return True
+        self.img1 = img1
+        self.img2 = img2
+        # if diff == 0:
+        #     """重复帧，不可能是转场，也不用添加到判断队列里"""
+        #     return False
+
+        if len(self.absdiff_queue) < self.scene_stack_len or add_diff:
+            if diff not in self.absdiff_queue:
+                self.absdiff_queue.append(diff)
+            # if diff > dead_thres:
+            #     if not add_diff:
+            #         see_result(f"compare: True, diff: {diff:.3f}, Sparse Stack, cnt: {self.scdet_cnt + 1}")
+            #     self.scene_stack.clear()
+            #     return True
+            return False
+
+        """Duplicate Frames Special Judge"""
+        if no_diff and len(self.absdiff_queue):
+            self.absdiff_queue.pop()
+            if not len(self.absdiff_queue):
+                return False
+
+        """Judge"""
+        return self.__judge_mean(diff)
 
 
 if __name__ == "__main__":
