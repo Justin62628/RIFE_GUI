@@ -15,7 +15,6 @@ import cv2
 import numpy as np
 import tqdm
 from skvideo.io import FFmpegWriter, FFmpegReader
-from sklearn import linear_model
 import shutil
 import traceback
 import psutil
@@ -193,6 +192,14 @@ class InterpWorkFlow:
 
         """If input is a video"""
         input_dict = {"-vsync": "0", "-hwaccel": "auto"}
+        if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
+            start_point = str(self.args["start_point"])
+            end_point = str(self.args["end_point"])
+            if len(start_point) and len(end_point):
+                input_dict.update({"-ss": str(start_point), "-to": str(end_point)})
+                start_frame = -1
+                self.logger.info(f"Update Input Range: in {start_point} -> out {end_point}")
+
         output_dict = {
             "-vframes": str(int(abs(self.all_frames_cnt * 100)))}  # use read frames cnt to avoid ffprobe, fuck
 
@@ -202,15 +209,12 @@ class InterpWorkFlow:
 
         """任意帧率输出基础支持"""
         if self.args["any_fps"]:
-            # input_dict.update({"-vsync": "cfr"})
             vf_args += f",minterpolate=fps={self.target_fps}:mi_mode=dup"
-            # output_dict = {"-r": f"{self.target_fps}"}  # no need of -vframes
 
         if len(self.args["resize"]):
             output_dict.update({"-sws_flags": "lanczos+full_chroma_inp",
                                 "-s": self.args["resize"].replace(":", "x").replace("*", "x")})
-            # output_dict.update({"-sws_flags": "lanczos+full_chroma_inp"})
-            # vf_args += f",scale={self.args['resize']}"
+
         if start_frame not in [-1, 0]:
             vf_args += f",trim=start_frame={start_frame}"
 
@@ -341,6 +345,8 @@ class InterpWorkFlow:
             chunk_desc_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}{}".format(chunk_cnt, render_start, now_frame,
                                                                        self.output_ext)
             chunk_desc_path = os.path.join(self.project_dir, chunk_desc_path)
+            if os.path.exists(chunk_desc_path):
+                os.remove(chunk_desc_path)
             os.rename(chunk_tmp_path, chunk_desc_path)
 
         def check_audio_concat():
@@ -532,8 +538,10 @@ class InterpWorkFlow:
                 else:
                     if diff < self.args["dup_threshold"]:
                         before_img = img1
+                        valid_skip = 0
                         while diff < self.args["dup_threshold"]:
                             skip += 1
+                            valid_skip += 1
                             scedet_info["1+"] += 1
                             img1 = self.crop_read_img(Utils.gen_next(videogen))
                             extract_cnt += 1
@@ -546,7 +554,7 @@ class InterpWorkFlow:
                             diff = cv2.absdiff(img0, img1).mean()
 
                             self.scene_detection.check_scene(img0, img1, add_diff=True)  # update scene stack
-                            if skip == int(self.dup_skip_limit * self.target_fps / self.fps):
+                            if diff > 0.1 and valid_skip == int(self.dup_skip_limit * self.target_fps / self.fps):
                                 """超过重复帧计数限额，直接跳出"""
                                 break
 
@@ -714,7 +722,8 @@ class InterpWorkFlow:
 
             pbar.set_description(
                 f"Process at Chunk {rsq[0]:0>3d}")
-            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}", "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
+            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}",
+                              "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -729,7 +738,8 @@ class InterpWorkFlow:
             """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
             pbar.set_description(
                 f"Process at Chunk {rsq[0]:0>3d}")
-            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}", "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
+            pbar.set_postfix({"Render": f"{rsq[3]}", "Current": f"{now_frame}", "Scene": f"{recent_scene}",
+                              "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
             time.sleep(0.1)
@@ -806,7 +816,8 @@ class InterpWorkFlow:
             rsq = self.render_info_pipe["rendering"]  # render status quo
             pbar.set_description(
                 f"Process at Step 1, Extract Frames: Chunk {rsq[0]}")
-            pbar.set_postfix({"Frame": f"{now_frame}", "Scene": f"{recent_scene}", "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
+            pbar.set_postfix(
+                {"Frame": f"{now_frame}", "Scene": f"{recent_scene}", "SceneCnt": f"{self.scene_detection.scdet_cnt}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
 
@@ -983,6 +994,13 @@ class InterpWorkFlow:
             concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{int(self.target_fps)}fps" + output_ext
         if self.args["save_audio"]:
             map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
+            if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
+                start_point = str(self.args["start_point"])
+                end_point = str(self.args["end_point"])
+                if len(start_point) and len(end_point):
+                    self.logger.info(f"Update Concat Audio Range: in {start_point} -> out {end_point}")
+                    map_audio = f"-ss {start_point} -to {end_point} " + map_audio.replace("-shortest", "")
+                    self.logger.warning("Custom Start-End Point Audio Combine Detected, Audio Sync Not Guaranteed")
         else:
             map_audio = ""
 

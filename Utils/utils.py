@@ -549,8 +549,10 @@ class TransitionDetection:
     def see_result(self, title):
         return
         comp_stack = np.hstack((self.img1, self.img2))
+        cv2.namedWindow(title, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
         cv2.imshow(title, cv2.cvtColor(comp_stack, cv2.COLOR_BGR2RGB))
-        cv2.moveWindow(title, 1000, 1000)
+        cv2.moveWindow(title, 500, 500)
+        cv2.resizeWindow(title, 1920, 540)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
