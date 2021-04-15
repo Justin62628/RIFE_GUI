@@ -20,7 +20,7 @@ import traceback
 import psutil
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser, TransitionDetection
 
-# 6.2.9 2021/4/13
+# 6.2.10 2021/4/15
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -90,8 +90,8 @@ class InterpWorkFlow:
         self.input_dir = os.path.join(self.project_dir, 'frames')
         self.interp_dir = os.path.join(self.project_dir, 'interp')
         self.scene_dir = os.path.join(self.project_dir, 'scenes')
-        env = [self.input_dir, self.interp_dir, self.scene_dir]
-        Utils.make_dirs(env, rm=True)
+        self.env = [self.input_dir, self.interp_dir, self.scene_dir]
+        Utils.make_dirs(self.env)
 
         """Load Interpolation Exp"""
         self.exp = self.args["exp"]
@@ -256,15 +256,29 @@ class InterpWorkFlow:
         """Assign Render Codec"""
         if self.args["encoder"] == "H264/AVC":
             if self.args["hwaccel"]:
-                output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq"})
+                output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq",
+                                    f"-g": f"{int(self.target_fps * 3)}",  "-i_qfactor": "0.75","-b_qfactor": "1.1",
+                                    f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
+                                    f"-spatial-aq": "1", "-temporal-aq": "1",  "-strict_gop": "1",
+                                    "-b_ref_mode": "2", })
             else:
-                output_dict.update({"-c:v": "libx264", "-tune": "grain"})
+                output_dict.update({"-c:v": "libx264", })
         elif self.args["encoder"] == "H265/HEVC":
             if self.args["hwaccel"]:
-                output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq"})
+                output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq",
+                                    f"-g": f"{int(self.target_fps * 3)}", "-bf": "5", "-i_qfactor": "0.75",
+                                    "-b_qfactor": "1.1",
+                                    f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
+                                    f"-spatial-aq": "1", "-temporal-aq": "1", "-nonref_p": "1", "-strict_gop": "1",
+                                    "-b_ref_mode": "2"})
             else:
                 output_dict.update(
-                    {"-c:v": "libx265", "-tune": "grain"})
+                    {"-c:v": "libx265",
+                     "-x265-params": "ref=4:rd=3:no-rect=1:no-amp=1:b-intra=1:rdoq-level=2:limit-tu=4:me=3:subme=5:"
+                                     "weightb=1:no-strong-intra-smoothing=1:psy-rd=2.0:psy-rdoq=1.0:no-open-gop=1:"
+                                     f"keyint={int(self.target_fps * 3)}:min-keyint=1:rc-lookahead=120:bframes=6:"
+                                     f"aq-mode=1:aq-strength=0.8:qg-size=8:cbqpoffs=-2:crqpoffs=-2:qcomp=0.65:"
+                                     f"deblock=-1:no-sao=1"})
         elif self.args["encoder"] == "ProRes":
             output_dict.pop("-preset")  # leave space for ProRes Profile
             output_dict.update({"-c:v": "prores_ks", "-profile:v": self.args["preset"], "-quant_mat": "hq"})
@@ -506,7 +520,7 @@ class InterpWorkFlow:
 
         """Update Mode Info"""
         if self.args["any_fps"]:
-            self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.5 else 0.5
+            self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.1 else 0.1
 
         while True:
             if is_end or self.main_error:
@@ -989,18 +1003,21 @@ class InterpWorkFlow:
         if self.args["encoder"] == "ProRes":
             output_ext = ".mov"
 
-        concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{2 ** self.exp}x" + output_ext
+        input_filenames = os.path.splitext(os.path.basename(self.input))
+        concat_filepath = f"{os.path.join(self.output, input_filenames[0])}_{2 ** self.exp}x" + output_ext
         if self.args["any_fps"]:
-            concat_filepath = f"{os.path.join(self.output, os.path.splitext(os.path.basename(self.input))[0])}_{int(self.target_fps)}fps" + output_ext
+            concat_filepath = f"{os.path.join(self.output, input_filenames[0])}_{int(self.target_fps)}fps" + output_ext
+
         if self.args["save_audio"]:
-            map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
+            audio_path = self.input
+            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
             if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
                 start_point = str(self.args["start_point"])
                 end_point = str(self.args["end_point"])
                 if len(start_point) and len(end_point):
                     self.logger.info(f"Update Concat Audio Range: in {start_point} -> out {end_point}")
-                    map_audio = f"-ss {start_point} -to {end_point} " + map_audio.replace("-shortest", "")
-                    self.logger.warning("Custom Start-End Point Audio Combine Detected, Audio Sync Not Guaranteed")
+                    map_audio = f'-ss {start_point} -to {end_point} -i "{audio_path}" -map 0:v:0 -map 1:a? -c:a aac -ab 640k '
+
         else:
             map_audio = ""
 
@@ -1015,6 +1032,7 @@ class InterpWorkFlow:
                 self.logger.error(f"Concat Error, {output_ext}, Invalid output(lesser size)")
                 raise FileExistsError("Concat Error, Invalid output, Check Disk !!!")
             self.check_chunk(del_chunk=True)
+            Utils.make_dirs(self.env, rm=True)
 
     def concat_check(self, concat_list, concat_filepath):
         """

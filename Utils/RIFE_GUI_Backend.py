@@ -130,7 +130,6 @@ class RIFE_Run_Thread(QThread):
         appData.setValue("chunk", 1)
         appData.setValue("interp_start", 0)
 
-
     def run(self):
         logger.info("[GUI]: Start")
 
@@ -192,7 +191,6 @@ class RIFE_Run_Thread(QThread):
                 current_step += 1
                 self.update_status(current_step, False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
                 self.maintain_multitask()
-
 
         except Exception:
             logger.error(traceback.format_exc())
@@ -334,8 +332,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("reverse", self.ReverseChecker.isChecked())
         appData.setValue("UseCRF", self.UseCRF.isChecked())
         appData.setValue("UseTargetBitrate", self.UseTargetBitrate.isChecked())
-        appData.setValue("start_point", self.StartPoint.text())
-        appData.setValue("end_point", self.EndPoint.text())
+        appData.setValue("start_point", self.StartPoint.text().replace("：", ":"))
+        appData.setValue("end_point", self.EndPoint.text().replace("：", ":"))
 
         appData.setValue("encoder", self.EncoderSelector.currentText())
         appData.setValue("pix_fmt", self.PixFmtSelector.currentText())

@@ -101,6 +101,7 @@ class Utils:
         for d in dir_lists:
             if rm and os.path.exists(d):
                 shutil.rmtree(d)
+                continue
             if not os.path.exists(d):
                 os.mkdir(d)
         pass
