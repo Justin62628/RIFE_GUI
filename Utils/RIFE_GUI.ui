@@ -1427,7 +1427,7 @@ p, li { white-space: pre-wrap; }
                </sizepolicy>
               </property>
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#000000;&quot;&gt;输出窗口&lt;/span&gt;&lt;span style=&quot; font-size:12pt; color:#000000;&quot;&gt;页面，字体的不同颜色意义如下：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ff0000;&quot;&gt;红色——错误，请将各页面截图并联系开发团队，群号264023742&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ffaa00;&quot;&gt;橙色——警告，视频导出可能有问题&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#00aa00;&quot;&gt;绿色——当前任务完成&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#000000;&quot;&gt;输出窗口&lt;/span&gt;&lt;span style=&quot; font-size:12pt; color:#000000;&quot;&gt;页面，字体的不同颜色意义如下：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ff0000;&quot;&gt;红色——错误，请将各页面截图并联系开发团队，群号264023742&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ffaa00;&quot;&gt;橙色——警告，视频导出可能有问题&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#00aa00;&quot;&gt;绿色——当前任务完成&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#000000;&quot;&gt;如果程序无法结束（按下方的强制结束按钮无效），请直接右上角关闭软件，重来！&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>

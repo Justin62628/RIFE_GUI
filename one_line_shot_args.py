@@ -257,9 +257,9 @@ class InterpWorkFlow:
         if self.args["encoder"] == "H264/AVC":
             if self.args["hwaccel"]:
                 output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq",
-                                    f"-g": f"{int(self.target_fps * 3)}",  "-i_qfactor": "0.75","-b_qfactor": "1.1",
+                                    f"-g": f"{int(self.target_fps * 3)}", "-i_qfactor": "0.75", "-b_qfactor": "1.1",
                                     f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
-                                    f"-spatial-aq": "1", "-temporal-aq": "1",  "-strict_gop": "1",
+                                    f"-spatial-aq": "1", "-temporal-aq": "1", "-strict_gop": "1",
                                     "-b_ref_mode": "2", })
             else:
                 output_dict.update({"-c:v": "libx264", })
@@ -520,7 +520,7 @@ class InterpWorkFlow:
 
         """Update Mode Info"""
         if self.args["any_fps"]:
-            self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.1 else 0.1
+            self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.01 else 0.01
 
         while True:
             if is_end or self.main_error:
@@ -1028,9 +1028,9 @@ class InterpWorkFlow:
             if not os.path.getsize(concat_filepath):
                 self.logger.error(f"Concat Error, {output_ext}, empty output")
                 raise FileExistsError("Concat Error, empty output, Check Output Extension!!!")
-            elif not self.concat_check(concat_list, concat_filepath):
-                self.logger.error(f"Concat Error, {output_ext}, Invalid output(lesser size)")
-                raise FileExistsError("Concat Error, Invalid output, Check Disk !!!")
+            # elif not self.concat_check(concat_list, concat_filepath):
+            #     self.logger.error(f"Concat Error, {output_ext}, Invalid output(lesser size)")
+            #     raise FileExistsError("Concat Error, Invalid output, Check Disk !!!")
             self.check_chunk(del_chunk=True)
             Utils.make_dirs(self.env, rm=True)
 
