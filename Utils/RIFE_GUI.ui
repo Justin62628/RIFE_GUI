@@ -247,7 +247,7 @@
                  <bool>true</bool>
                 </property>
                 <property name="toolTip">
-                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;任意输出帧率：无视输入帧率、补帧倍率，直接生成指定输出帧率的补帧成品。&lt;/p&gt;&lt;p&gt;比如输入24fps，填写的输出帧率为60，则直接补帧补到60帧，不废话，对标SVP、Dm&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PS：动漫优化模式（重复帧移除）将默认开启&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;当前版本不可选&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;任意输出帧率&lt;/span&gt;：无视输入帧率、补帧倍率，直接生成指定输出帧率的补帧成品。音画100%同步。&lt;/p&gt;&lt;p&gt;例如，输入24fps，填写的输出帧率为60，则直接补帧补到60帧，不废话，对标SVP、DmtriRender&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;不开启任意输出帧率：&lt;/span&gt;会先通过补帧倍率倍帧，然后回压至指定输出帧率。&lt;/p&gt;&lt;p&gt;例如，输入24fps，补帧倍率为x4，填写的输出帧率为60，则会先倍帧到96fps，再回压至60fps。有概率音画不同步（将补帧素材拉进PR、达芬奇等剪辑工具，将音频对位，单独输出音频或调整后的视频轨即可解决问题）&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;上述两者模式均支持转场识别和重复帧去除&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                 <property name="text">
                  <string>使用任意输出帧率（仅N卡，倍率失效）</string>
@@ -284,14 +284,14 @@
                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;输出为图片序列&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;命名格式:0&amp;gt;8d,如 00000008.png&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                 <property name="text">
-                 <string>输出图片序列(否则输出视频)</string>
+                 <string>输出图片序列(否则输出视频)(只支持倍帧输出)</string>
                 </property>
                </widget>
               </item>
               <item row="1" column="0">
                <widget class="QCheckBox" name="SaveAudioChecker">
                 <property name="text">
-                 <string>导出带音频</string>
+                 <string>导出带音频、字幕</string>
                 </property>
                 <property name="checked">
                  <bool>true</bool>
@@ -382,7 +382,7 @@
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;必看！！快速补帧流程：（鼠标悬浮在选项上可见帮助信息）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;0. 请确保本软件在&lt;span style=&quot; font-weight:600;&quot;&gt;纯英文、无特殊标点符号及空格的路径&lt;/span&gt;下运行&lt;/p&gt;&lt;p&gt;1. 选择要补帧的文件。可以选择多个视频文件进行批量补帧，也可以选择包括图片序列的文件夹，后者需要手动填写输入帧率。如果输入的文件有误，&lt;span style=&quot; font-weight:600;&quot;&gt;需要重新拖动文件或者点击下方的输入按钮&lt;/span&gt;&lt;/p&gt;&lt;p&gt;2. 确认&lt;span style=&quot; font-weight:600;&quot;&gt;输入和输出&lt;/span&gt;帧率&lt;/p&gt;&lt;p&gt;3. 按“&lt;span style=&quot; font-weight:600;&quot;&gt;一键补帧&lt;/span&gt;”完成补帧操作，也可以在&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;高级设置&lt;/span&gt;界面设置相关参数，并在输出界面点击&lt;span style=&quot; font-weight:600;&quot;&gt;开始补帧&lt;/span&gt;按钮补帧（A卡补帧需要在高级设置手动设置参数）&lt;/p&gt;&lt;p&gt;4. 在&lt;span style=&quot; font-weight:600;&quot;&gt;工具箱&lt;/span&gt;一页进行&lt;span style=&quot; font-weight:600;&quot;&gt;gif制作&lt;/span&gt;、&lt;span style=&quot; font-weight:600;&quot;&gt;音视频合并&lt;/span&gt;及&lt;span style=&quot; font-weight:600;&quot;&gt;已有区块合并（视频合并失败使用）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;软件最终解释权归SVFI开发团队所有&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;其他说明：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;本软件 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;Squirrel Video Frame Interpolation&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;是基于&lt;/span&gt;&lt;span style=&quot; font-family:'-apple-system','BlinkMacSystemFont','Segoe UI','Helvetica','Arial','sans-serif','Apple Color Emoji','Segoe UI Emoji'; font-size:16px; font-weight:600; color:#24292e;&quot;&gt;RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;AI补帧算法的可视化图形界面集成.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;RIFE算法作者&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt; Zhewei Huang, Tianyuan Zhang, Wen Heng, Boxin Shi, Shuchang Zhou &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/hzwer/arXiv2020-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI作者 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;YiWeiHuang-stack, Justin62628, ABlyh-LEO, NULL204 &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/YiWeiHuang-stack/Squirrel-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/Justin62628/RIFE_GUI&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;其中RIFE GUI已与SVFI版本合并&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;市面上的&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI 1.x, RIFE GUI 6.2.x&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;均为旧版本&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;必看！！快速补帧流程：（鼠标悬浮在选项上可见帮助信息）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;0. 请确保本软件在&lt;span style=&quot; font-weight:600;&quot;&gt;纯英文、无特殊标点符号及空格的路径&lt;/span&gt;下运行&lt;/p&gt;&lt;p&gt;1. 选择要补帧的文件。可以选择多个视频文件进行批量补帧，也可以选择包括图片序列的文件夹，后者需要手动填写输入帧率。如果输入的文件有误，&lt;span style=&quot; font-weight:600;&quot;&gt;需要重新拖动文件或者点击下方的输入按钮&lt;/span&gt;&lt;/p&gt;&lt;p&gt;2. 确认&lt;span style=&quot; font-weight:600;&quot;&gt;输入和输出&lt;/span&gt;帧率&lt;/p&gt;&lt;p&gt;3. 按“&lt;span style=&quot; font-weight:600;&quot;&gt;一键补帧&lt;/span&gt;”完成补帧操作，也可以在&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;高级设置&lt;/span&gt;界面设置相关参数，并在输出界面点击&lt;span style=&quot; font-weight:600;&quot;&gt;开始补帧&lt;/span&gt;按钮补帧（A卡补帧需要在高级设置手动设置参数）&lt;/p&gt;&lt;p&gt;4. 在&lt;span style=&quot; font-weight:600;&quot;&gt;工具箱&lt;/span&gt;一页进行&lt;span style=&quot; font-weight:600;&quot;&gt;gif制作&lt;/span&gt;、&lt;span style=&quot; font-weight:600;&quot;&gt;音视频合并&lt;/span&gt;及&lt;span style=&quot; font-weight:600;&quot;&gt;已有区块合并（视频合并失败使用）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;软件最终解释权归SVFI开发团队所有&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600; font-style:italic;&quot;&gt;其他说明：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;本软件 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;Squirrel Video Frame Interpolation&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;是基于&lt;/span&gt;&lt;span style=&quot; font-family:'-apple-system','BlinkMacSystemFont','Segoe UI','Helvetica','Arial','sans-serif','Apple Color Emoji','Segoe UI Emoji'; font-size:16px; font-weight:600; color:#24292e;&quot;&gt;RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;AI补帧算法的可视化图形界面集成.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;RIFE算法作者&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt; Zhewei Huang, Tianyuan Zhang, Wen Heng, Boxin Shi, Shuchang Zhou &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/hzwer/arXiv2020-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI作者 &lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;YiWeiHuang-stack, Justin62628, 穆氏, ABlyh-LEO, NULL204&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/YiWeiHuang-stack/Squirrel-RIFE&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;https://github.com/Justin62628/RIFE_GUI&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;其中RIFE GUI已与SVFI版本合并&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;市面上的&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; font-weight:600; color:#808080;&quot;&gt;SVFI 1.x, RIFE GUI 6.2.x&lt;/span&gt;&lt;span style=&quot; font-family:'微软雅黑','Tahoma','宋体'; font-size:14px; color:#808080;&quot;&gt;均为旧版本&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                   </property>
                   <property name="scaledContents">
                    <bool>true</bool>
@@ -547,22 +547,45 @@
                      <item>
                       <widget class="QLabel" name="label_16">
                        <property name="text">
-                        <string>（音频将会被转码至AAC 640kbs）起始补帧时刻（HH:MM:SS.ms / 秒数）  </string>
+                        <string>（音频将会被转码至AAC 640kbs）起始补帧时刻</string>
                        </property>
                       </widget>
                      </item>
                      <item>
-                      <widget class="QLineEdit" name="StartPoint"/>
+                      <widget class="QTimeEdit" name="StartPoint">
+                       <property name="currentSection">
+                        <enum>QDateTimeEdit::MinuteSection</enum>
+                       </property>
+                       <property name="displayFormat">
+                        <string>HH:mm:ss</string>
+                       </property>
+                      </widget>
                      </item>
                      <item>
                       <widget class="QLabel" name="label_18">
                        <property name="text">
-                        <string>结束补帧时刻（HH:MM:SS.ms / 秒数）  </string>
+                        <string>结束补帧时刻  </string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                        </property>
                       </widget>
                      </item>
                      <item>
-                      <widget class="QLineEdit" name="EndPoint"/>
+                      <widget class="QTimeEdit" name="EndPoint">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="currentSection">
+                        <enum>QDateTimeEdit::HourSection</enum>
+                       </property>
+                       <property name="displayFormat">
+                        <string>HH:mm:ss</string>
+                       </property>
+                      </widget>
                      </item>
                     </layout>
                    </item>
@@ -823,30 +846,52 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QCheckBox" name="HwaccelChecker">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
+                      <widget class="QLabel" name="label_20">
                        <property name="toolTip">
-                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用&lt;span style=&quot; font-weight:600;&quot;&gt;ffmpeg&lt;/span&gt;的hevc_nvenc或h264_nvenc编码器压制中间产品及成品&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;None:&lt;/span&gt; 不使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;NVENC: &lt;/span&gt;使用NVIDIA显卡进行硬件编码，速度快，质量高&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;QSV: &lt;/span&gt;使用Intel集显进行硬件编码，编码质量看情况而定。没有Intel集显不要使用此项。&lt;/p&gt;&lt;p&gt;如果在输出窗口遇到Broken Pipe错误，请尝试勾选None以避免使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>使用硬件编码渲染视频（仅N卡，质量比CPU低）</string>
+                        <string>使用硬件编码渲染视频</string>
                        </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QComboBox" name="HwaccelSelector">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;None:&lt;/span&gt; 不使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;NVENC: &lt;/span&gt;使用NVIDIA显卡进行硬件编码，速度快，质量高&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;QSV: &lt;/span&gt;使用Intel集显进行硬件编码，编码质量看情况而定。没有Intel集显不要使用此项。&lt;/p&gt;&lt;p&gt;如果在输出窗口遇到Broken Pipe错误，请尝试勾选None以避免使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
+                       <item>
+                        <property name="text">
+                         <string>None</string>
+                        </property>
+                       </item>
+                       <item>
+                        <property name="text">
+                         <string>NVENC</string>
+                        </property>
+                       </item>
+                       <item>
+                        <property name="text">
+                         <string>QSV</string>
+                        </property>
+                       </item>
                       </widget>
                      </item>
                      <item>
                       <widget class="QLabel" name="label_3">
                        <property name="text">
-                        <string>单一输出区块大小：</string>
+                        <string>    单一输出区块大小：</string>
                        </property>
                       </widget>
                      </item>
                      <item>
                       <widget class="MySpinBox" name="RenderGapSelector">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
                        <property name="minimum">
                         <number>100</number>
                        </property>
@@ -874,6 +919,51 @@
                        </property>
                        <property name="alignment">
                         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QCheckBox" name="MBufferChecker">
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;防止爆内存，一般不用勾选。&lt;span style=&quot; font-weight:600;&quot;&gt;专业人士自用&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
+                       <property name="text">
+                        <string>手动指定缓冲区大小</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QSpinBox" name="BufferSizeSelector">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="toolTip">
+                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;防止爆内存，一般不用勾选。&lt;span style=&quot; font-weight:600;&quot;&gt;专业人士自用&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       </property>
+                       <property name="minimum">
+                        <number>100</number>
+                       </property>
+                       <property name="maximum">
+                        <number>100000</number>
+                       </property>
+                       <property name="singleStep">
+                        <number>50</number>
+                       </property>
+                       <property name="value">
+                        <number>200</number>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QLabel" name="label_19">
+                       <property name="text">
+                        <string>帧</string>
                        </property>
                       </widget>
                      </item>
@@ -1019,13 +1109,32 @@
                        <item>
                         <widget class="QCheckBox" name="slowmotion">
                          <property name="toolTip">
-                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;补帧帧率 = 输入帧率 * 补帧倍率&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用慢动作输出。&lt;/p&gt;&lt;p&gt;输出的视频帧率将与右边输入的慢动作帧率相同，输出时长与原视频时长的比等于基础设置的&lt;span style=&quot; font-weight:600;&quot;&gt;输出帧率/慢动作帧率&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
                          <property name="whatsThis">
                           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;补帧帧率 = 输入帧率 * 补帧倍率&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
+                         <property name="layoutDirection">
+                          <enum>Qt::RightToLeft</enum>
+                         </property>
                          <property name="text">
-                          <string>慢动作（要求输出帧率小于补帧帧率）</string>
+                          <string>开启慢动作（看说明！）</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLineEdit" name="SlowmotionFPS">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="layoutDirection">
+                          <enum>Qt::LeftToRight</enum>
+                         </property>
+                         <property name="placeholderText">
+                          <string>输入慢动作帧率</string>
                          </property>
                         </widget>
                        </item>
@@ -1096,7 +1205,7 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;值越低，画面细节撕裂越少，画面崩坏概率越高；&lt;/p&gt;&lt;p&gt;值越大，补帧速度越慢，物件消失问题越严重&lt;/p&gt;&lt;p&gt;不是越大或者越小越好&lt;/p&gt;&lt;p&gt;分辨率720p以下视频推荐&lt;span style=&quot; font-weight:600;&quot;&gt;1~2&lt;/span&gt;&lt;/p&gt;&lt;p&gt;分辨率4K及以上视频推荐&lt;span style=&quot; font-weight:600;&quot;&gt;0.25~0.5&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;其余推荐1.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>补帧精度倍数  </string>
+                        <string>光流尺度</string>
                        </property>
                        <property name="alignment">
                         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -1376,8 +1485,21 @@
               </item>
              </layout>
             </item>
-            <item row="6" column="0">
-             <widget class="QPushButton" name="ProcessStart">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_15">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#000000;&quot;&gt;输出窗口&lt;/span&gt;&lt;span style=&quot; font-size:12pt; color:#000000;&quot;&gt;页面，字体的不同颜色意义如下：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ff0000;&quot;&gt;红色——错误，请将各页面截图并联系开发团队，群号264023742&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ffaa00;&quot;&gt;橙色——警告，视频导出可能有问题&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#00aa00;&quot;&gt;绿色——当前任务完成&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#000000;&quot;&gt;如果程序无法结束（按下方的强制结束按钮无效），请直接右上角关闭软件，重来！&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+             </widget>
+            </item>
+            <item row="8" column="0">
+             <widget class="QPushButton" name="KillProcButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -1391,7 +1513,7 @@
                </font>
               </property>
               <property name="text">
-               <string>开始补帧！</string>
+               <string>强制结束补帧进程</string>
               </property>
              </widget>
             </item>
@@ -1418,37 +1540,47 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_15">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#000000;&quot;&gt;输出窗口&lt;/span&gt;&lt;span style=&quot; font-size:12pt; color:#000000;&quot;&gt;页面，字体的不同颜色意义如下：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ff0000;&quot;&gt;红色——错误，请将各页面截图并联系开发团队，群号264023742&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#ffaa00;&quot;&gt;橙色——警告，视频导出可能有问题&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#00aa00;&quot;&gt;绿色——当前任务完成&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#000000;&quot;&gt;如果程序无法结束（按下方的强制结束按钮无效），请直接右上角关闭软件，重来！&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-             </widget>
-            </item>
-            <item row="7" column="0">
-             <widget class="QPushButton" name="KillProcButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Abril Fatface</family>
-                <pointsize>20</pointsize>
-               </font>
-              </property>
-              <property name="text">
-               <string>强制结束补帧进程</string>
-              </property>
-             </widget>
+            <item row="6" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_3">
+              <item>
+               <widget class="QPushButton" name="ProcessStart">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Abril Fatface</family>
+                  <pointsize>20</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>开始补帧！</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="PauseProcess">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Abril Fatface</family>
+                  <pointsize>20</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>暂停补帧！</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
            </layout>
           </item>
@@ -1688,13 +1820,11 @@ p, li { white-space: pre-wrap; }
   <tabstop>CRFSelector</tabstop>
   <tabstop>UseTargetBitrate</tabstop>
   <tabstop>BitrateSelector</tabstop>
-  <tabstop>HwaccelChecker</tabstop>
   <tabstop>RenderGapSelector</tabstop>
   <tabstop>QuickExtractChecker</tabstop>
   <tabstop>FFmpegCustomer</tabstop>
   <tabstop>FP16Checker</tabstop>
   <tabstop>ModuleSelector</tabstop>
-  <tabstop>ProcessStart</tabstop>
   <tabstop>StartChunk</tabstop>
   <tabstop>scrollArea</tabstop>
   <tabstop>DebugChecker</tabstop>

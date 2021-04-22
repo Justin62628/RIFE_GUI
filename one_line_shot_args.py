@@ -20,7 +20,7 @@ import traceback
 import psutil
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser, TransitionDetection
 
-# 6.2.10 2021/4/15
+# 6.2.11 2021/4/22
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -56,7 +56,6 @@ try:
     import inference  # 导入补帧模块
 except Exception:
     import inference_A as inference
-
     print("Error: Import Torch Failed, use NCNN instead")
     traceback.print_exc()
     args.update({"ncnn": True})
@@ -98,7 +97,7 @@ class InterpWorkFlow:
 
         """Get input's info"""
         self.video_info_instance = VideoInfo(**self.args)
-        self.video_info_instance.update_info()
+        # self.video_info_instance.update_info()
         self.video_info = self.video_info_instance.get_info()
         if self.args["batch"] and not self.args["img_input"]:  # 检测到批处理，且输入不是文件夹，使用检测到的帧率
             self.fps = self.video_info["fps"]
@@ -109,17 +108,23 @@ class InterpWorkFlow:
                 raise OSError("Input File not valid")
             self.fps = self.video_info["fps"]
 
-        if self.args["target_fps"]:
-            if self.args["target_fps"] - 2 ** self.exp * self.fps > 1e-3:
-                """Activate Any FPS Mode"""
-                self.logger.info(
-                    f"Activate Any FPS Mode: fps: {self.fps:.2f} -> target_fps: {self.args['target_fps']:.2f}")
-                self.args["any_fps"] = True
+        if self.args["img_input"]:
+            self.args["any_fps"] = False  # when img input is detected, any_fps mode is disabled
             self.target_fps = self.args["target_fps"]
+            # but assigned output fps will be not touched
         else:
-            self.target_fps = (2 ** self.exp) * self.fps
+            if self.args["target_fps"]:
+                self.target_fps = self.args["target_fps"]
+                if abs(self.args["target_fps"] - 2 ** self.exp * self.fps) > 1e-3:
+                    """Activate Any FPS Mode"""
+                    self.logger.info(
+                        f"Activate Any FPS Mode: fps: {self.fps:.2f} -> target_fps: {self.args['target_fps']:.2f}")
+                    self.args["any_fps"] = True
+            else:
+                self.target_fps = (2 ** self.exp) * self.fps
+
         self.all_frames_cnt = int(self.video_info["cnt"])  # 视频总帧数
-        if self.args["any_fps"]:  # 使用任意帧率，要相应更新总帧数
+        if self.args["any_fps"]:  # 使用任意帧率，要相应更新总帧数（图片序列输入是不可能的）
             self.all_frames_cnt = int(self.video_info["duration"] * self.target_fps)
 
         """Crop Video"""
@@ -141,11 +146,15 @@ class InterpWorkFlow:
         self.rife_core = None  # 用于补帧的模块
 
         """Guess Memory and Render System"""
-        mem = psutil.virtual_memory()
-        free_mem = round(mem.free / 1024 / 1024)
-        self.frames_output_size = round(free_mem / (sys.getsizeof(
-            np.random.rand(3, round(self.video_info["size"][0]),
-                           round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
+        if self.args["manual_buffer"]:
+            self.frames_output_size = self.args["manual_buffer_size"]
+            self.logger.info(f"Manually Change Buffer Size to {self.frames_output_size}")
+        else:
+            mem = psutil.virtual_memory()
+            free_mem = round(mem.free / 1024 / 1024)
+            self.frames_output_size = round(free_mem / (sys.getsizeof(
+                np.random.rand(3, round(self.video_info["size"][0]),
+                               round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
         if self.frames_output_size < 100:
             self.frames_output_size = 100
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
@@ -188,28 +197,36 @@ class InterpWorkFlow:
         """
         """If input is sequence of frames"""
         if self.args["img_input"]:
-            return ImgSeqIO(folder=self.input, is_read=True, start_frame=start_frame)
+            return ImgSeqIO(folder=self.input, is_read=True, start_frame=start_frame, **self.args)
 
         """If input is a video"""
         input_dict = {"-vsync": "0", "-hwaccel": "auto"}
         if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
-            start_point = str(self.args["start_point"])
-            end_point = str(self.args["end_point"])
-            if len(start_point) and len(end_point):
-                input_dict.update({"-ss": str(start_point), "-to": str(end_point)})
+            time_fmt = "%H:%M:%S"
+            start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
+            end_point = datetime.datetime.strptime(self.args["end_point"], time_fmt)
+            if end_point > start_point:
+                input_dict.update({"-ss": self.args['start_point'], "-to": self.args['end_point']})
                 start_frame = -1
-                self.logger.info(f"Update Input Range: in {start_point} -> out {end_point}")
+                clip_duration = end_point - start_point
+                clip_fps = self.fps if not self.args["any_fps"] else self.target_fps
+                self.all_frames_cnt = round(clip_duration.total_seconds() * clip_fps)
+                self.logger.info(f"Update Input Range: in {self.args['start_point']} -> out {self.args['end_point']}, all_frames_cnt -> {self.all_frames_cnt}")
+            else:
+                self.logger.warning(f"Bad Input Time Section: {start_point} -> {end_point}, change to origianl course")
 
         output_dict = {
             "-vframes": str(int(abs(self.all_frames_cnt * 100)))}  # use read frames cnt to avoid ffprobe, fuck
 
         output_dict.update(self.color_info)
+        output_dict.update({"-r": f"{self.fps}"})  # TODO Check Danger
 
         vf_args = "copy"
 
         """任意帧率输出基础支持"""
         if self.args["any_fps"]:
             vf_args += f",minterpolate=fps={self.target_fps}:mi_mode=dup"
+            output_dict.pop("-r")
 
         if len(self.args["resize"]):
             output_dict.update({"-sws_flags": "lanczos+full_chroma_inp",
@@ -241,36 +258,50 @@ class InterpWorkFlow:
         input_dict = {"-vsync": "cfr", "-r": f"{self.fps * 2 ** self.exp}"}
 
         output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"], "-pix_fmt": self.args["pix_fmt"]}
-        if self.args["any_fps"] and not self.args["ncnn"]:
+        if self.args["any_fps"] and not self.args["ncnn"] and not self.args["img_input"]:  # TODO: Img Seq supports any fps
             input_dict.update({"-r": f"{self.target_fps}"})
-            output_dict.update({"-r": f"{self.target_fps}"})
         output_dict.update(self.color_info)
 
         """Slow motion design"""
         if self.args["slow_motion"]:
-            input_dict.update({"-r": f"{self.target_fps}"})
+            if self.args.get("slow_motion_fps", 0):
+                input_dict.update({"-r": f"{self.args['slow_motion_fps']}"})  # TODO: Check what happened to slowmotion
+            else:
+                input_dict.update({"-r": f"{self.fps}"})
             output_dict.pop("-r")
         vf_args = "copy"  # debug
         output_dict.update({"-vf": vf_args})
 
         """Assign Render Codec"""
         if self.args["encoder"] == "H264/AVC":
-            if self.args["hwaccel"]:
-                output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq",
-                                    f"-g": f"{int(self.target_fps * 3)}", "-i_qfactor": "0.75", "-b_qfactor": "1.1",
-                                    f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
-                                    f"-spatial-aq": "1", "-temporal-aq": "1", "-strict_gop": "1",
-                                    "-b_ref_mode": "2", })
+            if self.args["hwaccel_mode"] != "None":
+                hwaccel_mode = self.args["hwaccel_mode"]
+                if hwaccel_mode == "NVENC":
+                    output_dict.update({"-c:v": "h264_nvenc", "-rc:v": "vbr_hq",
+                                        f"-g": f"{int(self.target_fps * 3)}", "-i_qfactor": "0.75", "-b_qfactor": "1.1",
+                                        f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
+                                        f"-spatial-aq": "1", "-temporal-aq": "1", "-strict_gop": "1",
+                                        "-b_ref_mode": "2", })
+                elif hwaccel_mode == "QSV":
+                    output_dict.update({"-c:v": "h264_qsv",
+                                        f"-g": f"{int(self.target_fps * 3)}", "-i_qfactor": "0.75", "-b_qfactor": "1.1",
+                                        f"-rc-lookahead": "120", })
             else:
-                output_dict.update({"-c:v": "libx264", })
+                output_dict.update({"-c:v": "libx264", })  # TODO H264 Encode Sets
         elif self.args["encoder"] == "H265/HEVC":
-            if self.args["hwaccel"]:
-                output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq",
-                                    f"-g": f"{int(self.target_fps * 3)}", "-bf": "5", "-i_qfactor": "0.75",
-                                    "-b_qfactor": "1.1",
-                                    f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
-                                    f"-spatial-aq": "1", "-temporal-aq": "1", "-nonref_p": "1", "-strict_gop": "1",
-                                    "-b_ref_mode": "2"})
+            if self.args["hwaccel_mode"] != "None":
+                hwaccel_mode = self.args["hwaccel_mode"]
+                if hwaccel_mode == "NVENC":
+                    output_dict.update({"-c:v": "hevc_nvenc", "-rc:v": "vbr_hq",
+                                        f"-g": f"{int(self.target_fps * 3)}", "-bf": "5", "-i_qfactor": "0.75",
+                                        "-b_qfactor": "1.1",
+                                        f"-rc-lookahead": "120", "-no-scenecut": "1", "-forced-idr": "1",
+                                        f"-spatial-aq": "1", "-temporal-aq": "1", "-nonref_p": "1", "-strict_gop": "1",
+                                        "-b_ref_mode": "2"})
+                elif hwaccel_mode == "QSV":
+                    output_dict.update({"-c:v": "hevc_qsv",
+                                        f"-g": f"{int(self.target_fps * 3)}", "-i_qfactor": "0.75", "-b_qfactor": "1.1",
+                                        f"-look_ahead": "120", })
             else:
                 output_dict.update(
                     {"-c:v": "libx265",
@@ -285,13 +316,18 @@ class InterpWorkFlow:
 
         if self.args["encoder"] not in ["ProRes"]:
             if self.args["crf"] and self.args["UseCRF".lower()]:
-                if self.args["hwaccel"]:
-                    output_dict.update({"-cq:v": str(self.args["crf"])})
+                if self.args["hwaccel_mode"] != "None":
+                    hwaccel_mode = self.args["hwaccel_mode"]
+                    if hwaccel_mode == "NVENC":
+                        output_dict.update({"-cq:v": str(self.args["crf"])})
+                    elif hwaccel_mode == "QSV":
+                        output_dict.update({"-q": str(self.args["crf"])})
                 else:
                     output_dict.update({"-crf": str(self.args["crf"])})
-            if self.args["UseTargetBitrate".lower()] and type(self.args["bitrate"]) == str and len(
-                    self.args["bitrate"]):
-                output_dict.update({"-b:v": str(self.args["bitrate"])})
+            if self.args["UseTargetBitrate".lower()] and self.args["bitrate"]:
+                output_dict.update({"-b:v": f'{self.args["bitrate"]}M'})
+                if self.args["hwaccel_mode"] == "QSV":
+                    output_dict.update({"-maxrate": "200M"})
 
         self.logger.debug(f"writer: {output_dict}, {input_dict}")
 
@@ -374,7 +410,7 @@ class InterpWorkFlow:
                 output_ext = ".mov"
 
             concat_filepath = f"{os.path.join(self.output, 'concat_test')}" + output_ext
-            map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
+            map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy -shortest '
             ffmpeg_command = f'{self.ffmpeg} -hide_banner -i "{chunk_tmp_path}" {map_audio} -c:v copy {Utils.fillQuotation(concat_filepath)} -y'
             self.logger.info("Start Audio Concat Test")
             os.system(ffmpeg_command)
@@ -402,7 +438,8 @@ class InterpWorkFlow:
             frame_data = self.frames_output.get()
             if frame_data is None:
                 frame_writer.close()
-                rename_chunk()
+                if not self.args["img_output"]:
+                    rename_chunk()
                 break
 
             frame = frame_data[1]
@@ -496,13 +533,18 @@ class InterpWorkFlow:
             if len(self.args["resize"]):
                 w, h = list(map(lambda x: int(x), self.args["resize"].split("x")))
             else:
-                w, h = round(self.video_info["size"][0]), round(self.video_info["size"][1])
+                h, w, _ = list(map(lambda x: round(x), img1.shape))
 
-            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}, exp {self.exp}")
+            if w*h > 1920*1080:
+                if self.args["scale"] > 0.5:
+                    self.args["scale"] = 0.5
+                    self.logger.warning(f"Big Resolution (>1080p) Input found: Reset Scale to {self.args['scale']}")
+
+            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
 
             test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
                                    np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
-            self.rife_core.generate_interp(test_img0, test_img1, self.exp, self.args["scale"])
+            self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"])
             self.logger.info(f"VRAM Test Success")
         except Exception as e:
             self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
@@ -577,30 +619,23 @@ class InterpWorkFlow:
                             skip -= 1  # 两帧间隔计数器-1
                             if skip:
                                 # 将转场前一帧作为img1，补足
-                                exp = int(math.log(skip, 2)) + 1
-                                if _debug:
-                                    interp_output = [img0 for i in range(2 ** exp - 1)]
-                                else:
-
-                                    interp_output = self.rife_core.generate_interp(img0, before_img, exp,
-                                                                                   self.args["scale"])
-                                kpl = Utils.generate_prebuild_map(exp, skip)
-                                for x in kpl:
-                                    frames_list.append([now_frame, interp_output[x]])
+                                # exp = int(math.log(skip, 2)) + 1
+                                interp_output = self.rife_core.generate_interp(img0, before_img, 0,
+                                                                               self.args["scale"], n=skip, debug=_debug)
+                                # kpl = Utils.generate_prebuild_map(exp, skip)
+                                for x in interp_output:
+                                    frames_list.append([now_frame, x])
                             frames_list.append([now_frame, before_img])
                             recent_scene = now_frame
                             scedet_info["0"] += 1
                             now_frame += skip + 1
 
                         elif skip != 0:
-                            exp = int(math.log(skip, 2)) + 1
-                            if _debug:
-                                interp_output = [img0 for i in range(2 ** exp - 1)]
-                            else:
-                                interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
-                            kpl = Utils.generate_prebuild_map(exp, skip)
-                            for x in kpl:
-                                frames_list.append([now_frame, interp_output[x]])
+                            # exp = int(math.log(skip, 2)) + 1
+                            interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"], n=skip, debug=_debug)
+                            # kpl = Utils.generate_prebuild_map(exp, skip)
+                            for x in interp_output:
+                                frames_list.append([now_frame, x])
                             now_frame += skip
                     else:
                         scedet_info["1"] += 1
@@ -657,30 +692,36 @@ class InterpWorkFlow:
                             if not skip:
                                 gap_frames_list.append(img0)
                             else:
+                                interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"],
+                                                                               n=skip, debug=_debug)
                                 # 将转场前一帧作为img1，补足
-                                exp = int(math.log(skip, 2)) + 1
-                                if _debug:
-                                    interp_output = [img0 for i in range(2 ** exp - 1)]
-                                else:
-                                    interp_output = self.rife_core.generate_interp(img0, before_img, exp,
-                                                                                   self.args["scale"])
-                                kpl = Utils.generate_prebuild_map(exp, skip)
-                                for x in kpl:
-                                    gap_frames_list.append(interp_output[x])
+                                # exp = int(math.log(skip, 2)) + 1
+                                # if _debug:
+                                #     interp_output = [img0 for i in range(2 ** exp - 1)]
+                                # else:
+                                #     interp_output = self.rife_core.generate_interp(img0, before_img, exp,
+                                #                                                    self.args["scale"])
+                                # kpl = Utils.generate_prebuild_map(exp, skip)
+                                for x in interp_output:
+                                    gap_frames_list.append(x)
                                 gap_frames_list.append(before_img)
 
                             is_scene = True
                             scedet_info["0"] += 1
 
                         elif skip != 0:
-                            exp = int(math.log(skip, 2)) + 1
-                            if _debug:
-                                interp_output = [img0 for i in range(2 ** exp - 1)]
-                            else:
-                                interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
-                            kpl = Utils.generate_prebuild_map(exp, skip)
-                            for x in kpl:
-                                gap_frames_list.append(interp_output[x])
+                            interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"], n=skip,
+                                                                           debug=_debug)
+                            for x in interp_output:
+                                gap_frames_list.append(x)
+                            # exp = int(math.log(skip, 2)) + 1
+                            # if _debug:
+                            #     interp_output = [img0 for i in range(2 ** exp - 1)]
+                            # else:
+                            #     interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
+                            # kpl = Utils.generate_prebuild_map(exp, skip)
+                            # for x in kpl:
+                            #     gap_frames_list.append(interp_output[x])
                     else:
                         scedet_info["1"] += 1
 
@@ -1004,19 +1045,28 @@ class InterpWorkFlow:
             output_ext = ".mov"
 
         input_filenames = os.path.splitext(os.path.basename(self.input))
-        concat_filepath = f"{os.path.join(self.output, input_filenames[0])}_{2 ** self.exp}x" + output_ext
+
+        concat_filepath = f"{os.path.join(self.output, input_filenames[0])}"
         if self.args["any_fps"]:
-            concat_filepath = f"{os.path.join(self.output, input_filenames[0])}_{int(self.target_fps)}fps" + output_ext
+            concat_filepath += f"_{int(self.target_fps)}fps"
+        else:
+            concat_filepath += f"_{2 ** self.exp}x"
+        if self.args["slow_motion"]:
+            concat_filepath += f"_slowmo_{self.args['slow_motion_fps']}"
+        concat_filepath += output_ext
 
         if self.args["save_audio"]:
             audio_path = self.input
-            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -c:a copy -shortest '
+            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy -shortest '
             if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
-                start_point = str(self.args["start_point"])
-                end_point = str(self.args["end_point"])
-                if len(start_point) and len(end_point):
-                    self.logger.info(f"Update Concat Audio Range: in {start_point} -> out {end_point}")
-                    map_audio = f'-ss {start_point} -to {end_point} -i "{audio_path}" -map 0:v:0 -map 1:a? -c:a aac -ab 640k '
+                time_fmt = "%H:%M:%S"
+                start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
+                end_point = datetime.datetime.strptime(self.args["end_point"], time_fmt)
+                if end_point > start_point:
+                    self.logger.info(f"Update Concat Audio Range: in {self.args['start_point']} -> out {self.args['end_point']}")
+                    map_audio = f'-ss {self.args["start_point"]} -to {self.args["end_point"]} -i "{audio_path}" -map 0:v:0 -map 1:a? -c:a aac -ab 640k '
+                else:
+                    self.logger.warning(f"Bad Input Time Section: {start_point} -> {end_point}, change to origianl course")
 
         else:
             map_audio = ""

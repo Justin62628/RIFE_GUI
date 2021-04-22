@@ -15,6 +15,7 @@ import sys
 import subprocess as sp
 import shlex
 import time
+import psutil
 from Utils import RIFE_GUI
 from Utils.utils import Utils, EncodePresetAssemply
 
@@ -83,6 +84,7 @@ class RIFE_Run_Thread(QThread):
         self.command = ""
         self.current_proc = None
         self.kill = False
+        self.pause = False
         self.all_cnt = 0
         self.silent = False
         self.tqdm_re = re.compile("Process at .*?\]")
@@ -174,18 +176,38 @@ class RIFE_Run_Thread(QThread):
                         self.current_proc.terminate()
                         self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已被强制结束", returncode=-1)
                         break
-                    line = self.current_proc.stdout.readline()
-                    self.current_proc.stdout.flush()
-                    flush_lines += line.replace("[A", "")
-                    if "error" in flush_lines.lower():
-                        """Imediately Upload"""
-                        logger.error(f"[In ONE LINE SHOT]: f{flush_lines}")
-                        self.update_status(current_step, False, sp_status=f"{flush_lines}")
-                        flush_lines = ""
-                    elif len(flush_lines) and time.time() - interval_time > 0.1:
-                        interval_time = time.time()
-                        self.update_status(current_step, False, sp_status=f"{flush_lines}")
-                        flush_lines = ""
+
+                    if self.pause:
+                        pid = self.current_proc.pid
+                        pause = psutil.Process(pid)  # 传入子进程的pid
+                        pause.suspend()  # 暂停子进程
+                        self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已被手动暂停", returncode=-1)
+                        while True:
+                            if self.kill:
+                                pause.resume()
+                                time.sleep(0.5)
+                                self.current_proc.terminate()
+                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已在暂停后被强制结束", returncode=-1)
+                                break
+                            elif not self.pause:
+                                pause.resume()
+                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已继续",
+                                                   returncode=-1)
+                                break
+                            time.sleep(0.2)
+                    else:
+                        line = self.current_proc.stdout.readline()
+                        self.current_proc.stdout.flush()
+                        flush_lines += line.replace("[A", "")
+                        if "error" in flush_lines.lower():
+                            """Imediately Upload"""
+                            logger.error(f"[In ONE LINE SHOT]: f{flush_lines}")
+                            self.update_status(current_step, False, sp_status=f"{flush_lines}")
+                            flush_lines = ""
+                        elif len(flush_lines) and time.time() - interval_time > 0.1:
+                            interval_time = time.time()
+                            self.update_status(current_step, False, sp_status=f"{flush_lines}")
+                            flush_lines = ""
                 self.update_status(current_step, False, sp_status=f"{flush_lines}")  # emit last possible infos
 
                 current_step += 1
@@ -202,6 +224,13 @@ class RIFE_Run_Thread(QThread):
     def kill_proc_exec(self):
         self.kill = True
         logger.info("Kill Process Command Fired")
+
+    def pause_proc_exec(self):
+        self.pause = not self.pause
+        if self.pause:
+            logger.info("Pause Process Command Fired")
+        else:
+            logger.info("Resume Process Command Fired")
 
     pass
 
@@ -230,12 +259,14 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.tqdm_re = re.compile(".*?Process at .*?\]")
         self.current_failed = False
         self.formatted_option_check = []
+        self.pause = False
 
         """Initiate and Check GPU"""
         self.hasNVIDIA = True
         self.update_gpu_info()
         self.update_model_info()
         self.init_before_settings()
+        self.on_EncoderSelector_currentTextChanged()  # Flush Encoder Sets
 
     def init_before_settings(self):
         input_list = appData.value("InputFileName", "").split(";")
@@ -250,7 +281,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.UseCRF.setChecked(appData.value("UseCRF", True, type=bool))
         self.CRFSelector.setValue(appData.value("crf", 16, type=int))
         self.UseTargetBitrate.setChecked(appData.value("UseTargetBitrate", False, type=bool))
-        self.BitrateSelector.setValue(appData.value("bitrate", 90, type=int))
+        self.BitrateSelector.setValue(appData.value("bitrate", 90, type=float))
         self.PresetSelector.setCurrentText(appData.value("preset", "fast[软编, 硬编]"))
         self.EncoderSelector.setCurrentText(appData.value("encoder", "H264/AVC"))
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
@@ -258,8 +289,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.UseFixedScdet.setChecked(appData.value("fixed_scdet", False, type=bool))
         self.RenderGapSelector.setValue(appData.value("render_gap", 1000, type=int))
         self.SaveAudioChecker.setChecked(appData.value("save_audio", True, type=bool))
-        self.StartPoint.setText(appData.value("start_point", ""))
-        self.EndPoint.setText(appData.value("end_point", ""))
+        self.StartPoint.setTime(QTime.fromString(appData.value("start_point", "00:00:00"), "HH:mm:ss"))
+        self.EndPoint.setTime(QTime.fromString(appData.value("end_point", "00:00:00"), "HH:mm:ss"))
 
         self.ScdetSelector.setValue(appData.value("scdet_threshold", 12, type=int))
         self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
@@ -274,7 +305,10 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.QuickExtractChecker.setChecked(appData.value("quick_extract", True, type=bool))
         self.ImgOutputChecker.setChecked(appData.value("img_output", False, type=bool))
 
-        self.HwaccelChecker.setChecked(appData.value("hwaccel", False, type=bool))
+        # self.HwaccelChecker.setChecked(appData.value("hwaccel", False, type=bool))
+        self.HwaccelSelector.setCurrentText(appData.value("hwaccel_mode", "None", type=str))
+        self.MBufferChecker.setChecked(appData.value("manual_buffer", False, type=bool))
+        self.BufferSizeSelector.setValue(appData.value("manual_buffer_size", 1000, type=int))
         self.FP16Checker.setChecked(appData.value("fp16", False, type=bool))
         self.InterpScaleSelector.setCurrentText(appData.value("scale", "1.00"))
         self.ReverseChecker.setChecked(appData.value("reverse", False, type=bool))
@@ -286,6 +320,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.ncnnInterpThreadCnt.setValue(j_settings_values[1])
         self.ncnnOutputThreadCnt.setValue(j_settings_values[2])
         self.slowmotion.setChecked(appData.value("slow_motion", False, type=bool))
+        self.SlowmotionFPS.setText(appData.value("slow_motion_fps", "", type=str))
         appData.setValue("img_input", appData.value("img_input", False))
 
         desktop = QApplication.desktop()
@@ -294,6 +329,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
 
         self.resize(size)
         self.move(pos)
+
+        self.setAttribute(Qt.WA_TranslucentBackground)
 
     def load_current_settings(self):
         input_file_names = ""
@@ -309,14 +346,15 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("bitrate", self.BitrateSelector.value())
         appData.setValue("preset", self.PresetSelector.currentText())
         appData.setValue("encoder", self.EncoderSelector.currentText())
-        appData.setValue("hwaccel", self.HwaccelChecker.isChecked())
+        # appData.setValue("hwaccel", self.HwaccelChecker.isChecked())
+        appData.setValue("hwaccel_mode", self.HwaccelSelector.currentText())
         appData.setValue("no_scdet", not self.ScedetChecker.isChecked())
         appData.setValue("fixed_scdet", self.UseFixedScdet.isChecked())
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
         appData.setValue("any_fps", self.UseAnyFPS.isChecked())
-        if self.UseAnyFPS.isChecked():
-            self.DupRmChecker.setChecked(True)
         appData.setValue("remove_dup", self.DupRmChecker.isChecked())
+        if self.UseAnyFPS.isChecked():
+            appData.setValue("remove_dup", True)
 
         appData.setValue("dup_threshold", self.DupFramesTSelector.value())
         appData.setValue("crop", self.CropSettings.text())
@@ -332,8 +370,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("reverse", self.ReverseChecker.isChecked())
         appData.setValue("UseCRF", self.UseCRF.isChecked())
         appData.setValue("UseTargetBitrate", self.UseTargetBitrate.isChecked())
-        appData.setValue("start_point", self.StartPoint.text().replace("：", ":"))
-        appData.setValue("end_point", self.EndPoint.text().replace("：", ":"))
+        appData.setValue("start_point", self.StartPoint.time().toString("HH:mm:ss"))
+        appData.setValue("end_point", self.EndPoint.time().toString("HH:mm:ss"))
 
         appData.setValue("encoder", self.EncoderSelector.currentText())
         appData.setValue("pix_fmt", self.PixFmtSelector.currentText())
@@ -343,6 +381,8 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         appData.setValue("interp_start", self.StartFrame.text() if len(self.StartFrame.text()) else 0)
         appData.setValue("render_gap", int(self.RenderGapSelector.value()))
 
+        appData.setValue("manual_buffer", self.MBufferChecker.isChecked())
+        appData.setValue("manual_buffer_size", self.BufferSizeSelector.value())
         appData.setValue("ncnn", self.UseNCNNButton.isChecked())
         appData.setValue("scale", self.InterpScaleSelector.currentText())
         appData.setValue("SelectedModel", os.path.join(appData.value("model"), self.ModuleSelector.currentText()))
@@ -355,6 +395,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         j_settings = f"{self.ncnnReadThreadCnt.value()}:{self.ncnnInterpThreadCnt.value()}:{self.ncnnOutputThreadCnt.value()}"
         appData.setValue("j_settings", j_settings)
         appData.setValue("slow_motion", self.slowmotion.isChecked())
+        appData.setValue("slow_motion_fps", self.SlowmotionFPS.text())
         if appData.value("slow_motion", False, type=bool):
             appData.setValue("save_audio", False)
             self.SaveAudioChecker.setChecked(False)
@@ -522,10 +563,17 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             appData.setValue("img_input", False)
 
         try:
-            input_fps = float(self.InputFPS.text())
-            output_fps = float(self.OutputFPS.text())
+            float(self.InputFPS.text())
+            float(self.OutputFPS.text())
         except Exception:
             self.sendWarning("Wrong Inputs", "请确认输入和输出帧率")
+            return False
+
+        try:
+            if self.slowmotion.isChecked():
+                float(self.SlowmotionFPS.text())
+        except Exception:
+            self.sendWarning("Wrong Inputs", "请确认慢动作输入帧率")
             return False
 
         return True
@@ -683,7 +731,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         logger.info(f"NVIDIA data: {infos}")
 
         if not len(infos):
-            self.hasNVIDIA = True
+            self.hasNVIDIA = False
             self.sendWarning("No NVIDIA Card Found", "未找到N卡，将使用A卡或核显")
             appData.setValue("ncnn", True)
             self.UseNCNNButton.setChecked(True)
@@ -822,15 +870,20 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.quick_gif()
         pass
 
-    @pyqtSlot(bool)
-    def on_HwaccelChecker_clicked(self):
-        logger.info("Switch To HWACCEL Mode: %s" % self.HwaccelChecker.isChecked())
+    @pyqtSlot(str)
+    def on_HwaccelSelector_currentTextChanged(self):
+        logger.info("Switch To HWACCEL Mode: %s" % self.HwaccelSelector.currentText())
         self.on_EncoderSelector_currentTextChanged()
+
+    @pyqtSlot(bool)
+    def on_MBufferChecker_clicked(self):
+        logger.info("Switch To Manual Assign Buffer Size Mode: %s" % self.MBufferChecker.isChecked())
+        self.BufferSizeSelector.setEnabled(self.MBufferChecker.isChecked())
 
     @pyqtSlot(bool)
     def on_UseFixedScdet_clicked(self):
         logger.info("Switch To FixedScdetThreshold Mode: %s" % self.UseFixedScdet.isChecked())
-        self.ScdetSelector.setEnabled(self.UseFixedScdet.isChecked())
+        # self.ScdetSelector.setEnabled(self.UseFixedScdet.isChecked())
 
     @pyqtSlot(bool)
     def on_UseNCNNButton_clicked(self):
@@ -844,7 +897,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
         if self.UseNCNNButton.isChecked():
             """Nvidia Special Functions"""
-            self.HwaccelChecker.setChecked(False)
+            # self.HwaccelSelector.setE(False)
             self.DupRmChecker.setChecked(False)
             self.UseAnyFPS.setChecked(False)
         bool_result = not self.UseNCNNButton.isChecked()
@@ -860,7 +913,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.UseAnyFPS.setEnabled(bool_result)
         self.DupRmChecker.setEnabled(bool_result)
         self.DupFramesTSelector.setEnabled(bool_result)
-        self.HwaccelChecker.setEnabled(bool_result)
+        # self.HwaccelChecker.setEnabled(bool_result)
         self.on_UseAnyFPS_clicked()
         self.on_ExpSelecter_currentTextChanged()
 
@@ -869,39 +922,44 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         if not self.hasNVIDIA and self.UseAnyFPS.isChecked():
             reply = self.sendWarning(f"未检测到N卡，不能勾选此项！", 1)
             self.UseAnyFPS.setChecked(False)
-            self.HwaccelChecker.setChecked(False)
+            # self.HwaccelChecker.setChecked(False)
             return
         bool_result = self.UseAnyFPS.isChecked()
         self.ExpSelecter.setEnabled(not bool_result)
-        self.OutputFPS.setEnabled(bool_result)
+        self.OutputFPS.setEnabled(True)
         if not bool_result:
             self.on_ExpSelecter_currentTextChanged()
+
+    @pyqtSlot(bool)
+    def on_slowmotion_clicked(self):
+        self.SlowmotionFPS.isEnabled(self.slowmotion.isChecked())
 
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):
         self.PresetSelector.clear()
         self.PixFmtSelector.clear()
         currentEncoder = self.EncoderSelector.currentText()
+        currentHwaccel = self.HwaccelSelector.currentText()
         presets = []
         pixfmts = []
         if currentEncoder == "H265/HEVC":
-            if not self.HwaccelChecker.isChecked():
+            if currentHwaccel == "None":
                 # x265
                 presets = EncodePresetAssemply.preset["HEVC"]["x265"]
                 pixfmts = EncodePresetAssemply.pixfmt["HEVC"]["x265"]
             else:
-                # hevc_nvenc
-                presets = EncodePresetAssemply.preset["HEVC"]["NVENC"]
-                pixfmts = EncodePresetAssemply.pixfmt["HEVC"]["NVENC"]
+                # hwaccel
+                presets = EncodePresetAssemply.preset["HEVC"][currentHwaccel]
+                pixfmts = EncodePresetAssemply.pixfmt["HEVC"][currentHwaccel]
         elif currentEncoder == "H264/AVC":
-            if not self.HwaccelChecker.isChecked():
-                # x265
+            if currentHwaccel == "None":
+                # x264
                 presets = EncodePresetAssemply.preset["H264"]["x264"]
                 pixfmts = EncodePresetAssemply.pixfmt["H264"]["x264"]
             else:
-                # hevc_nvenc
-                presets = EncodePresetAssemply.preset["H264"]["NVENC"]
-                pixfmts = EncodePresetAssemply.pixfmt["H264"]["NVENC"]
+                # hwaccel
+                presets = EncodePresetAssemply.preset["H264"][currentHwaccel]
+                pixfmts = EncodePresetAssemply.pixfmt["H264"][currentHwaccel]
         elif currentEncoder == "ProRes":
             presets = EncodePresetAssemply.preset["ProRes"]
             pixfmts = EncodePresetAssemply.pixfmt["ProRes"]
@@ -956,7 +1014,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             显示“Program finished”则任务完成
             如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
             群号在首页说明\n
-            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 使用任意帧率：{self.UseAnyFPS.isChecked()}， 使用动漫优化：{self.DupRmChecker.isChecked()}
+            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 启用慢动作：{self.slowmotion.isChecked()}， 慢动作帧率：{self.SlowmotionFPS.text()} 启用任意帧率：{self.UseAnyFPS.isChecked()}， 使用动漫优化：{self.DupRmChecker.isChecked()}
         """
         if appData.value("ncnn", type=bool):
             update_text += "使用A卡或核显：True\n"
@@ -988,6 +1046,21 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         """
         if self.thread is not None:
             self.thread.kill_proc_exec()
+
+    @pyqtSlot(bool)
+    def on_PauseProcess_clicked(self):
+        """
+        :return:
+        """
+        if self.thread is not None:
+            self.thread.pause_proc_exec()
+            if not self.pause:
+                self.pause = True
+                self.PauseProcess.setText("继续补帧！")
+            else:
+                self.pause = False
+                self.PauseProcess.setText("暂停补帧！")
+
 
     @pyqtSlot(bool)
     def on_CloseButton_clicked(self):

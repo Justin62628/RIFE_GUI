@@ -259,7 +259,7 @@ class Utils:
 
 
 class ImgSeqIO:
-    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0):
+    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, **kwargs):
         if folder is None or os.path.isfile(folder):
             print(f"ERROR - [IMG.IO] Invalid ImgSeq Folder: {folder}")
             return
@@ -269,8 +269,15 @@ class ImgSeqIO:
         self.frame_cnt = 0
         self.img_list = list()
         self.write_queue = Queue(maxsize=1000)
-        self.thread = thread
+        self.thread_cnt = thread
+        self.thread_pool = list()
         self.use_imdecode = False
+        self.resize = (0, 0)
+        self.resize_flag = False
+        if "resize" in kwargs and len(kwargs["resize"]):
+            self.resize = set(map(lambda x: int(x), kwargs["resize"].split("x")))
+            self.resize_flag = True
+
         if is_tool:
             return
         if is_read:
@@ -288,44 +295,52 @@ class ImgSeqIO:
                                key=lambda x: int(x[:-4]), reverse=True)
             if len(write_png):
                 self.frame_cnt = int(os.path.splitext(write_png[0])[0]) + 1
-            for t in range(self.thread):
-                threading.Thread(target=self.write_buffer, name=f"[IMG.IO] Write Buffer No.{t + 1}").start()
+            for t in range(self.thread_cnt):
+                _t = threading.Thread(target=self.write_buffer, name=f"[IMG.IO] Write Buffer No.{t + 1}")
+                self.thread_pool.append(_t)
+            for _t in self.thread_pool:
+                _t.start()
             print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
 
     def read_frame(self, path):
-        if self.use_imdecode:
-            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
-            return img
-        else:
-            read_flag = False
-            retry = 0
-            while not read_flag and retry < 10:
-                try:
-                    try:
-                        img = cv2.imread(path)[:, :, ::-1].copy()
-                        return img
-                    except TypeError:
-                        print("WARNING - [IMG.IO] Change to use imdecode")
-                        self.use_imdecode = True
-                        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
-                        return img
-                except Exception:
-                    print("CRITICAL - [IMG.IO] Read Failed")
-                    print(traceback.format_exc())
-                    retry += 1
-                    time.sleep(1)
-            return None
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
+        if self.resize_flag:
+            img = cv2.resize(img, self.resize)
+        return img
+        # if self.use_imdecode:
+        #     img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
+        #     return img
+        # else:
+        #     read_flag = False
+        #     retry = 0
+        #     while not read_flag and retry < 10:
+        #         try:
+        #             try:
+        #                 img = cv2.imread(path)[:, :, ::-1].copy()
+        #                 return img
+        #             except TypeError:
+        #                 print("WARNING - [IMG.IO] Change to use imdecode")
+        #                 self.use_imdecode = True
+        #                 img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
+        #                 return img
+        #         except Exception:
+        #             print("CRITICAL - [IMG.IO] Read Failed")
+        #             print(traceback.format_exc())
+        #             retry += 1
+        #             time.sleep(1)
+        #     return None
 
     def write_frame(self, img, path):
-        if self.use_imdecode:
-            cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
-        else:
-            try:
-                cv2.imwrite(path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-            except Exception:
-                print("WARNING - [IMG.IO] Change to use imdecode")
-                self.use_imdecode = True
-                cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
+        cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
+        # if self.use_imdecode:
+        #     pass
+        # else:
+        #     try:
+        #         cv2.imwrite(path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        #     except Exception:
+        #         print("WARNING - [IMG.IO] Change to use imdecode")
+        #         self.use_imdecode = True
+        #         cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
 
     def nextFrame(self):
         for p in self.img_list:
@@ -342,14 +357,21 @@ class ImgSeqIO:
 
     def writeFrame(self, img):
         img_path = os.path.join(self.seq_folder, f"{self.frame_cnt:0>8d}.png")
+        img_path = img_path.replace("\\", "/")
         if img is None:
-            for t in range(self.thread):
+            for t in range(self.thread_cnt):
                 self.write_queue.put((img_path, None))
+            return
         self.write_queue.put((img_path, img))
         self.frame_cnt += 1
         return
 
     def close(self):
+        for t in range(self.thread_cnt):
+            self.write_queue.put(("", None))
+        for _t in self.thread_pool:
+            while _t.is_alive():
+                time.sleep(0.2)
         return
 
 
@@ -358,10 +380,12 @@ class EncodePresetAssemply:
         "HEVC": {
             "x265": ["slow", "ultrafast", "fast", "medium", "veryslow"],
             "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+            "QSV": ["slow", "fast", "medium", "veryslow", ],
         },
         "H264": {
             "x264": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
             "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+            "QSV": ["slow", "fast", "medium", "veryslow",],
         },
         "ProRes": ["hq", "4444", "4444xq"]
     }
@@ -370,10 +394,12 @@ class EncodePresetAssemply:
             "x265": ["yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le", "yuv444p10le", "yuv420p12le",
                      "yuv422p12le", "yuv444p12le"],
             "NVENC": ["p010le", "yuv420p", "yuv444p", "p016le", "yuv444p16le"],
+            "QSV": ["yuv420p", "p010le", ],
         },
         "H264": {
             "x264": ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", ],
             "NVENC": ["yuv420p", "p010le", "yuv444p", "p016le", "yuv444p16le"],
+            "QSV": ["yuv420p", ],  # TODO Seriously? QSV Not supporting p010le?
         },
         "ProRes": ["yuv422p10le", "yuv444p10le"]
     }
@@ -410,6 +436,7 @@ class VideoInfo:
         self.frames_size = (0, 0)
         self.fps = 0
         self.duration = 0
+        self.update_info()
 
     def update_frames_info_ffprobe(self):
         result = CommandResult(
@@ -472,7 +499,12 @@ class VideoInfo:
         if self.img_input:
             if os.path.isfile(self.filepath):
                 self.filepath = os.path.dirname(self.filepath)
-            self.frames_cnt = len(os.listdir(self.filepath))
+            seqlist = os.listdir(self.filepath)
+            self.frames_cnt = len(seqlist)
+            # if not self.duration:
+            #     self.duration = self.frames_cnt / self.fps
+            img = cv2.imdecode(np.fromfile(os.path.join(self.filepath, seqlist[0]), dtype=np.uint8), 1)[:, :, ::-1].copy()
+            self.frames_size = (img.shape[1], img.shape[0])
             return
         self.update_frames_info_ffprobe()
         self.update_frames_info_cv2()

@@ -62,7 +62,7 @@ class RifeInterpolation:
         self.model.device()
         self.initiated = True
 
-    def make_inference(self, img1, img2, scale, exp):
+    def __make_inference(self, img1, img2, scale, exp):
         padding, h, w = self.generate_padding(img1)
         i1 = self.generate_torch_img(img1, padding)
         i2 = self.generate_torch_img(img2, padding)
@@ -74,9 +74,28 @@ class RifeInterpolation:
         mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
         if exp == 1:
             return [mid]
-        first_half = self.make_inference(img1, mid, scale, exp=exp - 1)
-        second_half = self.make_inference(mid, img2, scale, exp=exp - 1)
+        first_half = self.__make_inference(img1, mid, scale, exp=exp - 1)
+        second_half = self.__make_inference(mid, img2, scale, exp=exp - 1)
         return [*first_half, mid, *second_half]
+
+    def __make_n_inference(self, img1, img2, scale, n):
+        padding, h, w = self.generate_padding(img1)
+        i1 = self.generate_torch_img(img1, padding)
+        i2 = self.generate_torch_img(img2, padding)
+        if self.args["reverse"]:
+            mid = self.model.inference(i1, i2, scale)
+        else:
+            mid = self.model.inference(i2, i1, scale)
+        del i1, i2
+        mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
+        if n == 1:
+            return [mid]
+        first_half = self.__make_n_inference(img1, mid, scale, n=n//2)
+        second_half = self.__make_n_inference(mid, img2, scale, n=n//2)
+        if n % 2:
+            return [*first_half, mid, *second_half]
+        else:
+            return [*first_half, *second_half]
 
     def generate_padding(self, img):
         """
@@ -112,21 +131,40 @@ class RifeInterpolation:
         else:
             return F.pad(img, padding)
 
-    def generate_interp(self, img1, img2, exp, scale, debug=False):
+    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False):
         """
 
         :param img1: cv2.imread
         :param img2:
         :param exp:
         :param scale:
+        :param n:
+        :param debug:
         :return: list of interp cv2 image
         """
         if debug:
             output_gen = list()
-            for i in range(2 ** exp):
+            if n is not None:
+                dup = n
+            else:
+                dup = 2**exp - 1
+            for i in range(dup):
                 output_gen.append(img1)
             return output_gen
-        interp_gen = self.make_inference(img1, img2, scale, exp)
+
+        if n is not None:
+            interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
+        else:
+            interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
+        return interp_gen
+
+    def generate_n_interp(self, img1, img2, n, scale, debug=False):
+        if debug:
+            output_gen = list()
+            for i in range(n):
+                output_gen.append(img1)
+            return output_gen
+        interp_gen = self.__make_n_inference(img1, img2, scale, n)
         return interp_gen
 
     def run(self):

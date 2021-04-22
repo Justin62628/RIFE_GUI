@@ -24,7 +24,7 @@ app_backend_module = RIFE_GUI_Backend
 app_backend = app_backend_module.RIFE_GUI_BACKEND()
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 2.2 beta")
+                                             title="Squirrel Video Frame Interpolation 2.3.0 alpha")
     form.show()
     app.exec_()
     """Save Settings"""
