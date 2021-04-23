@@ -64,7 +64,7 @@ class DefaultConfigParser(ConfigParser):
 class Utils:
     def __init__(self):
         self.resize_param = (480, 270)
-        self.crop_param = (0,0,0,0)
+        self.crop_param = (0, 0, 0, 0)
         pass
 
     def fillQuotation(self, string):
@@ -161,7 +161,7 @@ class Utils:
     def get_norm_img(self, img1):
         img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
         img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
-        img1 = cv2.equalizeHist(img1) #进行直方图均衡化
+        img1 = cv2.equalizeHist(img1)  # 进行直方图均衡化
         # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         # _, img1 = cv2.threshold(img1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return img1
@@ -249,9 +249,9 @@ class Utils:
         edges_y.extend(edges_y_down)
 
         left = min(edges_x) if len(edges_x) else 0  # 左边界
-        right = max(edges_x) if len(edges_x) else x # 右边界
-        bottom = min(edges_y) if len(edges_y) else 0 # 底部
-        top = max(edges_y) if len(edges_y) else y # 顶部
+        right = max(edges_x) if len(edges_x) else x  # 右边界
+        bottom = min(edges_y) if len(edges_y) else 0  # 底部
+        top = max(edges_y) if len(edges_y) else y  # 顶部
 
         # image2 = img[bottom:top, left:right]
         self.crop_param = (bottom, top, left, right)
@@ -385,7 +385,7 @@ class EncodePresetAssemply:
         "H264": {
             "x264": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
             "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
-            "QSV": ["slow", "fast", "medium", "veryslow",],
+            "QSV": ["slow", "fast", "medium", "veryslow", ],
         },
         "ProRes": ["hq", "4444", "4444xq"]
     }
@@ -503,7 +503,8 @@ class VideoInfo:
             self.frames_cnt = len(seqlist)
             # if not self.duration:
             #     self.duration = self.frames_cnt / self.fps
-            img = cv2.imdecode(np.fromfile(os.path.join(self.filepath, seqlist[0]), dtype=np.uint8), 1)[:, :, ::-1].copy()
+            img = cv2.imdecode(np.fromfile(os.path.join(self.filepath, seqlist[0]), dtype=np.uint8), 1)[:, :,
+                  ::-1].copy()
             self.frames_size = (img.shape[1], img.shape[0])
             return
         self.update_frames_info_ffprobe()
@@ -518,9 +519,10 @@ class VideoInfo:
         get_dict["duration"] = self.duration
         return get_dict
 
+
 class TransitionDetection:
-    def __init__(self, scene_stack_length, fixed_scdet=False, scdet_threshold=50, output="", **kwargs):
-        self.scdet_threshold=scdet_threshold
+    def __init__(self, scene_stack_length, fixed_scdet=False, scdet_threshold=50, output="", no_scdet=False, **kwargs):
+        self.scdet_threshold = scdet_threshold
         self.fixed_scdet = fixed_scdet
         self.scdet_cnt = 0
         self.scene_stack_len = scene_stack_length
@@ -535,6 +537,7 @@ class TransitionDetection:
         if not os.path.exists(self.scene_dir):
             os.mkdir(self.scene_dir, )
         self.scene_stack = Queue(maxsize=scene_stack_length)
+        self.no_scdet = no_scdet
 
     def __check_coef(self):
         reg = linear_model.LinearRegression()
@@ -578,7 +581,6 @@ class TransitionDetection:
             scene = scene_data[1]
             self.see_result(title)
 
-
     def see_result(self, title):
         return
         comp_stack = np.hstack((self.img1, self.img2))
@@ -598,6 +600,9 @@ class TransitionDetection:
         :param no_diff: check after "add_diff" mode
         :return: 是转场则返回帧
         """
+
+        if self.no_scdet:
+            return False
 
         diff = self.utils.get_norm_img_diff(img1, img2)
         if self.fixed_scdet:

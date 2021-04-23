@@ -70,7 +70,7 @@
           <bool>true</bool>
          </property>
          <attribute name="title">
-          <string>基础设置</string>
+          <string> 基础设置 </string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_23">
           <item row="0" column="0">
@@ -431,7 +431,7 @@
         </widget>
         <widget class="QWidget" name="step2">
          <attribute name="title">
-          <string>高级设置</string>
+          <string> 高级设置 </string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_2">
           <item row="0" column="0">
@@ -586,6 +586,22 @@
                         <string>HH:mm:ss</string>
                        </property>
                       </widget>
+                     </item>
+                     <item>
+                      <spacer name="horizontalSpacer">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="sizeType">
+                        <enum>QSizePolicy::Preferred</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
                      </item>
                     </layout>
                    </item>
@@ -928,7 +944,7 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;防止爆内存，一般不用勾选。&lt;span style=&quot; font-weight:600;&quot;&gt;专业人士自用&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="text">
-                        <string>手动指定缓冲区大小</string>
+                        <string>手动指定缓冲区内存大小</string>
                        </property>
                       </widget>
                      </item>
@@ -947,23 +963,23 @@
                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;防止爆内存，一般不用勾选。&lt;span style=&quot; font-weight:600;&quot;&gt;专业人士自用&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                        </property>
                        <property name="minimum">
-                        <number>100</number>
+                        <number>1</number>
                        </property>
                        <property name="maximum">
-                        <number>100000</number>
+                        <number>500</number>
                        </property>
                        <property name="singleStep">
-                        <number>50</number>
+                        <number>1</number>
                        </property>
                        <property name="value">
-                        <number>200</number>
+                        <number>1</number>
                        </property>
                       </widget>
                      </item>
                      <item>
                       <widget class="QLabel" name="label_19">
                        <property name="text">
-                        <string>帧</string>
+                        <string>G</string>
                        </property>
                       </widget>
                      </item>
@@ -1447,7 +1463,7 @@
           <string/>
          </property>
          <attribute name="title">
-          <string>输出窗口</string>
+          <string> 输出窗口 </string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_24">
           <item row="0" column="0">

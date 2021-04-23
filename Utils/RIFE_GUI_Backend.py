@@ -187,7 +187,8 @@ class RIFE_Run_Thread(QThread):
                                 pause.resume()
                                 time.sleep(0.5)
                                 self.current_proc.terminate()
-                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已在暂停后被强制结束", returncode=-1)
+                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已在暂停后被强制结束",
+                                                   returncode=-1)
                                 break
                             elif not self.pause:
                                 pause.resume()
@@ -308,7 +309,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         # self.HwaccelChecker.setChecked(appData.value("hwaccel", False, type=bool))
         self.HwaccelSelector.setCurrentText(appData.value("hwaccel_mode", "None", type=str))
         self.MBufferChecker.setChecked(appData.value("manual_buffer", False, type=bool))
-        self.BufferSizeSelector.setValue(appData.value("manual_buffer_size", 1000, type=int))
+        self.BufferSizeSelector.setValue(appData.value("manual_buffer_size", 1, type=int))
         self.FP16Checker.setChecked(appData.value("fp16", False, type=bool))
         self.InterpScaleSelector.setCurrentText(appData.value("scale", "1.00"))
         self.ReverseChecker.setChecked(appData.value("reverse", False, type=bool))
@@ -1060,7 +1061,6 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             else:
                 self.pause = False
                 self.PauseProcess.setText("暂停补帧！")
-
 
     @pyqtSlot(bool)
     def on_CloseButton_clicked(self):

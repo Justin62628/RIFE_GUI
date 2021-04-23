@@ -56,6 +56,7 @@ try:
     import inference  # 导入补帧模块
 except Exception:
     import inference_A as inference
+
     print("Error: Import Torch Failed, use NCNN instead")
     traceback.print_exc()
     args.update({"ncnn": True})
@@ -97,7 +98,6 @@ class InterpWorkFlow:
 
         """Get input's info"""
         self.video_info_instance = VideoInfo(**self.args)
-        # self.video_info_instance.update_info()
         self.video_info = self.video_info_instance.get_info()
         if self.args["batch"] and not self.args["img_input"]:  # 检测到批处理，且输入不是文件夹，使用检测到的帧率
             self.fps = self.video_info["fps"]
@@ -123,6 +123,7 @@ class InterpWorkFlow:
             else:
                 self.target_fps = (2 ** self.exp) * self.fps
 
+        """Update All Frames Count"""
         self.all_frames_cnt = int(self.video_info["cnt"])  # 视频总帧数
         if self.args["any_fps"]:  # 使用任意帧率，要相应更新总帧数（图片序列输入是不可能的）
             self.all_frames_cnt = int(self.video_info["duration"] * self.target_fps)
@@ -147,16 +148,16 @@ class InterpWorkFlow:
 
         """Guess Memory and Render System"""
         if self.args["manual_buffer"]:
-            self.frames_output_size = self.args["manual_buffer_size"]
-            self.logger.info(f"Manually Change Buffer Size to {self.frames_output_size}")
+            free_mem = self.args["manual_buffer"] * 1024
         else:
             mem = psutil.virtual_memory()
             free_mem = round(mem.free / 1024 / 1024)
-            self.frames_output_size = round(free_mem / (sys.getsizeof(
-                np.random.rand(3, round(self.video_info["size"][0]),
-                               round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
+        self.frames_output_size = round(free_mem / (sys.getsizeof(
+            np.random.rand(3, round(self.video_info["size"][0]),
+                           round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
         if self.frames_output_size < 100:
             self.frames_output_size = 100
+        self.logger.info(f"Buffer Size to {self.frames_output_size}")
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
         self.render_gap = self.args["render_gap"]  # 每个chunk的帧数
         self.frame_reader = None  # 读帧的迭代器／帧生成器
@@ -211,7 +212,8 @@ class InterpWorkFlow:
                 clip_duration = end_point - start_point
                 clip_fps = self.fps if not self.args["any_fps"] else self.target_fps
                 self.all_frames_cnt = round(clip_duration.total_seconds() * clip_fps)
-                self.logger.info(f"Update Input Range: in {self.args['start_point']} -> out {self.args['end_point']}, all_frames_cnt -> {self.all_frames_cnt}")
+                self.logger.info(
+                    f"Update Input Range: in {self.args['start_point']} -> out {self.args['end_point']}, all_frames_cnt -> {self.all_frames_cnt}")
             else:
                 self.logger.warning(f"Bad Input Time Section: {start_point} -> {end_point}, change to origianl course")
 
@@ -258,14 +260,15 @@ class InterpWorkFlow:
         input_dict = {"-vsync": "cfr", "-r": f"{self.fps * 2 ** self.exp}"}
 
         output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"], "-pix_fmt": self.args["pix_fmt"]}
-        if self.args["any_fps"] and not self.args["ncnn"] and not self.args["img_input"]:  # TODO: Img Seq supports any fps
+        if self.args["any_fps"] and not self.args["ncnn"] and not self.args[
+            "img_input"]:  # TODO: Img Seq supports any fps
             input_dict.update({"-r": f"{self.target_fps}"})
         output_dict.update(self.color_info)
 
         """Slow motion design"""
         if self.args["slow_motion"]:
             if self.args.get("slow_motion_fps", 0):
-                input_dict.update({"-r": f"{self.args['slow_motion_fps']}"})  # TODO: Check what happened to slowmotion
+                input_dict.update({"-r": f"{self.args['slow_motion_fps']}"})
             else:
                 input_dict.update({"-r": f"{self.fps}"})
             output_dict.pop("-r")
@@ -500,6 +503,28 @@ class InterpWorkFlow:
             return img
         return img[self.crop_param[1]:h - self.crop_param[1], self.crop_param[0]:w - self.crop_param[0]]
 
+    def nvidia_vram_test(self, img):
+        try:
+            if len(self.args["resize"]):
+                w, h = list(map(lambda x: int(x), self.args["resize"].split("x")))
+            else:
+                h, w, _ = list(map(lambda x: round(x), img.shape))
+
+            if w * h > 1920 * 1080:
+                if self.args["scale"] > 0.5:
+                    self.args["scale"] = 0.5
+                    self.logger.warning(f"Big Resolution (>1080p) Input found: Reset Scale to {self.args['scale']}")
+
+            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
+
+            test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
+                                   np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
+            self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"])
+            self.logger.info(f"VRAM Test Success")
+        except Exception as e:
+            self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
+            raise e
+
     def nvidia_run(self):
         """
         Go through all procedures to produce interpolation result
@@ -529,26 +554,7 @@ class InterpWorkFlow:
             raise OSError(f"Input file not valid: {self.input}")
 
         """VRAM Test"""
-        try:
-            if len(self.args["resize"]):
-                w, h = list(map(lambda x: int(x), self.args["resize"].split("x")))
-            else:
-                h, w, _ = list(map(lambda x: round(x), img1.shape))
-
-            if w*h > 1920*1080:
-                if self.args["scale"] > 0.5:
-                    self.args["scale"] = 0.5
-                    self.logger.warning(f"Big Resolution (>1080p) Input found: Reset Scale to {self.args['scale']}")
-
-            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
-
-            test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
-                                   np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
-            self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"])
-            self.logger.info(f"VRAM Test Success")
-        except Exception as e:
-            self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
-            raise e
+        self.nvidia_vram_test(img1)
 
         is_end = False
         pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="frames")
@@ -585,10 +591,9 @@ class InterpWorkFlow:
                 skip = 0  # 用于记录跳过的帧数
 
                 """Find Scene"""
-                if not self.args["no_scdet"] and self.scene_detection.check_scene(img0, img1):
+                if self.scene_detection.check_scene(img0, img1):
                     self.feed_to_render(frames_list)  # no need to update scene flag
                     recent_scene = now_frame
-                    # now_frame += 1  # to next frame img0 = img1
                     scedet_info["0"] += 1
                     continue
                 else:
@@ -615,14 +620,11 @@ class InterpWorkFlow:
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if not self.args["no_scdet"] and self.scene_detection.check_scene(img0, img1, no_diff=True):
+                        if self.scene_detection.check_scene(img0, img1, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if skip:
-                                # 将转场前一帧作为img1，补足
-                                # exp = int(math.log(skip, 2)) + 1
                                 interp_output = self.rife_core.generate_interp(img0, before_img, 0,
                                                                                self.args["scale"], n=skip, debug=_debug)
-                                # kpl = Utils.generate_prebuild_map(exp, skip)
                                 for x in interp_output:
                                     frames_list.append([now_frame, x])
                             frames_list.append([now_frame, before_img])
@@ -631,9 +633,8 @@ class InterpWorkFlow:
                             now_frame += skip + 1
 
                         elif skip != 0:
-                            # exp = int(math.log(skip, 2)) + 1
-                            interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"], n=skip, debug=_debug)
-                            # kpl = Utils.generate_prebuild_map(exp, skip)
+                            interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"], n=skip,
+                                                                           debug=_debug)
                             for x in interp_output:
                                 frames_list.append([now_frame, x])
                             now_frame += skip
@@ -660,7 +661,7 @@ class InterpWorkFlow:
                 is_scene = False
 
                 """Find Scene"""
-                if not self.args["no_scdet"] and self.scene_detection.check_scene(img0, img1):
+                if self.scene_detection.check_scene(img0, img1):
                     frames_list.append([now_frame, img0])
                     self.feed_to_render(frames_list, is_scene=True)
                     recent_scene = now_frame
@@ -687,21 +688,13 @@ class InterpWorkFlow:
                                 break
 
                         # 除去重复帧后可能im0，im1依然为转场，因为转场或大幅度运动的前一帧可以为重复帧
-                        if not self.args["no_scdet"] and self.scene_detection.check_scene(img0, img1, no_diff=True):
+                        if self.scene_detection.check_scene(img0, img1, no_diff=True):
                             skip -= 1  # 两帧间隔计数器-1
                             if not skip:
                                 gap_frames_list.append(img0)
                             else:
                                 interp_output = self.rife_core.generate_interp(img0, img1, 0, self.args["scale"],
                                                                                n=skip, debug=_debug)
-                                # 将转场前一帧作为img1，补足
-                                # exp = int(math.log(skip, 2)) + 1
-                                # if _debug:
-                                #     interp_output = [img0 for i in range(2 ** exp - 1)]
-                                # else:
-                                #     interp_output = self.rife_core.generate_interp(img0, before_img, exp,
-                                #                                                    self.args["scale"])
-                                # kpl = Utils.generate_prebuild_map(exp, skip)
                                 for x in interp_output:
                                     gap_frames_list.append(x)
                                 gap_frames_list.append(before_img)
@@ -714,14 +707,6 @@ class InterpWorkFlow:
                                                                            debug=_debug)
                             for x in interp_output:
                                 gap_frames_list.append(x)
-                            # exp = int(math.log(skip, 2)) + 1
-                            # if _debug:
-                            #     interp_output = [img0 for i in range(2 ** exp - 1)]
-                            # else:
-                            #     interp_output = self.rife_core.generate_interp(img0, img1, exp, self.args["scale"])
-                            # kpl = Utils.generate_prebuild_map(exp, skip)
-                            # for x in kpl:
-                            #     gap_frames_list.append(interp_output[x])
                     else:
                         scedet_info["1"] += 1
 
@@ -751,7 +736,7 @@ class InterpWorkFlow:
                     # is_end = True
                     break
 
-                if not self.args["no_scdet"] and self.scene_detection.check_scene(img0, img1):
+                if self.scene_detection.check_scene(img0, img1):
                     """!!!scene"""
                     frames_list.append((now_frame, img0))
                     self.feed_to_render(frames_list, is_scene=True)
@@ -854,14 +839,13 @@ class InterpWorkFlow:
             if img1 is None:
                 is_end = True
 
-            if not self.args["no_scdet"] and img1 is not None:
-                if self.scene_detection.check_scene(img0, img1):
-                    """!!!scene"""
-                    recent_scene = now_frame
-                    scenes_list.append(origianl_frame_cnt)
-                    scedet_info["0"] += 1
-                else:
-                    scedet_info["1"] += 1
+            if self.scene_detection.check_scene(img0, img1) and img1 is not None:
+                """!!!scene"""
+                recent_scene = now_frame
+                scenes_list.append(origianl_frame_cnt)
+                scedet_info["0"] += 1
+            else:
+                scedet_info["1"] += 1
 
             now_frame += 1  # to next frame img0 = img1
             origianl_frame_cnt += 1
@@ -1063,10 +1047,12 @@ class InterpWorkFlow:
                 start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
                 end_point = datetime.datetime.strptime(self.args["end_point"], time_fmt)
                 if end_point > start_point:
-                    self.logger.info(f"Update Concat Audio Range: in {self.args['start_point']} -> out {self.args['end_point']}")
+                    self.logger.info(
+                        f"Update Concat Audio Range: in {self.args['start_point']} -> out {self.args['end_point']}")
                     map_audio = f'-ss {self.args["start_point"]} -to {self.args["end_point"]} -i "{audio_path}" -map 0:v:0 -map 1:a? -c:a aac -ab 640k '
                 else:
-                    self.logger.warning(f"Bad Input Time Section: {start_point} -> {end_point}, change to origianl course")
+                    self.logger.warning(
+                        f"Bad Input Time Section: {start_point} -> {end_point}, change to origianl course")
 
         else:
             map_audio = ""
@@ -1078,9 +1064,6 @@ class InterpWorkFlow:
             if not os.path.getsize(concat_filepath):
                 self.logger.error(f"Concat Error, {output_ext}, empty output")
                 raise FileExistsError("Concat Error, empty output, Check Output Extension!!!")
-            # elif not self.concat_check(concat_list, concat_filepath):
-            #     self.logger.error(f"Concat Error, {output_ext}, Invalid output(lesser size)")
-            #     raise FileExistsError("Concat Error, Invalid output, Check Disk !!!")
             self.check_chunk(del_chunk=True)
             Utils.make_dirs(self.env, rm=True)
 

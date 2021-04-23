@@ -90,8 +90,8 @@ class RifeInterpolation:
         mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
         if n == 1:
             return [mid]
-        first_half = self.__make_n_inference(img1, mid, scale, n=n//2)
-        second_half = self.__make_n_inference(mid, img2, scale, n=n//2)
+        first_half = self.__make_n_inference(img1, mid, scale, n=n // 2)
+        second_half = self.__make_n_inference(mid, img2, scale, n=n // 2)
         if n % 2:
             return [*first_half, mid, *second_half]
         else:
@@ -147,7 +147,7 @@ class RifeInterpolation:
             if n is not None:
                 dup = n
             else:
-                dup = 2**exp - 1
+                dup = 2 ** exp - 1
             for i in range(dup):
                 output_gen.append(img1)
             return output_gen
