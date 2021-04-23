@@ -839,7 +839,7 @@ class InterpWorkFlow:
             if img1 is None:
                 is_end = True
 
-            if self.scene_detection.check_scene(img0, img1) and img1 is not None:
+            if img1 is not None and self.scene_detection.check_scene(img0, img1):
                 """!!!scene"""
                 recent_scene = now_frame
                 scenes_list.append(origianl_frame_cnt)
