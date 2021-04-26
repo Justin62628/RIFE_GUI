@@ -9,15 +9,18 @@ import cv2
 import torch
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QTextCursor, QIcon
+from PyQt5.QtGui import *
 import html
 import sys
 import subprocess as sp
 import shlex
 import time
 import psutil
-from Utils import RIFE_GUI
+import hashlib
+import shutil
+from Utils import SVFI_UI, SVFI_help, SVFI_about
 from Utils.utils import Utils, EncodePresetAssemply
+import QCandyUi
 
 MAC = True
 try:
@@ -44,6 +47,59 @@ if not os.path.exists(ols_potential):
     appData.setValue("ffmpeg", "ffmpeg")
     appData.setValue("model", r"D:\60-fps-Project\Projects\RIFE_GUI\Utils\train_log")
     logger.info("Change to Debug Path")
+
+
+class SVFI_Config_Manager:
+    def __init__(self, **kwargs):
+        self.filename = ""
+        self.dirname = dname
+        self.SVFI_config_path = os.path.join(self.dirname, "SVFI.ini")
+        pass
+
+    def FetchConfig(self, filename):
+        config_path = self.__generate_config_path(filename)
+        if os.path.exists(config_path):
+            return config_path
+        else:
+            return None
+
+    def DuplicateConfig(self, filename):
+        config_path = self.__generate_config_path(filename)
+        if not os.path.exists(self.SVFI_config_path):
+            raise OSError("Not find Config")
+        shutil.copy(self.SVFI_config_path, config_path)
+        pass
+
+    def RemoveConfig(self, filename):
+        config_path = self.__generate_config_path(filename)
+        if os.path.exists(config_path):
+            os.remove(config_path)
+        pass
+
+    def MaintainConfig(self, filename):
+        config_path = self.__generate_config_path(filename)
+        if os.path.exists(config_path):
+            shutil.copy(config_path, self.SVFI_config_path)
+            return True
+        else:
+            return False
+        pass
+
+    def __generate_config_path(self, filename):
+        m = hashlib.md5(filename.encode(encoding='gb2312'))
+        return os.path.join(self.dirname, f"SVFI_Config_{m.hexdigest()[:6]}.ini")
+
+
+class SVFI_Help_Dialog(QDialog, SVFI_help.Ui_Dialog):
+    def __init__(self, parent=None):
+        super(SVFI_Help_Dialog, self).__init__(parent)
+        self.setupUi(self)
+
+
+class SVFI_About_Dialog(QDialog, SVFI_about.Ui_Dialog):
+    def __init__(self, parent=None):
+        super(SVFI_About_Dialog, self).__init__(parent)
+        self.setupUi(self)
 
 
 class RIFE_Run_Other_Threads(QThread):
@@ -98,6 +154,7 @@ class RIFE_Run_Thread(QThread):
             self.command = appData.value("OneLineShotPath") + " "
         else:
             self.command = f'python {appData.value("OneLineShotPath")} '
+
         if not len(input_file) or not os.path.exists(input_file):
             self.command = ""
             return ""
@@ -111,7 +168,14 @@ class RIFE_Run_Thread(QThread):
             output_path = appData.value("output")
             appData.setValue("output", os.path.dirname(output_path))
         self.command += f'--output {Utils.fillQuotation(appData.value("output"))} '
-        self.command += f'--config {Utils.fillQuotation(appDataPath)} '
+
+        config_maintainer = SVFI_Config_Manager()
+        config_path = config_maintainer.FetchConfig(input_file)
+        if config_path is None:
+            self.command += f'--config {Utils.fillQuotation(appDataPath)} '
+        else:
+            self.command += f'--config {Utils.fillQuotation(config_path)} '
+
         if self.concat_only:
             self.command += f"--concat-only "
 
@@ -131,6 +195,8 @@ class RIFE_Run_Thread(QThread):
     def maintain_multitask(self):
         appData.setValue("chunk", 1)
         appData.setValue("interp_start", 0)
+        appData.setValue("start_point", "00:00:00")
+        appData.setValue("end_point", "00:00:00")
 
     def run(self):
         logger.info("[GUI]: Start")
@@ -152,8 +218,6 @@ class RIFE_Run_Thread(QThread):
             """MultiTask"""
             appData.setValue("output_only", True)
             appData.setValue("batch", True)
-            appData.setValue("start_point", "")
-            appData.setValue("end_point", "")
 
         if not self.all_cnt:
             logger.info("[GUI]: Task List Empty, Please Check Your Settings! (input fps for example)")
@@ -236,7 +300,7 @@ class RIFE_Run_Thread(QThread):
     pass
 
 
-class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
+class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     kill_proc = pyqtSignal(int)
     notfound = pyqtSignal(int)
 
@@ -269,11 +333,21 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.init_before_settings()
         self.on_EncoderSelector_currentTextChanged()  # Flush Encoder Sets
 
+        # palette1 = QPalette()
+        # palette1.setBrush(w.backgroundRole(), QtGui.QBrush(image)) #背景图片
+        # palette1.setColor(self.backgroundRole(), QColor(19, 24, 32))  # 背景颜色
+        # self.setPalette(palette1)
+        # self.setAutoFillBackground(True)
+        # self.m_pBackgroundLabel.setStyleSheet("background:%s" % (backgroundColor))
+        self.AdvanceSettingsArea.setVisible(False)
+        # self.actionManualGuide.triggered.connect(self.on_actionManualGuide_triggered)
+
     def init_before_settings(self):
         input_list = appData.value("InputFileName", "").split(";")
-        for i in input_list:
-            if len(i):
-                self.InputFileName.addItem(i)
+        if not len(self.load_input_files()):
+            for i in input_list:
+                if len(i):
+                    self.InputFileName.addItem(i)
         self.OutputFolder.setText(appData.value("output"))
         self.InputFPS.setText(appData.value("fps", "0"))
         self.OutputFPS.setText(appData.value("target_fps"))
@@ -518,7 +592,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                 generate_error_log()
 
             self.sendWarning("补帧任务完成", complete_msg, 2)
-            self.ProcessStart.setEnabled(True)
+            # self.ProcessStart.setEnabled(True)
             self.ConcatAllButton.setEnabled(True)
             self.current_failed = False
 
@@ -778,11 +852,15 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
             return
         text = self.InputFileName.currentItem().text().strip('"')
         self.InputFileName.disconnect()
+        """empty text"""
         if text == "":
             return
-        """empty text"""
+
         input_filename = text.strip(";").split(";")[0]
         self.auto_set_fps(input_filename)
+
+        """Update Config"""
+        config_maintainer = SVFI_Config_Manager()
 
         self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
         return
@@ -835,7 +913,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.on_EncoderSelector_currentTextChanged()  # update Encoders
         self.load_current_settings()  # update settings
         self.on_ProcessStart_clicked()
-        self.tabWidget.setCurrentIndex(2)  # redirect to info page
+        self.tabWidget.setCurrentIndex(1)  # redirect to info page
 
     @pyqtSlot(bool)
     def on_AutoSet_clicked(self):
@@ -990,7 +1068,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
     def on_tabWidget_currentChanged(self, tabIndex):
         if tabIndex in [2, 3]:
             """Step 3"""
-            if tabIndex == 2:
+            if tabIndex == 1:
                 self.progressBar.setValue(0)
             logger.info("[Main]: Start Loading Settings")
             self.load_current_settings()
@@ -1004,7 +1082,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
                                                        f"是否执行补帧？", 3)
         if reply == QMessageBox.No:
             return
-        self.ProcessStart.setEnabled(False)
+        # self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread()
         RIFE_thread.run_signal.connect(self.update_rife_process)
@@ -1030,7 +1108,7 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         :return:
         """
         self.ConcatAllButton.setEnabled(False)
-        self.tabWidget.setCurrentIndex(2)
+        self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)
         RIFE_thread = RIFE_Run_Thread(concat_only=True)
         RIFE_thread.run_signal.connect(self.update_rife_process)
@@ -1067,6 +1145,61 @@ class RIFE_GUI_BACKEND(QDialog, RIFE_GUI.Ui_RIFEDialog):
         self.load_current_settings()
         sys.exit()
 
+    @pyqtSlot(bool)
+    def on_ShowAdvance_clicked(self):
+        bool_result = self.AdvanceSettingsArea.isVisible()
+        self.AdvanceSettingsArea.setVisible(not bool_result)
+        if not bool_result:
+            self.ShowAdvance.setText("隐藏高级设置")
+        else:
+            self.ShowAdvance.setText("显示高级设置")
+
+    def SaveInputSettingsProcess(self, current_filename):
+        config_maintainer = SVFI_Config_Manager()
+        config_maintainer.DuplicateConfig(current_filename)
+
+    @pyqtSlot(bool)
+    def on_SaveCurrentSettings_clicked(self):
+        self.load_current_settings()
+        self.SaveInputSettingsProcess(self.InputFileName.currentItem().text())
+        self.sendWarning("Success", "当前输入设置保存成功，可直接补帧")
+        pass
+
+    @pyqtSlot(bool)
+    def on_LoadCurrentSettings_clicked(self):
+        global appData
+        config_maintainer = SVFI_Config_Manager()
+        current_filename = self.InputFileName.currentItem().text()
+        if not config_maintainer.MaintainConfig(current_filename):
+            self.sendWarning("Not Found Config", "未找到与当前输入匹配的设置文件")
+            return
+        appData = QSettings(appDataPath, QSettings.IniFormat)
+        appData.setIniCodec("UTF-8")
+        self.init_before_settings()
+        self.sendWarning("Success", "已载入与当前输入匹配的设置", 2)
+        pass
+
+    @pyqtSlot(bool)
+    def on_actionManualGuide_triggered(self):
+        SVFI_help_form = SVFI_Help_Dialog(self)
+        SVFI_help_form.setWindowTitle("SVFI Quick Guide")
+        SVFI_help_form.show()
+
+    @pyqtSlot(bool)
+    def on_actionAbout_triggered(self):
+        SVFI_about_form = SVFI_About_Dialog(self)
+        SVFI_about_form.setWindowTitle("About")
+        SVFI_about_form.show()
+
+    def closeEvent(self, event):
+        reply = self.sendWarning("Quit", "是否保存当前设置？", 3)
+        if reply == QMessageBox.Yes:
+            self.load_current_settings()
+            event.accept()
+        else:
+            event.ignore()
+        pass
+
 
 if __name__ == "__main__":
     try:
@@ -1074,7 +1207,6 @@ if __name__ == "__main__":
         form = RIFE_GUI_BACKEND()
         form.show()
         app.exec_()
-        form.load_current_settings()
         sys.exit()
     except Exception:
         logger.critical(traceback.format_exc())
