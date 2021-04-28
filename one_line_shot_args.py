@@ -18,9 +18,10 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 import shutil
 import traceback
 import psutil
+from pprint import pprint, pformat
 from Utils.utils import Utils, ImgSeqIO, VideoInfo, DefaultConfigParser, TransitionDetection
 
-# 6.2.11 2021/4/22
+print("INFO - ONE LINE ARGS 6.2.12 2021/4/26")
 Utils = Utils()
 """Set Path Environment"""
 abspath = os.path.abspath(__file__)
@@ -51,15 +52,6 @@ args.update(vars(args_read))  # update -i -o -c£¬½«ÃüÁîÐÐ²ÎÊý¸üÐÂµ½configÉú³ÉµÄ×
 if int(args["use_specific_gpu"]) != -1:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
     os.environ["CUDA_VISIBLE_DEVICES"] = f"{args['use_specific_gpu']}"
-
-try:
-    import inference  # µ¼Èë²¹Ö¡Ä£¿é
-except Exception:
-    import inference_A as inference
-
-    print("Error: Import Torch Failed, use NCNN instead")
-    traceback.print_exc()
-    args.update({"ncnn": True})
 
 
 class InterpWorkFlow:
@@ -252,9 +244,50 @@ class InterpWorkFlow:
         :param output_path:
         :return:
         """
+        hdr = False
+        params_265 = ("ref=4:rd=3:no-rect=1:no-amp=1:b-intra=1:rdoq-level=2:limit-tu=4:me=3:subme=5:"
+                     "weightb=1:no-strong-intra-smoothing=1:psy-rd=2.0:psy-rdoq=1.0:no-open-gop=1:"
+                     f"keyint={int(self.target_fps * 3)}:min-keyint=1:rc-lookahead=120:bframes=6:"
+                     f"aq-mode=1:aq-strength=0.8:qg-size=8:cbqpoffs=-2:crqpoffs=-2:qcomp=0.65:"
+                     f"deblock=-1:no-sao=1")
+
+        def HDRChecker():
+            global hdr, params_265
+            if self.args["img_input"]:
+                return
+
+            if self.args.get("strict_mode", False):
+                self.logger.warning("Strict Mode, Skip HDR Check")
+                return
+
+            if "color_transfer" not in self.video_info["video_info"]:
+                self.logger.warning("Not Find Color Transfer\n%s" % pformat(self.video_info["video_info"]))
+                return
+
+            color_trc = self.video_info["video_info"]["color_transfer"]
+
+            if "smpte2084" in color_trc or "bt2020" in color_trc:
+                hdr = True
+                self.args["encoder"] = "H265/HEVC"
+                if "master-display" in str(self.video_info["video_info"]):
+                    self.args["hwaccel_mode"] = "None"
+                    params_265 += ":hdr10-opt=1:repeat-headers=1"
+                    self.logger.warning("\nDetect HDR10+ Content, Switch to NonHwaccel Compulsorily")
+                else:
+                    self.logger.warning("\nPQ or BT2020 Content Detected, Switch to NonHwaccel Compulsorily")
+
+            elif "arib-std-b67" in color_trc:
+                hdr = True
+                self.args["encoder"] = "H265/HEVC"
+                self.args["hwaccel_mode"] = "None"
+                self.logger.warning("\nHLG Content Detected, Switch to NonHwaccel Compulsorily")
+            pass
         """If output is sequence of frames"""
         if self.args["img_output"]:
             return ImgSeqIO(folder=self.output, is_read=False)
+
+        """HDR Check"""
+        HDRChecker()
 
         """Output Video"""
         input_dict = {"-vsync": "cfr", "-r": f"{self.fps * 2 ** self.exp}"}
@@ -308,11 +341,7 @@ class InterpWorkFlow:
             else:
                 output_dict.update(
                     {"-c:v": "libx265",
-                     "-x265-params": "ref=4:rd=3:no-rect=1:no-amp=1:b-intra=1:rdoq-level=2:limit-tu=4:me=3:subme=5:"
-                                     "weightb=1:no-strong-intra-smoothing=1:psy-rd=2.0:psy-rdoq=1.0:no-open-gop=1:"
-                                     f"keyint={int(self.target_fps * 3)}:min-keyint=1:rc-lookahead=120:bframes=6:"
-                                     f"aq-mode=1:aq-strength=0.8:qg-size=8:cbqpoffs=-2:crqpoffs=-2:qcomp=0.65:"
-                                     f"deblock=-1:no-sao=1"})
+                     "-x265-params": params_265})
         elif self.args["encoder"] == "ProRes":
             output_dict.pop("-preset")  # leave space for ProRes Profile
             output_dict.update({"-c:v": "prores_ks", "-profile:v": self.args["preset"], "-quant_mat": "hq"})
@@ -530,6 +559,16 @@ class InterpWorkFlow:
         Go through all procedures to produce interpolation result
         :return:
         """
+
+        try:
+            import inference  # µ¼Èë²¹Ö¡Ä£¿é
+        except Exception:
+            print("Error: Import Torch Failed, use NCNN instead")
+            traceback.print_exc()
+            self.args.update({"ncnn": True})
+            self.amd_run()
+            return
+
         """Update RIFE Core, NVIDIA Only"""
         self.rife_core = inference.RifeInterpolation(self.args)
         self.rife_core.initiate_rife(args)
@@ -799,6 +838,7 @@ class InterpWorkFlow:
         Use AMD Card to Interpolate
         :return:
         """
+        import inference_A as inference
 
         self.args["input_dir"] = self.input_dir
         self.rife_core = inference.NCNNinterpolator(self.args)
@@ -1037,6 +1077,11 @@ class InterpWorkFlow:
             concat_filepath += f"_{2 ** self.exp}x"
         if self.args["slow_motion"]:
             concat_filepath += f"_slowmo_{self.args['slow_motion_fps']}"
+        concat_filepath += f"_scale{self.args['scale']}"
+        if not self.args["ncnn"]:
+            concat_filepath += f"_{os.path.basename(self.args['selectedmodel'])}"
+        else:
+            concat_filepath += f"_ncnn"
         concat_filepath += output_ext
 
         if self.args["save_audio"]:

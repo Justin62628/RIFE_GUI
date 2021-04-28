@@ -25,7 +25,7 @@ class NCNNinterpolator(threading.Thread):
         self.input_root = os.path.dirname(self.args["input_dir"])
         self.supervise_thread = None
         self.supervise_data = {}
-        print(f"Use NCNN to interpolate from {self.rife_ncnn_root} with input list {str(self.input_list)}")
+        print(f"INFO - Use NCNN to interpolate from {self.rife_ncnn_root} with input list {str(self.input_list)}")
         pass
 
     def initiate_rife(self):
@@ -81,6 +81,9 @@ class NCNNinterpolator(threading.Thread):
         create_command = f"{self.rife_ncnn}  -i {input_dir} -o {output_dir} " \
                          f"-m {Utils.fillQuotation(os.path.join(self.rife_ncnn_root, 'rife-v2.4'))} " \
                          f"{j_settings}"
+        if self.args["scale"] <= 0.5:
+            create_command += " -u"
+            print("INFO - NCNN UHD Mode On\n\n\n")
         os.system(create_command)
         pass
 

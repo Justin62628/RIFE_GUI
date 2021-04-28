@@ -27,7 +27,7 @@ class CommandResult:
 
     def execute(self, ):
         os.system(f"{self.command} > {Utils().fillQuotation(self.output_path)} 2>&1")
-        with open(self.output_path, "r") as tool_read:
+        with open(self.output_path, "r", encoding="UTF-8") as tool_read:
             content = tool_read.read()
         return content
 
@@ -275,7 +275,7 @@ class ImgSeqIO:
         self.resize = (0, 0)
         self.resize_flag = False
         if "resize" in kwargs and len(kwargs["resize"]):
-            self.resize = set(map(lambda x: int(x), kwargs["resize"].split("x")))
+            self.resize = list(map(lambda x: int(x), kwargs["resize"].split("x")))
             self.resize_flag = True
 
         if is_tool:
@@ -305,7 +305,7 @@ class ImgSeqIO:
     def read_frame(self, path):
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
         if self.resize_flag:
-            img = cv2.resize(img, self.resize)
+            img = cv2.resize(img, (self.resize[0], self.resize[1]))
         return img
         # if self.use_imdecode:
         #     img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
@@ -436,6 +436,7 @@ class VideoInfo:
         self.frames_size = (0, 0)
         self.fps = 0
         self.duration = 0
+        self.video_info = dict()
         self.update_info()
 
     def update_frames_info_ffprobe(self):
@@ -450,6 +451,7 @@ class VideoInfo:
             print(f"Error: Parse Video Info Failed: {result}")
             raise e
         print("\nInput Video Info:")
+        self.video_info = video_info
         pprint(video_info)
         # update color info
         if "color_range" in video_info:
@@ -513,6 +515,7 @@ class VideoInfo:
     def get_info(self):
         get_dict = {}
         get_dict.update(self.color_info)
+        get_dict.update({"video_info": self.video_info})
         get_dict["fps"] = self.fps
         get_dict["size"] = self.frames_size
         get_dict["cnt"] = self.frames_cnt
