@@ -18,7 +18,7 @@ import time
 import psutil
 import hashlib
 import shutil
-from Utils import SVFI_UI, SVFI_help, SVFI_about
+from Utils import SVFI_UI, SVFI_help, SVFI_about, SVFI_preference
 from Utils.utils import Utils, EncodePresetAssemply
 
 MAC = True
@@ -31,21 +31,14 @@ Utils = Utils()
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(os.path.dirname(abspath))
 ddname = os.path.dirname(abspath)
+
 appDataPath = os.path.join(dname, "SVFI.ini")  # TODO multi task designed
 appData = QSettings(appDataPath, QSettings.IniFormat)
 appData.setIniCodec("UTF-8")
 
 logger = Utils.get_logger("GUI", dname)
 ols_potential = os.path.join(dname, "one_line_shot_args.exe")
-appData.setValue("OneLineShotPath", ols_potential)
-appData.setValue("ffmpeg", dname)
-appData.setValue("model", os.path.join(ddname, "train_log"))
-if not os.path.exists(ols_potential):
-    appData.setValue("OneLineShotPath",
-                     r"D:\60-fps-Project\Projects\RIFE_GUI\one_line_shot_args.py")
-    appData.setValue("ffmpeg", "ffmpeg")
-    appData.setValue("model", r"D:\60-fps-Project\Projects\RIFE_GUI\Utils\train_log")
-    logger.info("Change to Debug Path")
+ico_path = os.path.join(dname, "svfi.ico")
 
 
 class SVFI_Config_Manager:
@@ -94,16 +87,76 @@ class SVFI_Config_Manager:
 class SVFI_Help_Dialog(QDialog, SVFI_help.Ui_Dialog):
     def __init__(self, parent=None):
         super(SVFI_Help_Dialog, self).__init__(parent)
+        self.setWindowIcon(QIcon(ico_path))
         self.setupUi(self)
 
 
 class SVFI_About_Dialog(QDialog, SVFI_about.Ui_Dialog):
     def __init__(self, parent=None):
         super(SVFI_About_Dialog, self).__init__(parent)
+        self.setWindowIcon(QIcon(ico_path))
         self.setupUi(self)
 
 
-class RIFE_Run_Other_Threads(QThread):
+class SVFI_Preference_Dialog(QDialog, SVFI_preference.Ui_Dialog):
+    preference_signal = pyqtSignal(dict)
+
+    def __init__(self, parent=None, preference_dict=None):
+        super(SVFI_Preference_Dialog, self).__init__(parent)
+        self.setWindowIcon(QIcon(ico_path))
+        self.setupUi(self)
+        self.preference_dict = preference_dict
+        self.update_preference()
+        self.ExpertModeChecker.toggled.connect(self.request_preference)
+        self.buttonBox.clicked.connect(self.request_preference)
+
+    def closeEvent(self, event):
+        self.request_preference()
+
+    def close(self):
+        self.request_preference()
+
+    def update_preference(self):
+        """
+
+        :return:
+        """
+        if self.preference_dict is None:
+            return
+        assert type(self.preference_dict) == dict
+        self.NoMultiTask.setChecked(not self.preference_dict["multi_task_rest"])
+        self.MultiTaskRestChecker.setChecked(self.preference_dict["multi_task_rest"])
+        self.MultiTaskRestInterval.setValue(self.preference_dict["multi_task_rest_interval"])
+
+        if self.preference_dict["after_shutdown"]:
+            self.AfterShutDownChecker.setChecked(True)
+        elif self.preference_dict["after_hibernate"]:
+            self.AfterHibernateChecker.setChecked(True)
+        else:
+            self.NoAfterAction.setChecked(True)
+
+        if self.preference_dict["force_cpu"]:
+            self.ForceCpuChecker.setChecked(True)
+
+        self.NoExpertMode.setChecked(not self.preference_dict["expert"])
+        pass
+
+    def request_preference(self):
+        """
+
+        :return:
+        """
+        preference_dict = dict()
+        preference_dict["multi_task_rest"] = self.MultiTaskRestChecker.isChecked()
+        preference_dict["multi_task_rest_interval"] = self.MultiTaskRestInterval.value()
+        preference_dict["after_shutdown"] = self.AfterShutDownChecker.isChecked()
+        preference_dict["after_hibernate"] = self.AfterHibernateChecker.isChecked()
+        preference_dict["expert"] = self.ExpertModeChecker.isChecked()
+        preference_dict["force_cpu"] = self.ForceCpuChecker.isChecked()
+        self.preference_signal.emit(preference_dict)
+
+
+class SVFI_Run_Others(QThread):
     run_signal = pyqtSignal(str)
 
     def __init__(self, command, task_id=0, data=None, parent=None):
@@ -114,7 +167,7 @@ class RIFE_Run_Other_Threads(QThread):
         :param data: 信息回传时的数据
         :param parent:
         """
-        super(RIFE_Run_Other_Threads, self).__init__(parent)
+        super(SVFI_Run_Others, self).__init__(parent)
         self.command = command
         self.task_id = task_id
         self.data = data
@@ -132,21 +185,22 @@ class RIFE_Run_Other_Threads(QThread):
     pass
 
 
-class RIFE_Run_Thread(QThread):
+class SVFI_Run(QThread):
     run_signal = pyqtSignal(str)
 
-    def __init__(self, parent=None, concat_only=False):
-        super(RIFE_Run_Thread, self).__init__(parent)
+    def __init__(self, parent=None, concat_only=False, extract_only=False):
+        super(SVFI_Run, self).__init__(parent)
         self.concat_only = concat_only
+        self.extract_only = extract_only
         self.command = ""
         self.current_proc = None
         self.kill = False
         self.pause = False
-        self.all_cnt = 0
+        self.task_cnt = 0
         self.silent = False
-        self.tqdm_re = re.compile("Process at .*?\]")
         self.config_maintainer = SVFI_Config_Manager()
         self.current_filename = ""
+        self.current_step = 0
 
     def fillQuotation(self, string):
         if string[0] != '"':
@@ -161,16 +215,19 @@ class RIFE_Run_Thread(QThread):
         if not len(input_file) or not os.path.exists(input_file):
             self.command = ""
             return ""
+
         if float(appData.value("fps", -1.0, type=float)) <= 0 or float(
                 appData.value("target_fps", -1.0, type=float)) <= 0:
+            logger.error("Find Invalid FPS/Target_FPS")
             return ""
 
         self.command += f'--input {Utils.fillQuotation(input_file)} '
-        if os.path.isfile(appData.value("output")):
-            logger.info("[GUI]: OutputPath with FileName detected")
-            output_path = appData.value("output")
+
+        output_path = appData.value("output")
+        if os.path.isfile(output_path):
+            logger.info("OutputPath with FileName detected")
             appData.setValue("output", os.path.dirname(output_path))
-        self.command += f'--output {Utils.fillQuotation(appData.value("output"))} '
+        self.command += f'--output {Utils.fillQuotation(output_path)} '
 
         config_path = self.config_maintainer.FetchConfig(input_file)
         if config_path is None:
@@ -178,18 +235,21 @@ class RIFE_Run_Thread(QThread):
         else:
             self.command += f'--config {Utils.fillQuotation(config_path)} '
 
+        """Alternative Mission Field"""
         if self.concat_only:
             self.command += f"--concat-only "
+        if self.extract_only:
+            self.command += f"--extract-only "
 
         self.command = self.command.replace("\\", "/")
         return self.command
 
-    def update_status(self, current_step, finished=False, notice="", sp_status="", returncode=-1):
+    def update_status(self, finished=False, notice="", sp_status="", returncode=-1):
         """
         update sub process status
         :return:
         """
-        emit_json = {"cnt": self.all_cnt, "current": current_step, "finished": finished,
+        emit_json = {"cnt": self.task_cnt, "current": self.current_step, "finished": finished,
                      "notice": notice, "subprocess": sp_status, "returncode": returncode}
         emit_json = json.dumps(emit_json)
         self.run_signal.emit(emit_json)
@@ -201,8 +261,7 @@ class RIFE_Run_Thread(QThread):
         appData.setValue("end_point", "00:00:00")
 
     def run(self):
-        logger.info("[GUI]: Start")
-
+        logger.info("SVFI Task Run")
         file_list = appData.value("InputFileName", "").split(";")
 
         command_list = list()
@@ -212,82 +271,95 @@ class RIFE_Run_Thread(QThread):
                 continue
             command_list.append((f, command))
 
-        current_step = 0
-        self.all_cnt = len(command_list)
+        self.current_step = 0
+        self.task_cnt = len(command_list)
 
-        if self.all_cnt > 1:
+        if self.task_cnt > 1:
             """MultiTask"""
             appData.setValue("output_only", True)
             appData.setValue("batch", True)
 
-        if not self.all_cnt:
-            logger.info("[GUI]: Task List Empty, Please Check Your Settings! (input fps for example)")
-            self.update_status(current_step, True, "\nTask List is Empty!\n")
+        if not self.task_cnt:
+            logger.info("Task List Empty, Please Check Your Settings! (input fps for example)")
+            self.update_status(True, "\nTask List is Empty!\n")
             return
+
         interval_time = time.time()
         try:
             for f in command_list:
-                logger.info(f"[GUI]: Designed Command:\n{f}")
+                logger.info(f"Designed Command:\n{f}")
                 proc_args = shlex.split(f[1])
                 self.current_proc = sp.Popen(args=proc_args, stdout=sp.PIPE, stderr=sp.STDOUT, encoding='gb18030',
+                                             # TODO Check UTF-8
                                              errors='ignore',
                                              universal_newlines=True)
+
                 flush_lines = ""
                 while self.current_proc.poll() is None:
                     if self.kill:
-                        self.current_proc.terminate()
-                        self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已被强制结束", returncode=-1)
                         break
 
                     if self.pause:
                         pid = self.current_proc.pid
                         pause = psutil.Process(pid)  # 传入子进程的pid
                         pause.suspend()  # 暂停子进程
-                        self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已被手动暂停", returncode=-1)
+                        self.update_status(False, notice=f"\n\nWARNING, 补帧已被手动暂停", returncode=-1)
+
                         while True:
                             if self.kill:
-                                pause.resume()
-                                time.sleep(0.5)
-                                self.current_proc.terminate()
-                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已在暂停后被强制结束",
-                                                   returncode=-1)
                                 break
                             elif not self.pause:
                                 pause.resume()
-                                self.update_status(current_step, False, notice=f"\n\nWARNING, 补帧已继续",
+                                self.update_status(False, notice=f"\n\nWARNING, 补帧已继续",
                                                    returncode=-1)
                                 break
                             time.sleep(0.2)
                     else:
                         line = self.current_proc.stdout.readline()
                         self.current_proc.stdout.flush()
+
+                        """Replace Field"""
                         flush_lines += line.replace("[A", "")
+
                         if "error" in flush_lines.lower():
                             """Imediately Upload"""
                             logger.error(f"[In ONE LINE SHOT]: f{flush_lines}")
-                            self.update_status(current_step, False, sp_status=f"{flush_lines}")
+                            self.update_status(False, sp_status=f"{flush_lines}")
                             flush_lines = ""
                         elif len(flush_lines) and time.time() - interval_time > 0.1:
                             interval_time = time.time()
-                            self.update_status(current_step, False, sp_status=f"{flush_lines}")
+                            self.update_status(False, sp_status=f"{flush_lines}")
                             flush_lines = ""
-                self.update_status(current_step, False, sp_status=f"{flush_lines}")  # emit last possible infos
 
-                current_step += 1
-                self.update_status(current_step, False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
+                self.update_status(False, sp_status=f"{flush_lines}")  # emit last possible infos
+
+                self.current_step += 1
+                self.update_status(False, f"\nINFO - {datetime.datetime.now()} {f[0]} 完成\n\n")
                 self.maintain_multitask()
                 self.config_maintainer.RemoveConfig(f[0])
 
         except Exception:
             logger.error(traceback.format_exc())
 
-        self.update_status(current_step, True, returncode=self.current_proc.returncode)
-        logger.info("[GUI]: Tasks Finished")
+        self.update_status(True, returncode=self.current_proc.returncode)
+        logger.info("Tasks Finished")
+        if self.current_proc.returncode == 0:
+            """Finish Normally"""
+            if appData.value("after_shutdown", type=bool):
+                os.system("shutdown -s -t 1")
+            elif appData.value("after_hibernate", type=bool):
+                os.system("shutdown -h")
+
         pass
 
     def kill_proc_exec(self):
         self.kill = True
-        logger.info("Kill Process Command Fired")
+        if self.current_proc is not None:
+            self.current_proc.terminate()
+            self.update_status(False, notice=f"\n\nWARNING, 补帧已被强制结束", returncode=-1)
+            logger.info("Kill Process")
+        else:
+            logger.warning("There's no Process to kill")
 
     def pause_proc_exec(self):
         self.pause = not self.pause
@@ -321,10 +393,10 @@ class RoundShadow(QWidget):
         for i in range(10):
             i_path = QPainterPath()
             i_path.setFillRule(Qt.WindingFill)
-            ref = QRectF(10-i, 10-i, self.width()-(10-i)*2, self.height()-(10-i)*2)
+            ref = QRectF(10 - i, 10 - i, self.width() - (10 - i) * 2, self.height() - (10 - i) * 2)
             # i_path.addRect(ref)
             i_path.addRoundedRect(ref, self.border_width, self.border_width)
-            color.setAlpha(150 - i**0.5*50)
+            color.setAlpha(150 - i ** 0.5 * 50)
             pat.setPen(color)
             pat.drawPath(i_path)
 
@@ -337,29 +409,33 @@ class RoundShadow(QWidget):
         rect = self.rect()
         rect.setLeft(9)
         rect.setTop(9)
-        rect.setWidth(rect.width()-9)
-        rect.setHeight(rect.height()-9)
+        rect.setWidth(rect.width() - 9)
+        rect.setHeight(rect.height() - 9)
         pat2.drawRoundedRect(rect, 4, 4)
+
 
 class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     kill_proc = pyqtSignal(int)
     notfound = pyqtSignal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, free=False):
         super(RIFE_GUI_BACKEND, self).__init__()
         self.setupUi(self)
         self.thread = None
         self.Exp = int(math.log(float(appData.value("exp", "2")), 2))
 
-        if appData.value("ffmpeg") != "ffmpeg":
-            self.ffmpeg = os.path.join(appData.value("ffmpeg"), "ffmpeg.exe")
+        self.free = free
+        if self.free:
+            self.free_hide()
+
+        if appData.value("ffmpeg", "") != "ffmpeg":
+            self.ffmpeg = os.path.join(appData.value("ffmpeg", ""), "ffmpeg.exe")
         else:
-            self.ffmpeg = appData.value("ffmpeg")
+            self.ffmpeg = appData.value("ffmpeg", "")
 
         if os.path.exists(appDataPath):
-            logger.info("[GUI]: Previous Settings, Found, Loaded")
+            logger.info("Previous Settings Found")
 
-        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
         self.check_gpu = False
         self.silent = False
         self.tqdm_re = re.compile(".*?Process at .*?\]")
@@ -367,18 +443,50 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.formatted_option_check = []
         self.pause = False
 
+        """Preference Maintainer"""
+        self.multi_task_rest = False
+        self.multi_task_rest_interval = 0
+        self.after_shutdown = False
+        self.after_hibernate = False
+        self.force_cpu = False
+        self.expert_mode = True
+        self.SVFI_Preference_form = None
+
         """Initiate and Check GPU"""
+        self.init_before_settings()
         self.hasNVIDIA = True
         self.update_gpu_info()
         self.update_model_info()
-        self.init_before_settings()
         self.on_EncoderSelector_currentTextChanged()  # Flush Encoder Sets
+        self.on_ExpertMode_changed()
 
         """Initiate Beautiful Layout and Signals"""
         self.AdvanceSettingsArea.setVisible(False)
         self.ProgressBarVisibleControl.setVisible(False)
+
+        """Link InputFileName Event"""
         self.InputFileName.clicked.connect(self.maintain_sep_settings_buttons)
         self.InputFileName.itemClicked.connect(self.maintain_sep_settings_buttons)
+        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
+
+        """Table Maintainer"""
+        # self.
+
+
+    def free_hide(self):
+        """
+        ST only
+        :return:
+        """
+        self.DupRmChecker.setVisible(False)
+        self.DupFramesTSelector.setVisible(False)
+        self.DupFramesTSelector.setValue(0.2)
+        self.StartPoint.setVisible(False)
+        self.EndPoint.setVisible(False)
+        # self.label_16.setVisible(False)
+        # self.label_18.setVisible(False)
+        # _translate = QCoreApplication.translate
+        # self.groupBox_2.setTitle(_translate("RIFEDialog", "第二步：转场识别参数设置，越低越灵敏，悬浮看说明"))
 
     def init_before_settings(self):
         input_list = appData.value("InputFileName", "").split(";")
@@ -386,20 +494,39 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             for i in input_list:
                 if len(i):
                     self.InputFileName.addItem(i)
+
+        appData.setValue("OneLineShotPath", ols_potential)
+        appData.setValue("ffmpeg", dname)
+
+        if not os.path.exists(ols_potential):
+            appData.setValue("OneLineShotPath",
+                             r"D:\60-fps-Project\Projects\RIFE_GUI\one_line_shot_args.py")
+            appData.setValue("ffmpeg", "ffmpeg")
+            logger.info("Change to Debug Path")
+
         self.OutputFolder.setText(appData.value("output"))
         self.InputFPS.setText(appData.value("fps", "0"))
         self.OutputFPS.setText(appData.value("target_fps"))
         self.ExpSelecter.setCurrentText("x" + str(2 ** int(appData.value("exp", "1"))))
+        self.ImgOutputChecker.setChecked(appData.value("img_output", False, type=bool))
+        appData.setValue("img_input", appData.value("img_input", False))
+        appData.setValue("batch", False)
+        appData.setValue("output_only", True)
 
-        self.UseCRF.setChecked(appData.value("UseCRF", True, type=bool))
+        self.UseCRF.setChecked(appData.value("use_crf", True, type=bool))
         self.CRFSelector.setValue(appData.value("crf", 16, type=int))
-        self.UseTargetBitrate.setChecked(appData.value("UseTargetBitrate", False, type=bool))
+        self.UseTargetBitrate.setChecked(appData.value("use_bitrate", False, type=bool))
         self.BitrateSelector.setValue(appData.value("bitrate", 90, type=float))
-        self.PresetSelector.setCurrentText(appData.value("preset", "fast[软编, 硬编]"))
+        self.PresetSelector.setCurrentText(appData.value("preset", "slow"))
         self.EncoderSelector.setCurrentText(appData.value("encoder", "H264/AVC"))
+        self.HwaccelSelector.setCurrentText(appData.value("hwaccel_mode", "None", type=str))
+        self.HwaccelPresetSelector.setCurrentText(appData.value("hwaccel_preset", "None"))
+        self.FFmpegCustomer.setText(appData.value("ffmpeg_customized", ""))
+
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
         self.ScedetChecker.setChecked(not appData.value("no_scdet", False, type=bool))
-        self.UseFixedScdet.setChecked(appData.value("fixed_scdet", False, type=bool))
+        self.UseFixedScdet.setChecked(appData.value("use_fixed_scdet", False, type=bool))
+        self.ScdetMaxDiffSelector.setValue(appData.value("fixed_max_scdet", 40, type=int))
         self.RenderGapSelector.setValue(appData.value("render_gap", 1000, type=int))
         self.SaveAudioChecker.setChecked(appData.value("save_audio", True, type=bool))
         self.StartPoint.setTime(QTime.fromString(appData.value("start_point", "00:00:00"), "HH:mm:ss"))
@@ -409,45 +536,48 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
         self.UseAnyFPS.setChecked(appData.value("any_fps", False, type=bool))
+        """Use AnyFPS Mode Maintain"""
         self.on_UseAnyFPS_clicked()
 
-        self.CropSettings.setText(appData.value("crop"))
-        self.ResizeSettings.setText(appData.value("resize"))
-        self.FFmpegCustomer.setText(appData.value("ffmpeg_customized", ""))
+        self.CropHeightSettings.setValue(appData.value("crop_height", 0, type=int))
+        self.CropWidthpSettings.setValue(appData.value("crop_width", 0, type=int))
+        self.ResizeHeightSettings.setValue(appData.value("resize_height", 0, type=int))
+        self.ResizeWidthSettings.setValue(appData.value("resize_width", 0, type=int))
 
         self.QuickExtractChecker.setChecked(appData.value("quick_extract", True, type=bool))
         self.StrictModeChecker.setChecked(appData.value("strict_mode", False, type=bool))
-        self.ImgOutputChecker.setChecked(appData.value("img_output", False, type=bool))
 
-        # self.HwaccelChecker.setChecked(appData.value("hwaccel", False, type=bool))
-        self.HwaccelSelector.setCurrentText(appData.value("hwaccel_mode", "None", type=str))
-        self.MBufferChecker.setChecked(appData.value("manual_buffer", False, type=bool))
+        self.MBufferChecker.setChecked(appData.value("use_manual_buffer", False, type=bool))
         self.BufferSizeSelector.setValue(appData.value("manual_buffer_size", 1, type=int))
+
         self.FP16Checker.setChecked(appData.value("fp16", False, type=bool))
         self.InterpScaleSelector.setCurrentText(appData.value("scale", "1.00"))
         self.ReverseChecker.setChecked(appData.value("reverse", False, type=bool))
 
         self.UseNCNNButton.setChecked(appData.value("ncnn", False, type=bool))
+        self.TtaModeChecker.setChecked(appData.value("tta_mode", False, type=bool))
+        self.ncnnInterpThreadCnt.setValue(appData.value("ncnn_thread", 4, type=int))
+        self.ncnnSelectGPU.setValue(appData.value("ncnn_gpu", 0, type=int))
 
-        j_settings_values = list(map(lambda x: int(x), appData.value("j_settings", "2:4:4").split(":")))
-        self.ncnnReadThreadCnt.setValue(j_settings_values[0])
-        self.ncnnInterpThreadCnt.setValue(j_settings_values[1])
-        self.ncnnOutputThreadCnt.setValue(j_settings_values[2])
         self.slowmotion.setChecked(appData.value("slow_motion", False, type=bool))
         self.SlowmotionFPS.setText(appData.value("slow_motion_fps", "", type=str))
-        appData.setValue("img_input", appData.value("img_input", False))
-        appData.setValue("batch", False)
-        appData.setValue("output_only", True)
 
+        self.multi_task_rest = appData.value("multi_task_rest", False, type=bool)
+        self.multi_task_rest_interval = appData.value("multi_task_rest_interval", False, type=bool)
+        self.after_shutdown = appData.value("after_shutdown", False, type=bool)
+        self.after_hibernate = appData.value("after_hibernate", False, type=bool)
+        self.force_cpu = appData.value("force_cpu", False, type=bool)
+        self.expert_mode = appData.value("expert_mode", True, type=bool)  # TODO: Check Release
+
+        """Maintain SVFI Startup Resolution"""
         desktop = QApplication.desktop()
         pos = appData.value("pos", QVariant(QPoint(960, 540)))
         size = appData.value("size", QVariant(QSize(int(desktop.width() * 0.6), int(desktop.height() * 0.5))))
-
         self.resize(size)
         self.move(pos)
 
-        self.setAttribute(Qt.WA_TranslucentBackground)
 
+        # self.setAttribute(Qt.WA_TranslucentBackground)
 
     def load_current_settings(self):
         input_file_names = ""
@@ -463,31 +593,45 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("bitrate", self.BitrateSelector.value())
         appData.setValue("preset", self.PresetSelector.currentText())
         appData.setValue("encoder", self.EncoderSelector.currentText())
-        # appData.setValue("hwaccel", self.HwaccelChecker.isChecked())
         appData.setValue("hwaccel_mode", self.HwaccelSelector.currentText())
+        appData.setValue("hwaccel_preset", self.HwaccelPresetSelector.currentText())
         appData.setValue("no_scdet", not self.ScedetChecker.isChecked())
-        appData.setValue("fixed_scdet", self.UseFixedScdet.isChecked())
+        appData.setValue("use_fixed_scdet", self.UseFixedScdet.isChecked())
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
+        appData.setValue("fixed_max_scdet", self.ScdetMaxDiffSelector.value())
         appData.setValue("any_fps", self.UseAnyFPS.isChecked())
         appData.setValue("remove_dup", self.DupRmChecker.isChecked())
         if self.UseAnyFPS.isChecked():
             appData.setValue("remove_dup", True)
 
         appData.setValue("dup_threshold", self.DupFramesTSelector.value())
-        appData.setValue("crop", self.CropSettings.text())
-        appData.setValue("resize", self.ResizeSettings.text())
 
+        height, width = self.ResizeHeightSettings.value(), self.ResizeWidthSettings.value()
+        appData.setValue("resize_width", width)
+        appData.setValue("resize_height", height)
+        if all((width, height)):
+            appData.setValue("resize", f"{width}x{height}")
+        else:
+            appData.setValue("resize", f"")
+
+        width, height = self.CropWidthpSettings.value(), self.CropHeightSettings.value()
+        appData.setValue("crop_width", width)
+        appData.setValue("crop_height", height)
+        if any((width, height)):
+            appData.setValue("crop", f"{width}:{height}")
+        else:
+            appData.setValue("crop", f"")
+
+        appData.setValue("img_output", self.ImgOutputChecker.isChecked())
         appData.setValue("save_audio", self.SaveAudioChecker.isChecked())
         appData.setValue("quick_extract", self.QuickExtractChecker.isChecked())
         appData.setValue("strict_mode", self.StrictModeChecker.isChecked())
-        appData.setValue("img_output", self.ImgOutputChecker.isChecked())
-        # appData.setValue("img_input", self.ImgInputChecker.isChecked())
         appData.setValue("no_concat", False)  # always concat
         appData.setValue("output_only", True)  # always output only
         appData.setValue("fp16", self.FP16Checker.isChecked())
         appData.setValue("reverse", self.ReverseChecker.isChecked())
-        appData.setValue("UseCRF", self.UseCRF.isChecked())
-        appData.setValue("UseTargetBitrate", self.UseTargetBitrate.isChecked())
+        appData.setValue("use_crf", self.UseCRF.isChecked())
+        appData.setValue("use_bitrate", self.UseTargetBitrate.isChecked())
         appData.setValue("start_point", self.StartPoint.time().toString("HH:mm:ss"))
         appData.setValue("end_point", self.EndPoint.time().toString("HH:mm:ss"))
 
@@ -495,33 +639,65 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("pix_fmt", self.PixFmtSelector.currentText())
         appData.setValue("output_ext", self.ExtSelector.currentText())
 
-        appData.setValue("chunk", self.StartChunk.text() if len(self.StartChunk.text()) else 1)
-        appData.setValue("interp_start", self.StartFrame.text() if len(self.StartFrame.text()) else 0)
-        appData.setValue("render_gap", int(self.RenderGapSelector.value()))
+        appData.setValue("chunk", self.StartChunk.value())
+        appData.setValue("interp_start", self.StartFrame.value())
+        appData.setValue("render_gap", self.RenderGapSelector.value())
 
-        appData.setValue("manual_buffer", self.MBufferChecker.isChecked())
+        appData.setValue("use_manual_buffer", self.MBufferChecker.isChecked())
         appData.setValue("manual_buffer_size", self.BufferSizeSelector.value())
         appData.setValue("ncnn", self.UseNCNNButton.isChecked())
+        appData.setValue("ncnn_thread", self.ncnnInterpThreadCnt.value())
+        appData.setValue("ncnn_gpu", self.ncnnSelectGPU.value())
+        appData.setValue("tta_mode", self.TtaModeChecker.isChecked())
         appData.setValue("scale", self.InterpScaleSelector.currentText())
-        appData.setValue("SelectedModel", os.path.join(appData.value("model"), self.ModuleSelector.currentText()))
+        appData.setValue("selected_model", os.path.join(appData.value("model"), self.ModuleSelector.currentText()))
         appData.setValue("use_specific_gpu", self.DiscreteCardSelector.currentIndex())
-        appData.setValue("pos", QVariant(self.pos()))
-        appData.setValue("size", QVariant(self.size()))
         appData.setValue("ffmpeg_customized", self.FFmpegCustomer.text())
         appData.setValue("debug", self.DebugChecker.isChecked())
 
-        j_settings = f"{self.ncnnReadThreadCnt.value()}:{self.ncnnInterpThreadCnt.value()}:{self.ncnnOutputThreadCnt.value()}"
-        appData.setValue("j_settings", j_settings)
         appData.setValue("slow_motion", self.slowmotion.isChecked())
         appData.setValue("slow_motion_fps", self.SlowmotionFPS.text())
         if appData.value("slow_motion", False, type=bool):
             appData.setValue("save_audio", False)
             self.SaveAudioChecker.setChecked(False)
 
+        appData.setValue("multi_task_rest", self.multi_task_rest)
+        appData.setValue("multi_task_rest_interval", self.multi_task_rest_interval)
+        appData.setValue("after_shutdown", self.after_shutdown)
+        appData.setValue("after_hibernate", self.after_hibernate)
+        appData.setValue("force_cpu", self.force_cpu)
+        appData.setValue("expert_mode", self.expert_mode)
+
+        appData.setValue("pos", QVariant(self.pos()))
+        appData.setValue("size", QVariant(self.size()))
+
         logger.info("[Main]: Download all settings")
         self.OptionCheck.isReadOnly = True
         appData.sync()
         pass
+
+    def generate_log(self, mode=0):
+        """
+
+        :param mode:0 Error Log 1 Settings Log
+        :return:
+        """
+        status_check = "[导出设置预览]\n\n"
+        for key in appData.allKeys():
+            status_check += f"{key} => {appData.value(key)}\n"
+        if mode == 0:
+            status_check += "\n\n[设置信息]\n\n"
+            status_check += self.OptionCheck.toPlainText()
+            log_path = os.path.join(self.OutputFolder.text(), "log", f"{datetime.datetime.now().date()}.error.log")
+        else:  # 1
+            log_path = os.path.join(self.OutputFolder.text(), "log", f"{datetime.datetime.now().date()}.settings.log")
+
+        log_path_dir = os.path.dirname(log_path)
+        if not os.path.exists(log_path_dir):
+            os.mkdir(log_path_dir)
+        with open(log_path, "w", encoding="utf-8") as w:
+            w.write(status_check)
+        os.startfile(log_path_dir)
 
     def update_rife_process(self, json_data):
         """
@@ -530,18 +706,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         """
 
         def generate_error_log():
-            status_check = "[导出设置预览]\n\n"
-            for key in appData.allKeys():
-                status_check += f"{key} => {appData.value(key)}\n"
-            status_check += "\n\n[错误信息]\n\n"
-            status_check += self.OptionCheck.toPlainText()
-            error_path = os.path.join(self.OutputFolder.text(), "log", f"{datetime.datetime.now().date()}.error.log")
-            error_path_dir = os.path.dirname(error_path)
-            if not os.path.exists(error_path_dir):
-                os.mkdir(error_path_dir)
-            with open(error_path, "w", encoding="utf-8") as w:
-                w.write(status_check)
-            os.startfile(error_path_dir)
+            self.generate_log(0)
 
         def remove_last_line():
             cursor = self.OptionCheck.textCursor()
@@ -569,6 +734,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 return
             elif "CUDA out of memory" in now_text:
                 self.sendWarning("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式~", )
+                self.current_failed = True
+                return
+            elif "cudnn" in now_text.lower() and "fail" in now_text.lower():
+                self.sendWarning("CUDA Failed", "请前往官网更新驱动www.nvidia.cn/Download/index.aspx", )
                 self.current_failed = True
                 return
             elif "Concat Test Error" in now_text:
@@ -616,16 +785,18 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 add_line = f'<p><span style=" font-weight:600; color:#ff0000;">{line}</span></p>'
             elif "warn" in line.lower():
                 add_line = f'<p><span style=" font-weight:600; color:#ffaa00;">{line}</span></p>'
-            elif "duration" in line.lower():
-                add_line = f'<p><span style=" font-weight:600; color:#550000;">{line}</span></p>'
+            # elif "duration" in line.lower():
+            #     add_line = f'<p><span style=" font-weight:600; color:#550000;">{line}</span></p>'
             else:
                 add_line = f'<p><span>{line}</span></p>'
             self.OptionCheck.append(add_line)
+
         if data["finished"]:
             """Error Handle"""
             returncode = data["returncode"]
             complete_msg = f"共 {data['cnt']} 个补帧任务\n"
-            if returncode == 0:
+            if returncode == 0 or "Program Finished" in self.OptionCheck.toPlainText() or (returncode is not None and returncode > 3000):
+                """What the fuck is SWIG?"""
                 complete_msg += '成功！'
                 os.startfile(self.OutputFolder.text())
             else:
@@ -634,9 +805,9 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 error_handle()
                 generate_error_log()
 
-            self.sendWarning("补帧任务完成", complete_msg, 2)
-            # self.ProcessStart.setEnabled(True)
+            self.sendWarning("任务完成", complete_msg, 2)
             self.ConcatAllButton.setEnabled(True)
+            self.StartExtractButton.setEnabled(True)
             self.current_failed = False
 
         self.OptionCheck.moveCursor(QTextCursor.End)
@@ -680,7 +851,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             input_fps = self.InputFPS.text()
             appData.setValue("img_input", True)
             if not len(input_fps):
-                self.sendWarning("Empty Input", "请输入图片序列文件夹帧率")
+                self.sendWarning("Invalid Input", "请输入图片序列文件夹帧率")
                 return False
         else:
             appData.setValue("img_input", False)
@@ -778,15 +949,19 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         if target_fps > 50:
             target_fps = 50
             logger.info("Auto set GIF output fps to 50 as it's smooth enough")
-        resize = self.ResizeSettings.text()
+        width = self.ResizeWidthSettings.value()
+        height = self.ResizeHeightSettings.value()
+        resize = f"scale={width}:{height},"
+        if not all((width, height)):
+            resize = ""
         ffmpeg_command = f'{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps} ' \
-                         f'-lavfi "scale={resize},split[s0][s1];' \
+                         f'-lavfi "{resize}split[s0][s1];' \
                          f'[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" ' \
                          f'{Utils.fillQuotation(output_v)} -y'.strip().strip("\n").replace("\n", "").replace("\\", "/")
 
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
         self.GifButton.setEnabled(False)
-        GIF_Thread = RIFE_Run_Other_Threads(ffmpeg_command, 23333, data={"target_fps": target_fps})
+        GIF_Thread = SVFI_Run_Others(ffmpeg_command, 23333, data={"target_fps": target_fps})
         GIF_Thread.run_signal.connect(self.update_gif_making)
         GIF_Thread.start()
 
@@ -794,8 +969,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         """
         :return:
         """
-        self.StartFrame.setText(str(sf))
-        self.StartChunk.setText(str(sc))
+        self.StartFrame.setValue(sf)
+        self.StartChunk.setValue(sc)
         return
 
     def auto_set_fps(self, sample_file):
@@ -813,9 +988,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     def auto_set(self):
         chunk_list = list()
         output_dir = self.OutputFolder.text()
+        output_ext = self.ExtSelector.currentText()
         ratio = float(self.OutputFPS.text()) / float(self.InputFPS.text())
         for f in os.listdir(output_dir):
-            if re.match("chunk-[\d+].*?\.(mp4|mov)", f):
+            if re.match(f"chunk-[\d+].*?\.{output_ext}", f):
                 chunk_list.append(os.path.join(output_dir, f))
         if not len(chunk_list):
             self.set_start_info(0, 1, 1)
@@ -832,18 +1008,13 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 os.remove(c)
             return
         last_chunk = chunk_list[-1]
-        match_result = re.findall("chunk-(\d+)-(\d+)-(\d+)\.(mp4|mov)", last_chunk)[0]
+        match_result = re.findall(f"chunk-(\d+)-(\d+)-(\d+)\.{output_ext}", last_chunk)[0]
         chunk = int(match_result[0])
         last_frame = int(match_result[2])
         first_interp_cnt = (last_frame + 1) * ratio + 1
         self.set_start_info(last_frame + 1, first_interp_cnt, chunk + 1)
         logger.info("AutoSet Ready")
         pass
-
-    def get_filename(self, path):
-        if not os.path.isfile(path):
-            return os.path.basename(path)
-        return os.path.splitext(os.path.basename(path))[0]
 
     def update_gpu_info(self):
         infos = {}
@@ -874,7 +1045,14 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         return infos
 
     def update_model_info(self):
-        model_dir = appData.value("model")
+        app_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        ncnn_dir = os.path.join(app_dir, "rife_ncnn_python")
+        if self.UseNCNNButton.isChecked():
+            model_dir = os.path.join(ncnn_dir, "models")
+        else:
+            model_dir = os.path.join(app_dir, "Utils", "train_log")
+        appData.setValue("model", model_dir)
+
         if not os.path.exists(model_dir):
             logger.info(f"Not find Module dir at {model_dir}")
             self.sendWarning("Model Dir Not Found", "未找到补帧模型路径，请检查！")
@@ -895,6 +1073,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             widgetres.append(self.InputFileName.item(i).text())
         return widgetres
 
+    # @pyqtSlot(bool)
     def on_InputFileName_currentItemChanged(self):
         if self.InputFileName.currentItem() is None:
             return
@@ -977,10 +1156,9 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             self.ConcatInputV.setText(input_filename)
             self.ConcatInputA.setText(input_filename)
             self.OutputConcat.setText(
-                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}_concat.mp4"))
+                os.path.join(os.path.dirname(input_filename), f"{Utils.get_filename(input_filename)}_concat.mp4"))
             return
         self.quick_concat()
-        # self.auto_set()
         pass
 
     @pyqtSlot(bool)
@@ -990,7 +1168,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             input_filename = self.select_file('请输入要制作成gif的视频文件')
             self.GifInput.setText(input_filename)
             self.GifOutput.setText(
-                os.path.join(os.path.dirname(input_filename), f"{self.get_filename(input_filename)}.gif"))
+                os.path.join(os.path.dirname(input_filename), f"{Utils.get_filename(input_filename)}.gif"))
             return
         self.quick_gif()
         pass
@@ -1008,7 +1186,6 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(bool)
     def on_UseFixedScdet_clicked(self):
         logger.info("Switch To FixedScdetThreshold Mode: %s" % self.UseFixedScdet.isChecked())
-        # self.ScdetSelector.setEnabled(self.UseFixedScdet.isChecked())
 
     @pyqtSlot(bool)
     def on_UseNCNNButton_clicked(self):
@@ -1020,35 +1197,17 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 self.UseNCNNButton.setChecked(False)
         else:
             logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
-        if self.UseNCNNButton.isChecked():
-            """Nvidia Special Functions"""
-            # self.HwaccelSelector.setE(False)
-            self.DupRmChecker.setChecked(False)
-            self.UseAnyFPS.setChecked(False)
         bool_result = not self.UseNCNNButton.isChecked()
         self.FP16Checker.setEnabled(bool_result)
-        self.ReverseChecker.setEnabled(bool_result)
-        # self.InterpScaleSelector.setEnabled(bool_result)
-        self.ModuleSelector.setEnabled(bool_result)
         self.DiscreteCardSelector.setEnabled(bool_result)
-        self.ncnnReadThreadCnt.setEnabled(not bool_result)
         self.ncnnInterpThreadCnt.setEnabled(not bool_result)
-        self.ncnnOutputThreadCnt.setEnabled(not bool_result)
-        self.ncnnGPUCnt.setEnabled(not bool_result)
-        self.UseAnyFPS.setEnabled(bool_result)
-        self.DupRmChecker.setEnabled(bool_result)
-        self.DupFramesTSelector.setEnabled(bool_result)
-        # self.HwaccelChecker.setEnabled(bool_result)
+        self.ncnnSelectGPU.setEnabled(not bool_result)
+        self.update_model_info()
         self.on_UseAnyFPS_clicked()
         self.on_ExpSelecter_currentTextChanged()
 
     @pyqtSlot(bool)
     def on_UseAnyFPS_clicked(self):
-        if not self.hasNVIDIA and self.UseAnyFPS.isChecked():
-            reply = self.sendWarning(f"未检测到N卡，不能勾选此项！", 1)
-            self.UseAnyFPS.setChecked(False)
-            # self.HwaccelChecker.setChecked(False)
-            return
         bool_result = self.UseAnyFPS.isChecked()
         self.ExpSelecter.setEnabled(not bool_result)
         self.OutputFPS.setEnabled(True)
@@ -1062,14 +1221,17 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(str)
     def on_ResizeTemplate_currentTextChanged(self):
         current_template = self.ResizeTemplate.currentText()
+        height, width = 0, 0
         if "SD" in current_template:
-            self.ResizeSettings.setText("480x270")
+            width, height = 480, 270
         elif "1080p" in current_template:
-            self.ResizeSettings.setText("1920x1080")
+            width, height = 1920, 1080
         elif "4K" in current_template:
-            self.ResizeSettings.setText("3840x2160")
+            width, height = 3840, 2160
         elif "8K" in current_template:
-            self.ResizeSettings.setText("7680x4320")
+            width, height = 7680, 4320
+        self.ResizeWidthSettings.setValue(width)
+        self.ResizeHeightSettings.setValue(height)
 
     @pyqtSlot(str)
     def on_EncoderSelector_currentTextChanged(self):
@@ -1142,7 +1304,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             return
         # self.ProcessStart.setEnabled(False)
         self.progressBar.setValue(0)
-        RIFE_thread = RIFE_Run_Thread()
+        RIFE_thread = SVFI_Run()
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
@@ -1151,7 +1313,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             显示“Program finished”则任务完成
             如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
             群号在首页说明\n
-            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 启用慢动作：{self.slowmotion.isChecked()}， 慢动作帧率：{self.SlowmotionFPS.text()} 启用任意帧率：{self.UseAnyFPS.isChecked()}， 使用动漫优化：{self.DupRmChecker.isChecked()}
+            第一个文件的输入帧率：{self.InputFPS.text()}， 输出帧率：{self.OutputFPS.text()}， 启用慢动作：{self.slowmotion.isChecked()}， 慢动作帧率：{self.SlowmotionFPS.text()} 启用任意帧率：{self.UseAnyFPS.isChecked()}， 使用重复帧去除：{self.DupRmChecker.isChecked()}
         """
         if appData.value("ncnn", type=bool):
             update_text += "使用A卡或核显：True\n"
@@ -1168,13 +1330,30 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ConcatAllButton.setEnabled(False)
         self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)
-        RIFE_thread = RIFE_Run_Thread(concat_only=True)
+        RIFE_thread = SVFI_Run(concat_only=True)
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
         self.OptionCheck.setText("[仅合并操作启动，请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
-                                 "如果遇到任何问题，请将命令行（黑色界面）和软件运行界面的Step1、Step2、Step3截图并联系开发人员解决，"
-                                 "群号在首页说明\n\n\n\n\n")
+                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
+                                 "\n\n\n\n\n")
+
+    @pyqtSlot(bool)
+    def on_StartExtractButton_clicked(self):
+        """
+
+        :return:
+        """
+        self.StartExtractButton.setEnabled(False)
+        self.tabWidget.setCurrentIndex(1)
+        self.progressBar.setValue(0)
+        RIFE_thread = SVFI_Run(extract_only=True)
+        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.start()
+        self.thread = RIFE_thread
+        self.OptionCheck.setText("[仅拆帧操作启动，图片序列将会按照补帧规则输出。请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
+                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
+                                 "\n\n\n\n\n")
 
     @pyqtSlot(bool)
     def on_KillProcButton_clicked(self):
@@ -1198,7 +1377,6 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 self.pause = False
                 self.PauseProcess.setText("暂停补帧！")
 
-
     def maintain_sep_settings_buttons(self):
         multi_input = len(self.load_input_files()) > 1
         self.SaveCurrentSettings.setVisible(multi_input)
@@ -1215,7 +1393,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             self.ShowAdvance.setText("隐藏高级设置")
         else:
             self.ShowAdvance.setText("显示高级设置")
-        self.splitter.moveSplitter(10000000,1)
+        self.splitter.moveSplitter(10000000, 1)
 
     def SaveInputSettingsProcess(self, current_filename):
         config_maintainer = SVFI_Config_Manager()
@@ -1249,6 +1427,16 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         pass
 
     @pyqtSlot(bool)
+    def on_ClearInputButton_clicked(self):
+        self.on_actionClearAllVideos_triggered()
+
+    @pyqtSlot(bool)
+    def on_OutputSettingsButton_clicked(self):
+        self.generate_log(1)
+        self.sendWarning("Generate Success", "设置导出成功！settings.log即为设置快照", 3)
+        pass
+
+    @pyqtSlot(bool)
     def on_actionManualGuide_triggered(self):
         SVFI_help_form = SVFI_Help_Dialog(self)
         SVFI_help_form.setWindowTitle("SVFI Quick Guide")
@@ -1259,6 +1447,48 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         SVFI_about_form = SVFI_About_Dialog(self)
         SVFI_about_form.setWindowTitle("About")
         SVFI_about_form.show()
+
+    @pyqtSlot(bool)
+    def on_actionPreferences_triggered(self):
+        def generate_preference_dict():
+            preference_dict = dict()
+            preference_dict["multi_task_rest"] = self.multi_task_rest
+            preference_dict["multi_task_rest_interval"] = self.multi_task_rest_interval
+            preference_dict["after_shutdown"] = self.after_shutdown
+            preference_dict["after_hibernate"] = self.after_hibernate
+            preference_dict["expert"] = self.expert_mode
+            preference_dict["force_cpu"] = self.force_cpu
+            return preference_dict
+
+        self.SVFI_Preference_form = SVFI_Preference_Dialog(preference_dict=generate_preference_dict())
+        self.SVFI_Preference_form.setWindowTitle("Preference")
+        self.SVFI_Preference_form.preference_signal.connect(self.on_Preference_changed)
+        self.SVFI_Preference_form.show()
+
+    def on_Preference_changed(self, preference_dict: dict):
+
+        self.multi_task_rest = preference_dict["multi_task_rest"]
+        self.multi_task_rest_interval = preference_dict["multi_task_rest_interval"]
+        self.after_shutdown = preference_dict["after_shutdown"]
+        self.after_hibernate = preference_dict["after_hibernate"]
+        self.expert_mode = preference_dict["expert"]
+        self.force_cpu = preference_dict["force_cpu"]
+        self.on_ExpertMode_changed()
+
+    def on_ExpertMode_changed(self):
+        self.UseFixedScdet.setVisible(self.expert_mode)
+        self.ScdetMaxDiffSelector.setVisible(self.expert_mode)
+        self.HwaccelPresetSelector.setVisible(self.expert_mode)
+        self.HwaccelPresetLabel.setVisible(self.expert_mode)
+        self.QuickExtractChecker.setVisible(self.expert_mode)
+        self.StrictModeChecker.setVisible(self.expert_mode)
+        self.RenderSettingsLabel.setVisible(self.expert_mode)
+        self.RenderSettingsGroup.setVisible(self.expert_mode)
+        self.ReverseChecker.setVisible(self.expert_mode)
+        self.TtaModeChecker.setVisible(self.expert_mode)
+
+        if self.free:
+            self.free_hide()
 
     @pyqtSlot(bool)
     def on_actionImportVideos_triggered(self):
@@ -1283,6 +1513,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(bool)
     def on_actionClearAllVideos_triggered(self):
         self.InputFileName.clear()
+        self.maintain_sep_settings_buttons()
 
     @pyqtSlot(bool)
     def on_actionSaveSettings_triggered(self):
@@ -1292,6 +1523,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     def on_actionLoadDefaultSettings_triggered(self):
         appData.clear()
         self.init_before_settings()
+        self.hasNVIDIA = True
+        self.update_gpu_info()
+        self.update_model_info()
+        self.on_EncoderSelector_currentTextChanged()  # Flush Encoder Sets
         self.sendWarning("Load Success", "已载入默认设置", 3)
 
     def closeEvent(self, event):

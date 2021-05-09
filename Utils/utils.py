@@ -18,6 +18,34 @@ from configparser import ConfigParser, NoOptionError, NoSectionError
 
 from sklearn import linear_model
 
+class EncodePresetAssemply:
+    preset = {
+        "HEVC": {
+            "x265": ["slow", "ultrafast", "fast", "medium", "veryslow"],
+            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+            "QSV": ["slow", "fast", "medium", "veryslow", ],
+        },
+        "H264": {
+            "x264": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
+            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+            "QSV": ["slow", "fast", "medium", "veryslow", ],
+        },
+        "ProRes": ["hq", "4444", "4444xq"]
+    }
+    pixfmt = {
+        "HEVC": {
+            "x265": ["yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le", "yuv444p10le", "yuv420p12le",
+                     "yuv422p12le", "yuv444p12le"],
+            "NVENC": ["p010le", "yuv420p", "yuv444p", "p016le", "yuv444p16le"],
+            "QSV": ["yuv420p", "p010le", ],
+        },
+        "H264": {
+            "x264": ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", ],
+            "NVENC": ["yuv420p", "p010le", "yuv444p", "p016le", "yuv444p16le"],
+            "QSV": ["yuv420p", ],  # TODO Seriously? QSV Not supporting p010le?
+        },
+        "ProRes": ["yuv422p10le", "yuv444p10le"]
+    }
 
 class CommandResult:
     def __init__(self, command, output_path="output.txt"):
@@ -158,6 +186,11 @@ class Utils:
         return args
         pass
 
+    def check_pure_img(self, img1):
+        if np.var(img1) == 0:
+            return True
+        return False
+
     def get_norm_img(self, img1):
         img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
         img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
@@ -178,6 +211,11 @@ class Utils:
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         diff = cv2.absdiff(img1, img2).mean()
         return diff
+
+    def get_filename(self, path):
+        if not os.path.isfile(path):
+            return os.path.basename(path)
+        return os.path.splitext(os.path.basename(path))[0]
 
     def rm_edge(self, img):
         """
@@ -265,7 +303,9 @@ class ImgSeqIO:
             return
         if start_frame in [-1, 0]:
             start_frame = 0
-        self.seq_folder = folder
+        self.seq_folder = folder  #  + "/tmp"  # weird situation, cannot write to target dir, father dir instead
+        if not os.path.exists(self.seq_folder):
+            os.mkdir(self.seq_folder)
         self.frame_cnt = 0
         self.img_list = list()
         self.write_queue = Queue(maxsize=1000)
@@ -288,59 +328,29 @@ class ImgSeqIO:
                         self.frame_cnt += 1
                         continue
                     self.img_list.append(os.path.join(self.seq_folder, p))
-            print(f"INFO - [IMG.IO] Load {len(self.img_list)} frames from {self.seq_folder} at {start_frame}")
+            print(f"INFO - [IMG.IO] Load {len(self.img_list)} frames at {start_frame}")
         else:
             png_re = re.compile("\d+\.png")
             write_png = sorted([i for i in os.listdir(self.seq_folder) if png_re.match(i)],
                                key=lambda x: int(x[:-4]), reverse=True)
             if len(write_png):
                 self.frame_cnt = int(os.path.splitext(write_png[0])[0]) + 1
+                print(f"INFO - update Img Cnt to {self.frame_cnt}")
             for t in range(self.thread_cnt):
                 _t = threading.Thread(target=self.write_buffer, name=f"[IMG.IO] Write Buffer No.{t + 1}")
                 self.thread_pool.append(_t)
             for _t in self.thread_pool:
                 _t.start()
-            print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
+            # print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
 
     def read_frame(self, path):
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
         if self.resize_flag:
             img = cv2.resize(img, (self.resize[0], self.resize[1]))
         return img
-        # if self.use_imdecode:
-        #     img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
-        #     return img
-        # else:
-        #     read_flag = False
-        #     retry = 0
-        #     while not read_flag and retry < 10:
-        #         try:
-        #             try:
-        #                 img = cv2.imread(path)[:, :, ::-1].copy()
-        #                 return img
-        #             except TypeError:
-        #                 print("WARNING - [IMG.IO] Change to use imdecode")
-        #                 self.use_imdecode = True
-        #                 img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
-        #                 return img
-        #         except Exception:
-        #             print("CRITICAL - [IMG.IO] Read Failed")
-        #             print(traceback.format_exc())
-        #             retry += 1
-        #             time.sleep(1)
-        #     return None
 
     def write_frame(self, img, path):
         cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
-        # if self.use_imdecode:
-        #     pass
-        # else:
-        #     try:
-        #         cv2.imwrite(path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-        #     except Exception:
-        #         print("WARNING - [IMG.IO] Change to use imdecode")
-        #         self.use_imdecode = True
-        #         cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
 
     def nextFrame(self):
         for p in self.img_list:
@@ -372,272 +382,10 @@ class ImgSeqIO:
         for _t in self.thread_pool:
             while _t.is_alive():
                 time.sleep(0.2)
+        # if os.path.exists(self.seq_folder):
+        #     shutil.rmtree(self.seq_folder)
         return
 
-
-class EncodePresetAssemply:
-    preset = {
-        "HEVC": {
-            "x265": ["slow", "ultrafast", "fast", "medium", "veryslow"],
-            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
-            "QSV": ["slow", "fast", "medium", "veryslow", ],
-        },
-        "H264": {
-            "x264": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
-            "NVENC": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
-            "QSV": ["slow", "fast", "medium", "veryslow", ],
-        },
-        "ProRes": ["hq", "4444", "4444xq"]
-    }
-    pixfmt = {
-        "HEVC": {
-            "x265": ["yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le", "yuv444p10le", "yuv420p12le",
-                     "yuv422p12le", "yuv444p12le"],
-            "NVENC": ["p010le", "yuv420p", "yuv444p", "p016le", "yuv444p16le"],
-            "QSV": ["yuv420p", "p010le", ],
-        },
-        "H264": {
-            "x264": ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", ],
-            "NVENC": ["yuv420p", "p010le", "yuv444p", "p016le", "yuv444p16le"],
-            "QSV": ["yuv420p", ],  # TODO Seriously? QSV Not supporting p010le?
-        },
-        "ProRes": ["yuv422p10le", "yuv444p10le"]
-    }
-
-
-class VideoInfo:
-    def fillQuotation(self, string):
-        if string[0] != '"':
-            return f'"{string}"'
-
-    def __init__(self, input, HDR=False, ffmpeg=None, img_input=False, **kwargs):
-        self.filepath = input
-        self.img_input = img_input
-        self.ffmpeg = "ffmpeg"
-        self.ffprobe = "ffprobe"
-        if ffmpeg is not None:
-            self.ffmpeg = os.path.join(ffmpeg, "ffmpeg.exe")
-            self.ffprobe = os.path.join(ffmpeg, "ffprobe.exe")
-        if not os.path.exists(self.ffmpeg):
-            self.ffmpeg = "ffmpeg"
-            self.ffprobe = "ffprobe"
-        self.color_info = dict()
-        if HDR:
-            self.color_info.update({"-colorspace": "bt2020nc",
-                                    "-color_trc": "smpte2084",
-                                    "-color_primaries": "bt2020",
-                                    "-color_range": "tv"})
-        else:
-            self.color_info.update({"-colorspace": "bt709",
-                                    "-color_trc": "bt709",
-                                    "-color_primaries": "bt709",
-                                    "-color_range": "tv"})
-        self.frames_cnt = 0
-        self.frames_size = (0, 0)
-        self.fps = 0
-        self.duration = 0
-        self.video_info = dict()
-        self.update_info()
-
-    def update_frames_info_ffprobe(self):
-        result = CommandResult(
-            f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
-            f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
-            f'color_primaries,color_range,color_space,color_transfer -print_format json '
-            f'{self.fillQuotation(self.filepath)}').execute()
-        try:
-            video_info = json.loads(result)["streams"][0]  # select first video stream as input
-        except Exception as e:
-            print(f"Error: Parse Video Info Failed: {result}")
-            raise e
-        print("\nInput Video Info:")
-        self.video_info = video_info
-        pprint(video_info)
-        # update color info
-        if "color_range" in video_info:
-            self.color_info["-color_range"] = video_info["color_range"]
-        if "color_space" in video_info:
-            self.color_info["-colorspace"] = video_info["color_space"]
-        if "color_transfer" in video_info:
-            self.color_info["-color_trc"] = video_info["color_transfer"]
-        if "color_primaries" in video_info:
-            self.color_info["-color_primaries"] = video_info["color_primaries"]
-
-        # update frame size info
-        if 'width' in video_info and 'height' in video_info:
-            self.frames_size = (video_info['width'], video_info['height'])
-
-        if "r_frame_rate" in video_info:
-            fps_info = video_info["r_frame_rate"].split('/')
-            self.fps = int(fps_info[0]) / int(fps_info[1])
-            print(f"INFO - Auto Find FPS in r_frame_rate: {self.fps}")
-        else:
-            print("WARNING - Auto Find FPS Failed")
-            return False
-
-        if "nb_frames" in video_info:
-            self.frames_cnt = int(video_info["nb_frames"])
-            print(f"INFO - Auto Find frames cnt in nb_frames: {self.frames_cnt}")
-        elif "duration" in video_info:
-            self.duration = float(video_info["duration"])
-            self.frames_cnt = round(float(self.duration * self.fps))
-            print(f"INFO - Auto Find Frames Cnt by duration deduction: {self.frames_cnt}")
-        else:
-            print("WARNING - FFprobe Not Find Frames Cnt")
-            return False
-        return True
-
-    def update_frames_info_cv2(self):
-        video_input = cv2.VideoCapture(self.filepath)
-        if not self.fps:
-            self.fps = video_input.get(cv2.CAP_PROP_FPS)
-        if not self.frames_cnt:
-            self.frames_cnt = video_input.get(cv2.CAP_PROP_FRAME_COUNT)
-        if not self.duration:
-            self.duration = self.frames_cnt / self.fps
-        self.frames_size = (video_input.get(cv2.CAP_PROP_FRAME_WIDTH), video_input.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    def update_info(self):
-        if self.img_input:
-            if os.path.isfile(self.filepath):
-                self.filepath = os.path.dirname(self.filepath)
-            seqlist = os.listdir(self.filepath)
-            self.frames_cnt = len(seqlist)
-            # if not self.duration:
-            #     self.duration = self.frames_cnt / self.fps
-            img = cv2.imdecode(np.fromfile(os.path.join(self.filepath, seqlist[0]), dtype=np.uint8), 1)[:, :,
-                  ::-1].copy()
-            self.frames_size = (img.shape[1], img.shape[0])
-            return
-        self.update_frames_info_ffprobe()
-        self.update_frames_info_cv2()
-
-    def get_info(self):
-        get_dict = {}
-        get_dict.update(self.color_info)
-        get_dict.update({"video_info": self.video_info})
-        get_dict["fps"] = self.fps
-        get_dict["size"] = self.frames_size
-        get_dict["cnt"] = self.frames_cnt
-        get_dict["duration"] = self.duration
-        return get_dict
-
-
-class TransitionDetection:
-    def __init__(self, scene_stack_length, fixed_scdet=False, scdet_threshold=50, output="", no_scdet=False, **kwargs):
-        self.scdet_threshold = scdet_threshold
-        self.fixed_scdet = fixed_scdet
-        self.scdet_cnt = 0
-        self.scene_stack_len = scene_stack_length
-        self.absdiff_queue = deque(maxlen=self.scene_stack_len)  # absdiff队列
-        self.utils = Utils()
-        self.dead_thres = 80
-        self.born_thres = 2
-        self.img1 = None
-        self.img2 = None
-        self.scdet_cnt = 0
-        self.scene_dir = os.path.join(os.path.dirname(output), "scene")
-        if not os.path.exists(self.scene_dir):
-            os.mkdir(self.scene_dir, )
-        self.scene_stack = Queue(maxsize=scene_stack_length)
-        self.no_scdet = no_scdet
-
-    def __check_coef(self):
-        reg = linear_model.LinearRegression()
-        reg.fit(np.array(range(len(self.absdiff_queue))).reshape(-1, 1), np.array(self.absdiff_queue).reshape(-1, 1))
-        return reg.coef_, reg.intercept_
-
-    def __check_var(self):
-        coef, intercept = self.__check_coef()
-        coef_array = coef * np.array(range(len(self.absdiff_queue))).reshape(-1, 1) + intercept
-        diff_array = np.array(self.absdiff_queue)
-        sub_array = diff_array - coef_array
-        return math.sqrt(sub_array.var())
-
-    def __judge_mean(self, diff):
-        var_before = self.__check_var()
-        self.absdiff_queue.append(diff)
-        var_after = self.__check_var()
-        if var_after - var_before > self.scdet_threshold and diff > self.born_thres:
-            """Detect new scene"""
-            self.see_result(
-                f"diff: {diff:.3f}, before: {var_before:.3f}, after: {var_after:.3f}, cnt: {self.scdet_cnt + 1}")
-            self.absdiff_queue.clear()
-            self.scdet_cnt += 1
-            return True
-        else:
-            if diff > self.dead_thres:
-                self.absdiff_queue.clear()
-                self.see_result(f"diff: {diff:.3f}, False Alarm, cnt: {self.scdet_cnt + 1}")
-                self.scdet_cnt += 1
-                return True
-            # see_result(f"compare: False, diff: {diff}, bm: {before_measure}")
-            return False
-
-    def end_view(self):
-        self.scene_stack.put(None)
-        while True:
-            scene_data = self.scene_stack.get()
-            if scene_data is None:
-                return
-            title = scene_data[0]
-            scene = scene_data[1]
-            self.see_result(title)
-
-    def see_result(self, title):
-        return
-        comp_stack = np.hstack((self.img1, self.img2))
-        cv2.namedWindow(title, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
-        cv2.imshow(title, cv2.cvtColor(comp_stack, cv2.COLOR_BGR2RGB))
-        cv2.moveWindow(title, 500, 500)
-        cv2.resizeWindow(title, 1920, 540)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-    def check_scene(self, img1, img2, add_diff=False, no_diff=False) -> bool:
-        """
-        Check if current scene is scene
-        :param img2:
-        :param img1:
-        :param add_diff:
-        :param no_diff: check after "add_diff" mode
-        :return: 是转场则返回帧
-        """
-
-        if self.no_scdet:
-            return False
-
-        diff = self.utils.get_norm_img_diff(img1, img2)
-        if self.fixed_scdet:
-            if diff < self.scdet_threshold:
-                return False
-            else:
-                self.scdet_cnt += 1
-                return True
-        self.img1 = img1
-        self.img2 = img2
-        # if diff == 0:
-        #     """重复帧，不可能是转场，也不用添加到判断队列里"""
-        #     return False
-
-        if len(self.absdiff_queue) < self.scene_stack_len or add_diff:
-            if diff not in self.absdiff_queue:
-                self.absdiff_queue.append(diff)
-            # if diff > dead_thres:
-            #     if not add_diff:
-            #         see_result(f"compare: True, diff: {diff:.3f}, Sparse Stack, cnt: {self.scdet_cnt + 1}")
-            #     self.scene_stack.clear()
-            #     return True
-            return False
-
-        """Duplicate Frames Special Judge"""
-        if no_diff and len(self.absdiff_queue):
-            self.absdiff_queue.pop()
-            if not len(self.absdiff_queue):
-                return False
-
-        """Judge"""
-        return self.__judge_mean(diff)
 
 
 if __name__ == "__main__":

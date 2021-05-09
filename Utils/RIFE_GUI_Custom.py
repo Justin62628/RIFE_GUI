@@ -24,7 +24,7 @@ class MyListWidget(QtWidgets.QListWidget):
 
     def dropEvent(self, e):
         if e.mimeData().hasText():  # 是否文本文件格式
-            self.clear()
+            # self.clear()
             for url in e.mimeData().urls():
                 self.addItem(url.toLocalFile())
         else:
@@ -32,7 +32,7 @@ class MyListWidget(QtWidgets.QListWidget):
 
     def dragEnterEvent(self, e):
         if e.mimeData().hasText():  # 是否文本文件格式
-            self.clear()
+            # self.clear()
             for url in e.mimeData().urls():
                 self.addItem(url.toLocalFile())
         else:

@@ -1,97 +1,121 @@
 import os
-import shutil
 import warnings
-
-import time
-import threading
+import traceback
+import numpy
 from Utils.utils import Utils
-
+import rife_ncnn_python.rife_ncnn_vulkan as rife_ncnn_vulkan
+import cv2
+from PIL import Image
 warnings.filterwarnings("ignore")
 Utils = Utils()
+raw = rife_ncnn_vulkan.raw
 
-
-class NCNNinterpolator(threading.Thread):
-
+class RifeInterpolation(rife_ncnn_vulkan.RIFE):
     def __init__(self, __args):
-        super().__init__()
+        uhd_mode = True if __args["exp"] < 1 else False
+        super().__init__(__args["ncnn_gpu"], os.path.basename(__args["selected_model"]),
+                         tta_mode=__args["tta_mode"], uhd_mode=uhd_mode, num_threads=4)
+        self.initiated = False
+        self.args = {}
         if __args is not None:
+            """Update Args"""
             self.args = __args
-
-        self.rife_ncnn_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "rife-ncnn")
-        self.rife_ncnn = os.path.join(self.rife_ncnn_root, "rife-ncnn-vulkan.exe")
-        self.exp = self.args["exp"]
-        self.j_settings = self.args["j_settings"]
-        self.input_list = list()
-        self.input_root = os.path.dirname(self.args["input_dir"])
-        self.supervise_thread = None
-        self.supervise_data = {}
-        print(f"INFO - Use NCNN to interpolate from {self.rife_ncnn_root} with input list {str(self.input_list)}")
-        pass
-
-    def initiate_rife(self):
-        pass
-
-    def generate_input_list(self):
-        self.input_list.append(self.args["input_dir"])
-        for e in range(self.exp - 1):
-            new_input = os.path.join(self.input_root, f"mid_interp_{2 ** (e + 1)}x")
-            self.input_list.append(new_input)
-            if not os.path.exists(new_input):
-                os.mkdir(new_input)
-        self.input_list.append(os.path.join(self.input_root, "interp"))
-        pass
-
-    def run(self):
-        self.generate_input_list()
-        dir_cnt = 1
-
-        shutil.rmtree(os.path.join(self.input_root, "interp"))
-        os.mkdir(os.path.join(self.input_root, "interp"))
-
-        for input_dir in self.input_list:
-            if os.path.basename(input_dir) == "interp":
-                """Ignore interp"""
-                break
-            output_dir = self.input_list[dir_cnt]
-            input_cnt = len(os.listdir(input_dir))
-            ncnn_thread = threading.Thread(target=self.ncnn_interpolate, name="NCNN-Interpolate Thread",
-                                           args=(input_dir, output_dir,))
-            ncnn_thread.start()
-            while ncnn_thread.is_alive():
-                time.sleep(0.1)
-                output_frames_cnt = len(os.listdir(output_dir))
-                now_cnt = int(output_frames_cnt / 2)
-                self.supervise_data.update({"now_cnt": now_cnt, "now_dir": os.path.basename(output_dir),
-                                            "input_cnt": input_cnt})
-
-            print(f"INFO - [NCNN] Round {output_dir.encode('utf-8', 'ignore').decode('utf-8')} finished")
-            dir_cnt += 1
-
-        for input_dir in self.input_list:
-            if input_dir != self.input_list[0] and os.path.basename(input_dir) != "interp":
-                """Erase all mid interpolations except the img input"""
-                shutil.rmtree(input_dir)
-        pass
-
-    def ncnn_interpolate(self, input_dir, output_dir):
-        if len(self.j_settings):
-            j_settings = f"-j {self.j_settings}"
         else:
-            j_settings = ""
-        create_command = f"{self.rife_ncnn}  -i {input_dir} -o {output_dir} " \
-                         f"-m {Utils.fillQuotation(os.path.join(self.rife_ncnn_root, 'rife-v2.4'))} " \
-                         f"{j_settings}"
-        if self.args["scale"] <= 0.5:
-            create_command += " -u"
-            print("INFO - NCNN UHD Mode On\n\n\n")
-        os.system(create_command)
-        pass
+            raise NotImplementedError("Args not sent in")
 
-    def stop(self):
+        self.device = None
+        self.model = None
+        self.model_path = ""
+
+    def initiate_rife(self, __args=None):
+        if self.initiated:
+            return
+        self.initiated = True
+
+    def __make_inference(self, img1, img2, scale, exp):
+        i1 = self.generate_torch_img(img1)
+        i2 = self.generate_torch_img(img2)
+        if self.args["reverse"]:
+            mid = self.process(i1, i2)
+        else:
+            mid = self.process(i2, i1)
+        del i1, i2
+        mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
+        if exp == 1:
+            return [mid]
+        first_half = self.__make_inference(img1, mid, scale, exp=exp - 1)
+        second_half = self.__make_inference(mid, img2, scale, exp=exp - 1)
+        return [*first_half, mid, *second_half]
+
+    def __make_n_inference(self, img1, img2, scale, n):
+        i1 = self.generate_torch_img(img1)
+        i2 = self.generate_torch_img(img2)
+        if self.args["reverse"]:
+            mid = self.process(i1, i2)
+        else:
+            mid = self.process(i2, i1)
+        del i1, i2
+        mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
+        if n == 1:
+            return [mid]
+        first_half = self.__make_n_inference(img1, mid, scale, n=n // 2)
+        second_half = self.__make_n_inference(mid, img2, scale, n=n // 2)
+        if n % 2:
+            return [*first_half, mid, *second_half]
+        else:
+            return [*first_half, *second_half]
+
+    def generate_torch_img(self, img):
         """
-        stop ncnn interpolation
+        :param img: cv2.imread [:, :, ::-1]
         :return:
         """
+        try:
+            image = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            return image
+        except Exception as e:
+            print(img)
+            traceback.print_exc()
+            raise e
+
+    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False):
+        """
+
+        :param img1: cv2.imread
+        :param img2:
+        :param exp:
+        :param scale:
+        :param n:
+        :param debug:
+        :return: list of interp cv2 image
+        """
+        if debug:
+            output_gen = list()
+            if n is not None:
+                dup = n
+            else:
+                dup = 2 ** exp - 1
+            for i in range(dup):
+                output_gen.append(img1)
+            return output_gen
+
+        if n is not None:
+            interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
+        else:
+            interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
+        return interp_gen
+
+    def generate_n_interp(self, img1, img2, n, scale, debug=False):
+        if debug:
+            output_gen = list()
+            for i in range(n):
+                output_gen.append(img1)
+            return output_gen
+        interp_gen = self.__make_n_inference(img1, img2, scale, n)
+        return interp_gen
+
+    def run(self):
+        pass
 
 
 if __name__ == "__main__":

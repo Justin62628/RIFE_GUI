@@ -33,7 +33,8 @@ class RifeInterpolation:
         if self.initiated:
             return
 
-        if not torch.cuda.is_available():
+
+        if not torch.cuda.is_available() or __args["force_cpu"]:
             self.device = torch.device("cpu")
             print("INFO - use cpu to interpolate")
         else:
@@ -52,10 +53,10 @@ class RifeInterpolation:
         torch.set_grad_enabled(False)
         from Utils.model.RIFE_HDv2 import Model
         self.model = Model()
-        if self.args["SelectedModel".lower()] == "":
+        if self.args["selected_model"] == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
-            self.model_path = self.args["SelectedModel".lower()]
+            self.model_path = self.args["selected_model"]
         self.model.load_model(self.model_path, -1)
         print(f"INFO - Load model at {self.model_path}")
         self.model.eval()
