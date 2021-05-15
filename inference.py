@@ -1,13 +1,12 @@
+import gc
 import os
-import shutil
 import traceback
 import warnings
 
 import numpy as np
-import time
-import threading
 import torch
 from torch.nn import functional as F
+
 from Utils.utils import Utils
 
 warnings.filterwarnings("ignore")
@@ -33,12 +32,13 @@ class RifeInterpolation:
         if self.initiated:
             return
 
-
         if not torch.cuda.is_available() or __args["force_cpu"]:
             self.device = torch.device("cpu")
+            from Utils.model_cpu.RIFE_HDv2 import Model
             print("INFO - use cpu to interpolate")
         else:
             self.device = torch.device("cuda")
+
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
         if self.args["fp16"]:
@@ -51,20 +51,43 @@ class RifeInterpolation:
                 self.args["fp16"] = False
 
         torch.set_grad_enabled(False)
-        from Utils.model.RIFE_HDv2 import Model
-        self.model = Model()
         if self.args["selected_model"] == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
             self.model_path = self.args["selected_model"]
-        self.model.load_model(self.model_path, -1)
-        print(f"INFO - Load model at {self.model_path}")
+
+        try:
+            from Utils.model.RIFE_HDv3 import Model
+            self.model = Model()
+            self.model.load_model(self.model_path, -1)
+            print(f"INFO - Load v2 model")
+        except:
+            del Model
+            self.model = None
+            gc.collect()
+            try:
+                from Utils.model.RIFE_HD import Model
+                self.model = Model()
+                self.model.load_model(self.model_path, -1)
+                print(f"INFO - Load v1 model")
+            except:
+                del Model
+                self.model = None
+                gc.collect()
+                from Utils.model.RIFE_HDv2 import Model
+                # from Utils.model.RIFE_HDv3 import Model
+                self.model = Model()
+                self.model.load_model(self.model_path, -1)
+                print(f"INFO - Load v3 model")
+
+        print(f"INFO - Load model at {os.path.basename(self.model_path)}")
+
         self.model.eval()
         self.model.device()
         self.initiated = True
 
     def __make_inference(self, img1, img2, scale, exp):
-        padding, h, w = self.generate_padding(img1)
+        padding, h, w = self.generate_padding(img1, scale)
         i1 = self.generate_torch_img(img1, padding)
         i2 = self.generate_torch_img(img2, padding)
         if self.args["reverse"]:
@@ -80,9 +103,10 @@ class RifeInterpolation:
         return [*first_half, mid, *second_half]
 
     def __make_n_inference(self, img1, img2, scale, n):
-        padding, h, w = self.generate_padding(img1)
+        padding, h, w = self.generate_padding(img1, scale)
         i1 = self.generate_torch_img(img1, padding)
         i2 = self.generate_torch_img(img2, padding)
+
         if self.args["reverse"]:
             mid = self.model.inference(i1, i2, scale)
         else:
@@ -98,14 +122,15 @@ class RifeInterpolation:
         else:
             return [*first_half, *second_half]
 
-    def generate_padding(self, img):
+    def generate_padding(self, img, scale):
         """
 
+        :param scale:
         :param img: cv2.imread [:, :, ::-1]
         :return:
         """
         h, w, _ = img.shape
-        tmp = max(32, int(32 / self.args["scale"]))
+        tmp = max(32, int(32 / scale))
         ph = ((h - 1) // tmp + 1) * tmp
         pw = ((w - 1) // tmp + 1) * tmp
         padding = (0, pw - w, 0, ph - h)
@@ -132,9 +157,10 @@ class RifeInterpolation:
         else:
             return F.pad(img, padding)
 
-    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False):
+    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False, test=False):
         """
 
+        :param test:
         :param img1: cv2.imread
         :param img2:
         :param exp:
@@ -157,6 +183,8 @@ class RifeInterpolation:
             interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
         else:
             interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
+        if test:
+            torch.cuda.empty_cache()
         return interp_gen
 
     def generate_n_interp(self, img1, img2, n, scale, debug=False):
@@ -167,6 +195,9 @@ class RifeInterpolation:
             return output_gen
         interp_gen = self.__make_n_inference(img1, img2, scale, n)
         return interp_gen
+
+    def get_auto_scale(self, img1, img2, scale):
+        pass
 
     def run(self):
         pass

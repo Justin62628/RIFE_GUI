@@ -3,18 +3,20 @@ import warnings
 import traceback
 import numpy
 from Utils.utils import Utils
-import rife_ncnn_python.rife_ncnn_vulkan as rife_ncnn_vulkan
 import cv2
 from PIL import Image
+
+from ncnn.rife import rife_ncnn_vulkan
+
 warnings.filterwarnings("ignore")
 Utils = Utils()
 raw = rife_ncnn_vulkan.raw
 
 class RifeInterpolation(rife_ncnn_vulkan.RIFE):
-    def __init__(self, __args):
+    def __init__(self, __args:dict):
         uhd_mode = True if __args["exp"] < 1 else False
         super().__init__(__args["ncnn_gpu"], os.path.basename(__args["selected_model"]),
-                         tta_mode=__args["tta_mode"], uhd_mode=uhd_mode, num_threads=4)
+                         tta_mode=__args.get("tta_mode", False), uhd_mode=uhd_mode, num_threads=4)
         self.initiated = False
         self.args = {}
         if __args is not None:

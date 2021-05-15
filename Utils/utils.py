@@ -1,24 +1,36 @@
 # coding: utf-8
-import math
-from pprint import pprint
+import datetime
+import logging
 import os
 import re
-import json
-import datetime
+import shutil
 import threading
 import time
-import logging
-import traceback
+from configparser import ConfigParser, NoOptionError, NoSectionError
+from queue import Queue
+
 import cv2
 import numpy as np
-from queue import Queue
-from collections import deque
-import shutil
-from configparser import ConfigParser, NoOptionError, NoSectionError
 
-from sklearn import linear_model
 
 class EncodePresetAssemply:
+    encoder = {
+        "CPU": {
+            "H264, 8bit": ["slow", "ultrafast", "fast", "medium", "veryslow", "placebo", ],
+            "H264, 10bit": ["slow", "ultrafast", "fast", "medium", "veryslow"],
+            "H265, 8bit": ["slow", "ultrafast", "fast", "medium", "veryslow"],
+            "H265, 10bit": ["slow", "ultrafast", "fast", "medium", "veryslow"],
+            "ProRes, 422": ["hq", "4444", "4444xq"],
+            "ProRes, 444": ["hq", "4444", "4444xq"],
+        },
+        "NVENC": {"H264, 8bit": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+                  "H265, 8bit": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"],
+                  "H265, 10bit": ["slow", "medium", "fast", "hq", "bd", "llhq", "loseless"], },
+        "QSV": {"H264, 8bit": ["slow", "fast", "medium", "veryslow", ],
+                "H265, 8bit": ["slow", "fast", "medium", "veryslow", ],
+                "H265, 10bit": ["slow", "fast", "medium", "veryslow", ], },
+
+    }
     preset = {
         "HEVC": {
             "x265": ["slow", "ultrafast", "fast", "medium", "veryslow"],
@@ -36,16 +48,17 @@ class EncodePresetAssemply:
         "HEVC": {
             "x265": ["yuv420p10le", "yuv420p", "yuv422p", "yuv444p", "yuv422p10le", "yuv444p10le", "yuv420p12le",
                      "yuv422p12le", "yuv444p12le"],
-            "NVENC": ["p010le", "yuv420p", "yuv444p", "p016le", "yuv444p16le"],
+            "NVENC": ["p010le", "yuv420p", "yuv444p", ],
             "QSV": ["yuv420p", "p010le", ],
         },
         "H264": {
             "x264": ["yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", ],
-            "NVENC": ["yuv420p", "p010le", "yuv444p", "p016le", "yuv444p16le"],
+            "NVENC": ["yuv420p", "yuv444p"],
             "QSV": ["yuv420p", ],  # TODO Seriously? QSV Not supporting p010le?
         },
         "ProRes": ["yuv422p10le", "yuv444p10le"]
     }
+
 
 class CommandResult:
     def __init__(self, command, output_path="output.txt"):
@@ -191,23 +204,25 @@ class Utils:
             return True
         return False
 
-    def get_norm_img(self, img1):
-        img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
+    def get_norm_img(self, img1, resize=True):
+        if resize:
+            img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
         img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
         img1 = cv2.equalizeHist(img1)  # 进行直方图均衡化
         # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         # _, img1 = cv2.threshold(img1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return img1
 
-    def get_norm_img_diff(self, img1, img2) -> float:
+    def get_norm_img_diff(self, img1, img2, resize=True) -> float:
         """
         Normalize Difference
+        :param resize:
         :param img1: cv2
         :param img2: cv2
         :return: float
         """
-        img1 = self.get_norm_img(img1)
-        img2 = self.get_norm_img(img2)
+        img1 = self.get_norm_img(img1, resize)
+        img2 = self.get_norm_img(img2, resize)
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         diff = cv2.absdiff(img1, img2).mean()
         return diff
@@ -295,6 +310,13 @@ class Utils:
         self.crop_param = (bottom, top, left, right)
         return bottom, top, left, right
 
+    def get_exp_edge(self, num):
+        b = 2
+        scale = 0
+        while num > b ** scale:
+            scale += 1
+        return scale
+
 
 class ImgSeqIO:
     def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, **kwargs):
@@ -303,7 +325,7 @@ class ImgSeqIO:
             return
         if start_frame in [-1, 0]:
             start_frame = 0
-        self.seq_folder = folder  #  + "/tmp"  # weird situation, cannot write to target dir, father dir instead
+        self.seq_folder = folder  # + "/tmp"  # weird situation, cannot write to target dir, father dir instead
         if not os.path.exists(self.seq_folder):
             os.mkdir(self.seq_folder)
         self.frame_cnt = 0
@@ -343,6 +365,9 @@ class ImgSeqIO:
                 _t.start()
             # print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
 
+    def get_frames_cnt(self):
+        return len(self.img_list)
+
     def read_frame(self, path):
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
         if self.resize_flag:
@@ -350,6 +375,8 @@ class ImgSeqIO:
         return img
 
     def write_frame(self, img, path):
+        if self.resize_flag:
+            img = cv2.resize(img, (self.resize[0], self.resize[1]))
         cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
 
     def nextFrame(self):
@@ -385,7 +412,6 @@ class ImgSeqIO:
         # if os.path.exists(self.seq_folder):
         #     shutil.rmtree(self.seq_folder)
         return
-
 
 
 if __name__ == "__main__":

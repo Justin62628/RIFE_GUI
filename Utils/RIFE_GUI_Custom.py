@@ -24,19 +24,16 @@ class MyListWidget(QtWidgets.QListWidget):
 
     def dropEvent(self, e):
         if e.mimeData().hasText():  # 是否文本文件格式
-            # self.clear()
             for url in e.mimeData().urls():
-                self.addItem(url.toLocalFile())
+                items = self.get_items()
+                item = url.toLocalFile()
+                if item not in items:
+                    self.addItem(item)
         else:
             e.ignore()
 
     def dragEnterEvent(self, e):
-        if e.mimeData().hasText():  # 是否文本文件格式
-            # self.clear()
-            for url in e.mimeData().urls():
-                self.addItem(url.toLocalFile())
-        else:
-            e.ignore()
+        self.dropEvent(e)
 
     def get_items(self):
         widgetres = []
