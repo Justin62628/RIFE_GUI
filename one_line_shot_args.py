@@ -25,7 +25,7 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.3.3 2021/5/15")
+print("INFO - ONE LINE SHOT ARGS 6.3.4 2021/5/16")
 Utils = Utils()
 
 """Set Path Environment"""
@@ -428,7 +428,7 @@ class InterpWorkFlow:
         if os.path.isfile(self.args["output"]):
             self.project_dir = os.path.join(os.path.dirname(self.args["output"]), os.path.basename(self.args["input"]))
         else:
-            self.project_dir = os.path.join(self.args["output"], os.path.basename(self.args["input"]))
+            self.project_dir = os.path.join(self.args["output"], Utils.get_filename(self.args["input"]))
 
         if not os.path.exists(self.project_dir):
             os.mkdir(self.project_dir)
@@ -521,7 +521,7 @@ class InterpWorkFlow:
             self.frames_output_size = 100
         self.logger.info(f"Buffer Size to {self.frames_output_size}")
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
-        self.rife_task_queue = Queue(maxsize=self.frames_output_size // 2)
+        self.rife_task_queue = Queue(maxsize=self.frames_output_size)
         self.rife_thread = None  # 帧插值线程
         self.sr_module = SuperResolution()
         self.frame_reader = None  # 读帧的迭代器／帧生成器
@@ -643,10 +643,10 @@ class InterpWorkFlow:
 
             if "smpte2084" in color_trc or "bt2020" in color_trc:
                 hdr = True
-                self.args["encoder"] = "H265/HEVC"
-                self.args["hwaccel_mode"] = "None"
+                self.args["encoder"] = "H265, 10bit"
+                self.args["hwaccel_mode"] = "CPU"
                 if "master-display" in str(self.video_info["video_info"]):
-                    self.args["hwaccel_mode"] = "None"
+                    self.args["hwaccel_mode"] = "CPU"
                     params_265 += ":hdr10-opt=1:repeat-headers=1"
                     self.logger.warning("\nWARNING - Detect HDR10+ Content, Switch to NonHwaccel Compulsorily")
                 else:
@@ -654,8 +654,8 @@ class InterpWorkFlow:
 
             elif "arib-std-b67" in color_trc:
                 hdr = True
-                self.args["encoder"] = "H265/HEVC"
-                self.args["hwaccel_mode"] = "None"
+                self.args["encoder"] = "H265, 10bit"
+                self.args["hwaccel_mode"] = "CPU"
                 self.logger.warning("\nWARNING - HLG Content Detected, Switch to NonHwaccel Compulsorily")
             pass
 
@@ -1031,8 +1031,6 @@ class InterpWorkFlow:
             n = task["n"]
             exp = task["exp"]
             scale = task["scale"]
-            # if scale > self.args["scale"]:
-            #     scale = self.args["scale"]
             is_end = task["is_end"]
             add_scene = task["add_scene"]
             frames_list = [img0]
@@ -1043,9 +1041,11 @@ class InterpWorkFlow:
                 img0, img1 = self.sr_module.svfi_process(img0), self.sr_module.svfi_process(img1)
 
             if n > 0:
-                frames_list.extend(self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug))
+                interp_list = self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug)
+                frames_list.extend(interp_list)
             elif exp > 0:
-                frames_list.extend(self.rife_core.generate_interp(img0, img1, exp=exp, scale=scale, debug=debug))
+                interp_list = self.rife_core.generate_interp(img0, img1, exp=exp, scale=scale, debug=debug)
+                frames_list.extend(interp_list)
 
             if add_scene:
                 frames_list.append(img1)
@@ -1098,17 +1098,18 @@ class InterpWorkFlow:
             else:
                 h, w, _ = list(map(lambda x: round(x), img.shape))
 
-            # if w * h > 1920 * 1080:
-            #     if self.args["scale"] > 0.5:
-            #         self.args["scale"] = 0.5
-            #         self.logger.warning(f"Big Resolution (>1080p) Input found: Reset Scale to {self.args['scale']}")
+            if w * h > 1920 * 1080:
+                if self.args["scale"] > 0.5:
+                    self.args["scale"] = 0.5
+                self.logger.warning(f"Big Resolution (>1080p) Input found")
+            else:
+                self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
 
-            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
-
-            test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
-                                   np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
-            self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"], test=True)
-            self.logger.info(f"VRAM Test Success")
+                test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
+                                       np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
+                tmp = self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"], test=True)
+                self.logger.info(f"VRAM Test Success")
+                del test_img0, test_img1, tmp
         except Exception as e:
             self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
             raise e
@@ -1308,14 +1309,17 @@ class InterpWorkFlow:
             check_frame_list = self.get_check_frames_list(videogen_check)
             img0 = img1
             if not len(check_frame_list):
+                skip = 0
                 while True:
                     before_img = img1
                     img1 = self.crop_read_img(Utils.gen_next(videogen))
                     if img1 is None:
+                        is_end = True
                         img1 = before_img
-                        self.feed_to_rife(now_frame, img0, img1, is_end=is_end)  # TODO check redundant last frame added?
+                        self.feed_to_rife(now_frame, img1, img1, n=skip - 1,
+                                          is_end=is_end)  # TODO check redundant last frame added?
                         break
-                is_end = True
+                    skip += 1
                 break
 
             else:
@@ -1412,9 +1416,9 @@ class InterpWorkFlow:
         is_end = False
 
         """Update Interp Mode Info"""
-        if self.args.get("remove_dup_mode", 0) == 0:
+        if self.args.get("remove_dup_mode", 0) == 3:  # 朴素模式
             self.args["dup_threshold"] = self.args["dup_threshold"] if self.args["dup_threshold"] > 0.01 else 0.01
-        else:
+        else:  # 0， 不去除重复帧
             self.args["dup_threshold"] = 0.01
 
         """Start Process"""
@@ -1577,7 +1581,7 @@ class InterpWorkFlow:
 
         input_filenames = os.path.splitext(os.path.basename(self.input))
 
-        concat_filepath = f"{os.path.join(self.output, input_filenames[0])}"
+        concat_filepath = f"{os.path.join(self.output, Utils.get_filename(self.input))}"
         concat_filepath += f"_{int(self.target_fps)}fps"
         if self.args["slow_motion"]:
             concat_filepath += f"_slowmo_{self.args['slow_motion_fps']}"
@@ -1594,7 +1598,7 @@ class InterpWorkFlow:
 
         if self.args["save_audio"] and not self.args["img_input"]:
             audio_path = self.input
-            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy -shortest '
+            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy '  # TODO Check VA Sync Only
             if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
                 time_fmt = "%H:%M:%S"
                 start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)

@@ -60,11 +60,12 @@ class RifeInterpolation:
             from Utils.model.RIFE_HDv3 import Model
             self.model = Model()
             self.model.load_model(self.model_path, -1)
-            print(f"INFO - Load v2 model")
+            print(f"INFO - Load v3 model")
         except:
             del Model
-            self.model = None
+            del self.model
             gc.collect()
+            torch.cuda.empty_cache()
             try:
                 from Utils.model.RIFE_HD import Model
                 self.model = Model()
@@ -72,13 +73,13 @@ class RifeInterpolation:
                 print(f"INFO - Load v1 model")
             except:
                 del Model
-                self.model = None
+                del self.model
                 gc.collect()
+                torch.cuda.empty_cache()
                 from Utils.model.RIFE_HDv2 import Model
-                # from Utils.model.RIFE_HDv3 import Model
                 self.model = Model()
                 self.model.load_model(self.model_path, -1)
-                print(f"INFO - Load v3 model")
+                print(f"INFO - Load v2 model")
 
         print(f"INFO - Load model at {os.path.basename(self.model_path)}")
 
@@ -113,6 +114,7 @@ class RifeInterpolation:
             mid = self.model.inference(i2, i1, scale)
         del i1, i2
         mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
+        torch.cuda.empty_cache()
         if n == 1:
             return [mid]
         first_half = self.__make_n_inference(img1, mid, scale, n=n // 2)
@@ -145,7 +147,8 @@ class RifeInterpolation:
         try:
             img_torch = torch.from_numpy(np.transpose(img, (2, 0, 1))).to(self.device, non_blocking=True).unsqueeze(
                 0).float() / 255.
-            return self.pad_image(img_torch, padding)
+            torch_img = self.pad_image(img_torch, padding)
+            return torch_img
         except Exception as e:
             print(img)
             traceback.print_exc()
