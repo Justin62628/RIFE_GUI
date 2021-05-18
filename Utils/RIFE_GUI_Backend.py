@@ -45,6 +45,7 @@ class SVFI_Config_Manager:
     """
     SVFI 配置文件管理类
     """
+
     def __init__(self, **kwargs):
         self.filename = ""
         self.dirname = dname
@@ -204,7 +205,7 @@ class SVFI_Run_Others(QThread):
 class SVFI_Run(QThread):
     run_signal = pyqtSignal(str)
 
-    def __init__(self, parent=None, concat_only=False, extract_only=False):
+    def __init__(self, parent=None, concat_only=False, extract_only=False, render_only=False):
         """
         
         :param parent:
@@ -214,6 +215,7 @@ class SVFI_Run(QThread):
         super(SVFI_Run, self).__init__(parent)
         self.concat_only = concat_only
         self.extract_only = extract_only
+        self.render_only = render_only
         self.command = ""
         self.current_proc = None
         self.kill = False
@@ -262,6 +264,8 @@ class SVFI_Run(QThread):
             self.command += f"--concat-only "
         if self.extract_only:
             self.command += f"--extract-only "
+        if self.render_only:
+            self.command += f"--render-only "
 
         self.command = self.command.replace("\\", "/")
         return self.command
@@ -559,6 +563,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.EndPoint.setTime(QTime.fromString(appData.value("end_point", "00:00:00"), "HH:mm:ss"))
 
         self.ScdetSelector.setValue(appData.value("scdet_threshold", 12, type=int))
+        self.ScdetUseMix.setChecked(appData.value("scdet_mix", False, type=bool))
         # self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupRmMode.setCurrentIndex(appData.value("remove_dup_mode", 0, type=int))
         self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
@@ -624,6 +629,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("hwaccel_preset", self.HwaccelPresetSelector.currentText())
         appData.setValue("no_scdet", not self.ScedetChecker.isChecked())
         appData.setValue("use_fixed_scdet", self.UseFixedScdet.isChecked())
+        appData.setValue("scdet_mix", self.ScdetUseMix.isChecked())
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
         appData.setValue("fixed_max_scdet", self.ScdetMaxDiffSelector.value())
         # appData.setValue("remove_dup", self.DupRmChecker.isChecked())
@@ -847,6 +853,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             self.sendWarning("任务完成", complete_msg, 2)
             self.ConcatAllButton.setEnabled(True)
             self.StartExtractButton.setEnabled(True)
+            self.StartRenderButton.setEnabled(True)
             self.AllInOne.setEnabled(True)
             self.current_failed = False
 
@@ -1302,8 +1309,6 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.quick_gif()
         pass
 
-
-
     @pyqtSlot(bool)
     def on_MBufferChecker_clicked(self):
         logger.info("Switch To Manual Assign Buffer Size Mode: %s" % self.MBufferChecker.isChecked())
@@ -1473,6 +1478,24 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                                  "\n\n\n\n\n")
 
     @pyqtSlot(bool)
+    def on_StartRenderButton_clicked(self):
+        """
+
+        :return:
+        """
+        self.load_current_settings()
+        self.StartRenderButton.setEnabled(False)
+        self.tabWidget.setCurrentIndex(1)
+        self.progressBar.setValue(0)
+        RIFE_thread = SVFI_Run(render_only=True)
+        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.start()
+        self.thread = RIFE_thread
+        self.OptionCheck.setText("[仅渲染操作启动，图片序列将会按照补帧规则输出。请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
+                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
+                                 "\n\n\n\n\n")
+
+    @pyqtSlot(bool)
     def on_KillProcButton_clicked(self):
         """
         :return:
@@ -1551,6 +1574,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     def on_OutputSettingsButton_clicked(self):
         self.generate_log(1)
         self.sendWarning("Generate Success", "设置导出成功！settings.log即为设置快照", 3)
+        pass
+
+    @pyqtSlot(bool)
+    def on_RefreshStartInfo_clicked(self):
+        self.set_start_info(0, 1)
         pass
 
     @pyqtSlot(bool)

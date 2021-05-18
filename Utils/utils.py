@@ -77,6 +77,7 @@ class DefaultConfigParser(ConfigParser):
     """
     自定义参数提取
     """
+
     def get(self, section, option, fallback=None, raw=False):
         try:
             d = self._unify_values(section, None)
@@ -320,6 +321,17 @@ class Utils:
             scale += 1
         return scale
 
+    def get_mixed_scenes(self, img0, img1, n):
+        step = 1 / n
+        alpha = 0
+        output = list()
+        for _ in range(n - 1):
+            alpha += step
+            beta = 1 - alpha
+            mix = cv2.addWeighted(img0[:, :, ::-1], beta, img1[:, :, ::-1], alpha, 0)[:, :, ::-1].copy()
+            output.append(mix)
+        return output
+
 
 class ImgSeqIO:
     def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, **kwargs):
@@ -339,6 +351,10 @@ class ImgSeqIO:
         self.use_imdecode = False
         self.resize = (0, 0)
         self.resize_flag = False
+        if "exp" in kwargs:
+            self.exp = kwargs["exp"]
+        else:
+            self.exp = 0
         if "resize" in kwargs and len(kwargs["resize"]):
             self.resize = list(map(lambda x: int(x), kwargs["resize"].split("x")))
             self.resize_flag = True
@@ -369,7 +385,7 @@ class ImgSeqIO:
             # print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
 
     def get_frames_cnt(self):
-        return len(self.img_list)
+        return len(self.img_list) * 2 ** self.exp
 
     def read_frame(self, path):
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), 1)[:, :, ::-1].copy()
@@ -385,7 +401,8 @@ class ImgSeqIO:
     def nextFrame(self):
         for p in self.img_list:
             img = self.read_frame(p)
-            yield img
+            for e in range(2 ** self.exp):
+                yield img
 
     def write_buffer(self):
         while True:
