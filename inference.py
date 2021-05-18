@@ -1,4 +1,3 @@
-import gc
 import os
 import traceback
 import warnings
@@ -32,59 +31,52 @@ class RifeInterpolation:
         if self.initiated:
             return
 
-        if not torch.cuda.is_available() or __args["force_cpu"]:
+        torch.set_grad_enabled(False)
+        if not torch.cuda.is_available():
             self.device = torch.device("cpu")
-            from Utils.model_cpu.RIFE_HDv2 import Model
+            self.args["fp16"] = False
             print("INFO - use cpu to interpolate")
         else:
             self.device = torch.device("cuda")
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.benchmark = True
 
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
-        if self.args["fp16"]:
-            try:
-                torch.set_default_tensor_type(torch.cuda.HalfTensor)
-                print("INFO - FP16 mode switch success")
-            except Exception as e:
-                print("INFO - FP16 mode switch failed")
-                traceback.print_exc()
-                self.args["fp16"] = False
+            if self.args["fp16"]:
+                try:
+                    torch.set_default_tensor_type(torch.cuda.HalfTensor)
+                    print("INFO - FP16 mode switch success")
+                except Exception as e:
+                    print("INFO - FP16 mode switch failed")
+                    traceback.print_exc()
+                    self.args["fp16"] = False
 
-        torch.set_grad_enabled(False)
         if self.args["selected_model"] == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
             self.model_path = self.args["selected_model"]
 
         try:
-            from Utils.model.RIFE_HDv3 import Model
-            self.model = Model()
-            self.model.load_model(self.model_path, -1)
-            print(f"INFO - Load v3 model")
-        except:
-            del Model
-            del self.model
-            gc.collect()
-            torch.cuda.empty_cache()
             try:
-                from Utils.model.RIFE_HD import Model
-                self.model = Model()
-                self.model.load_model(self.model_path, -1)
-                print(f"INFO - Load v1 model")
-            except:
-                del Model
-                del self.model
-                gc.collect()
-                torch.cuda.empty_cache()
                 from Utils.model.RIFE_HDv2 import Model
-                self.model = Model()
-                self.model.load_model(self.model_path, -1)
-                print(f"INFO - Load v2 model")
+                model = Model()
+                model.load_model(self.model_path, -1)
+                print("INFO - Loaded v2.x HD model.")
+            except:
+                from Utils.model.RIFE_HDv3 import Model
+                model = Model()
+                model.load_model(self.model_path, -1)
+                print("INFO - Loaded v3.x HD model.")
+        except:
+            from Utils.model.RIFE_HD import Model
+            model = Model()
+            model.load_model(self.model_path, -1)
+            print("INFO - Loaded v1.x HD model")
 
-        print(f"INFO - Load model at {os.path.basename(self.model_path)}")
+        self.model = model
 
         self.model.eval()
         self.model.device()
+        print(f"INFO - Load model at {self.model_path}")
         self.initiated = True
 
     def __make_inference(self, img1, img2, scale, exp):
@@ -107,14 +99,12 @@ class RifeInterpolation:
         padding, h, w = self.generate_padding(img1, scale)
         i1 = self.generate_torch_img(img1, padding)
         i2 = self.generate_torch_img(img2, padding)
-
         if self.args["reverse"]:
             mid = self.model.inference(i1, i2, scale)
         else:
             mid = self.model.inference(i2, i1, scale)
         del i1, i2
         mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
-        torch.cuda.empty_cache()
         if n == 1:
             return [mid]
         first_half = self.__make_n_inference(img1, mid, scale, n=n // 2)
@@ -124,7 +114,7 @@ class RifeInterpolation:
         else:
             return [*first_half, *second_half]
 
-    def generate_padding(self, img, scale):
+    def generate_padding(self, img, scale: float):
         """
 
         :param scale:
@@ -147,8 +137,7 @@ class RifeInterpolation:
         try:
             img_torch = torch.from_numpy(np.transpose(img, (2, 0, 1))).to(self.device, non_blocking=True).unsqueeze(
                 0).float() / 255.
-            torch_img = self.pad_image(img_torch, padding)
-            return torch_img
+            return self.pad_image(img_torch, padding)
         except Exception as e:
             print(img)
             traceback.print_exc()
@@ -163,7 +152,6 @@ class RifeInterpolation:
     def generate_interp(self, img1, img2, exp, scale, n=None, debug=False, test=False):
         """
 
-        :param test:
         :param img1: cv2.imread
         :param img2:
         :param exp:
@@ -186,21 +174,16 @@ class RifeInterpolation:
             interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
         else:
             interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
-        if test:
-            torch.cuda.empty_cache()
         return interp_gen
 
-    def generate_n_interp(self, img1, img2, n, scale, debug=False):
+    def generate_n_interp(self, img1, img2, n, scale, debug=False, test=False):
         if debug:
             output_gen = list()
             for i in range(n):
                 output_gen.append(img1)
             return output_gen
-        interp_gen = self.__make_n_inference(img1, img2, scale, n)
+        interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
         return interp_gen
-
-    def get_auto_scale(self, img1, img2, scale):
-        pass
 
     def run(self):
         pass

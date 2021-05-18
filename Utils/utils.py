@@ -74,6 +74,9 @@ class CommandResult:
 
 
 class DefaultConfigParser(ConfigParser):
+    """
+    自定义参数提取
+    """
     def get(self, section, option, fallback=None, raw=False):
         try:
             d = self._unify_values(section, None)

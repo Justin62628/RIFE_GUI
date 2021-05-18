@@ -25,16 +25,17 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.3.4 2021/5/16")
+print("INFO - ONE LINE SHOT ARGS 6.3.7 2021/5/18")
 Utils = Utils()
 
-"""Set Path Environment"""
+"""设置环境路径"""
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 print("Changing working dir to {0}".format(dname))
 os.chdir(os.path.dirname(dname))
 sys.path.append(dname)
 
+"""输入命令行参数"""
 parser = argparse.ArgumentParser(prog="#### RIFE CLI tool/补帧分步设置命令行工具 by Jeanna ####",
                                  description='Interpolation for sequences of images')
 basic_parser = parser.add_argument_group(title="Basic Settings, Necessary")
@@ -47,22 +48,25 @@ basic_parser.add_argument('--concat-only', dest='concat_only', action='store_tru
 basic_parser.add_argument('--extract-only', dest='extract_only', action='store_true', help='只执行拆帧操作')
 
 args_read = parser.parse_args()
-cp = DefaultConfigParser(allow_no_value=True)
+cp = DefaultConfigParser(allow_no_value=True)  # 把SVFI GUI传来的参数格式化
 cp.read(args_read.config, encoding='utf-8')
 cp_items = dict(cp.items("General"))
 args = Utils.clean_parsed_config(cp_items)
 args.update(vars(args_read))  # update -i -o -c，将命令行参数更新到config生成的字典
 
-# 设置可见的gpu
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
+"""设置可见的gpu"""
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 if int(args["use_specific_gpu"]) != -1:
     os.environ["CUDA_VISIBLE_DEVICES"] = f"{args['use_specific_gpu']}"
 
+"""强制使用CPU"""
 if args["force_cpu"]:
     os.environ["CUDA_VISIBLE_DEVICES"] = f""
 
 
 class RifeInterpolation:
+    """Rife 补帧 抽象类"""
+
     def __init__(self, __args):
         self.initiated = False
         self.args = {}
@@ -124,6 +128,10 @@ class RifeInterpolation:
 
 
 class SuperResolution:
+    """
+    超分抽象类
+    """
+
     def __init__(
             self,
             gpuid=0,
@@ -146,9 +154,12 @@ class SuperResolution:
         return im
 
     def svfi_process(self, img):
+        """
+        SVFI 用于超分的接口
+        :param img:
+        :return:
+        """
         return img
-
-    pass
 
 
 class SvfiWaifu(Waifu2x):
@@ -183,10 +194,20 @@ class SvfiRealSR(RealSR):
         return image
 
 
+class PathManager:
+    """
+    路径管理器
+    """
+
+    def __init__(self):
+        pass
+
+
 class VideoInfo:
-    def __init__(self, input, HDR=False, ffmpeg=None, img_input=False, **kwargs):
+    def __init__(self, input, HDR=False, ffmpeg=None, img_input=False, strict_mode=False, **kwargs):
         self.filepath = input
         self.img_input = img_input
+        self.strict_mode = strict_mode
         self.ffmpeg = "ffmpeg"
         self.ffprobe = "ffprobe"
         if ffmpeg is not None:
@@ -196,7 +217,7 @@ class VideoInfo:
             self.ffmpeg = "ffmpeg"
             self.ffprobe = "ffprobe"
         self.color_info = dict()
-        if HDR:
+        if HDR:  # this should not be used
             self.color_info.update({"-colorspace": "bt2020nc",
                                     "-color_trc": "smpte2084",
                                     "-color_primaries": "bt2020",
@@ -296,26 +317,40 @@ class VideoInfo:
 
 
 class TransitionDetection:
-    def __init__(self, scene_stack_length, fixed_scdet=False, scdet_threshold=50, output="", no_scdet=False,
+    def __init__(self, scene_stack_length, scdet_threshold=50, output="", no_scdet=False,
                  use_fixed_scdet=False, fixed_max_scdet=50, **kwargs):
+        """
+        转场检测类
+        :param scene_stack_length: 转场判定队列长度
+        :param fixed_scdet:
+        :param scdet_threshold: （标准输入）转场阈值
+        :param output: 输出
+        :param no_scdet: 不进行转场识别
+        :param use_fixed_scdet: 使用固定转场阈值
+        :param fixed_max_scdet: 使用的最大转场阈值
+        :param kwargs:
+        """
         self.scdet_threshold = scdet_threshold
-        self.fixed_scdet = fixed_scdet
         self.scdet_cnt = 0
         self.scene_stack_len = scene_stack_length
         self.absdiff_queue = deque(maxlen=self.scene_stack_len)  # absdiff队列
         self.utils = Utils
-        self.dead_thres = 80
-        self.born_thres = 2
+        self.dead_thres = 80  # 写死最高的absdiff
+        self.born_thres = 1  # 写死判定为非转场的最低阈值
         self.img1 = None
         self.img2 = None
-        self.scdet_cnt = 0
-        self.scene_dir = os.path.join(os.path.dirname(output), "scene")
-        # if not os.path.exists(self.scene_dir):
-        #     os.mkdir(self.scene_dir, )
-        self.scene_stack = Queue(maxsize=scene_stack_length)
+        self.scdet_cnt = 0  # 识别到的转场计数
+        self.scene_dir = os.path.join(os.path.dirname(output), "scene")  # 存储转场图片的文件夹路径
+        self.scene_stack = Queue(maxsize=self.scene_stack_len)  # 转场识别队列
         self.no_scdet = no_scdet
         self.use_fixed_scdet = use_fixed_scdet
-        self.scedet_info = {"scene": 0, "normal": 0, "dup": 0, "recent_scene": -1}  # 帧种类，0为转场，1为正常帧，1+为重复帧，即两帧之间的计数关系
+        self.scedet_info = {"scene": 0, "normal": 0, "dup": 0, "recent_scene": -1}
+        # 帧种类，scene为转场，normal为正常帧，dup为重复帧，即两帧之间的计数关系
+
+        if kwargs.get("remove_dup_mode", 0) in [1, 2]:
+            """去除重复帧一拍二或N"""
+            self.scene_stack_len = 6  # 写死
+
         if self.use_fixed_scdet:
             self.scdet_threshold = fixed_max_scdet
 
@@ -325,6 +360,10 @@ class TransitionDetection:
         return reg.coef_, reg.intercept_
 
     def __check_var(self):
+        """
+        计算“转场”方差
+        :return:
+        """
         coef, intercept = self.__check_coef()
         coef_array = coef * np.array(range(len(self.absdiff_queue))).reshape(-1, 1) + intercept
         diff_array = np.array(self.absdiff_queue)
@@ -335,7 +374,7 @@ class TransitionDetection:
         var_before = self.__check_var()
         self.absdiff_queue.append(diff)
         var_after = self.__check_var()
-        if var_after - var_before > self.scdet_threshold and diff > self.born_thres:
+        if abs(var_after - var_before) > self.scdet_threshold and diff > self.born_thres:
             """Detect new scene"""
             self.see_result(
                 f"diff: {diff:.3f}, before: {var_before:.3f}, after: {var_after:.3f}, cnt: {self.scdet_cnt + 1}")
@@ -344,6 +383,7 @@ class TransitionDetection:
             return True
         else:
             if diff > self.dead_thres:
+                """不漏掉死差转场"""
                 self.absdiff_queue.clear()
                 self.see_result(f"diff: {diff:.3f}, False Alarm, cnt: {self.scdet_cnt + 1}")
                 self.scdet_cnt += 1
@@ -362,6 +402,7 @@ class TransitionDetection:
             self.see_result(title)
 
     def see_result(self, title):
+        """捕捉转场帧预览"""
         return
         comp_stack = np.hstack((self.img1, self.img2))
         cv2.namedWindow(title, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
@@ -373,39 +414,45 @@ class TransitionDetection:
 
     def check_scene(self, img1, img2, add_diff=False, no_diff=False, use_diff=-1.0) -> bool:
         """
-        Check if current scene is scene
-        :param use_diff:
+        检查当前img1是否是转场
+        :param use_diff: 使用已计算出的absdiff
         :param img2:
         :param img1:
-        :param add_diff:
-        :param no_diff: check after "add_diff" mode
-        :return: 是转场则返回帧
+        :param add_diff: 仅添加absdiff到计算队列中
+        :param no_diff: 和add_diff配合使用，使用即时算出的diff判断img1是否是转场
+        :return: 是转场则返回真
         """
 
         if self.no_scdet:
             return False
+
         if use_diff != -1:
             diff = use_diff
         else:
             diff = self.utils.get_norm_img_diff(img1, img2)
-        if self.fixed_scdet:
+
+        if self.use_fixed_scdet:
             if diff < self.scdet_threshold:
                 return False
             else:
                 self.scdet_cnt += 1
                 return True
+
+        if diff < 0.001:
+            """重复帧之间不可能是转场"""
+            return False
+
         self.img1 = img1
         self.img2 = img2
 
-        if len(self.absdiff_queue) < self.scene_stack_len or add_diff:
-            if diff not in self.absdiff_queue or self.utils.check_pure_img(img1):
-                """检测到纯色图片，那么下一帧大概率可以被识别为转场"""
-                self.absdiff_queue.append(diff)
+        if len(self.absdiff_queue) < self.scene_stack_len or add_diff or self.utils.check_pure_img(img1):
+            """检测到纯色图片，那么下一帧大概率可以被识别为转场"""
+            self.absdiff_queue.append(diff)
             return False
 
-        """Duplicate Frames Special Judge"""
+        """重复帧特判"""
         if no_diff and len(self.absdiff_queue):
-            self.absdiff_queue.pop()
+            self.absdiff_queue.pop()  # 弹出上一个帧
             if not len(self.absdiff_queue):
                 return False
 
@@ -413,6 +460,7 @@ class TransitionDetection:
         return self.__judge_mean(diff)
 
     def update_scene_status(self, recent_scene, scene_type: str):
+        """更新转场检测状态"""
         self.scedet_info[scene_type] += 1
         if scene_type == "scene":
             self.scedet_info["recent_scene"] = recent_scene
@@ -425,6 +473,7 @@ class InterpWorkFlow:
     def __init__(self, __args: dict, **kwargs):
         self.args = __args
 
+        """获得补帧输出路径"""
         if os.path.isfile(self.args["output"]):
             self.project_dir = os.path.join(os.path.dirname(self.args["output"]), os.path.basename(self.args["input"]))
         else:
@@ -479,15 +528,10 @@ class InterpWorkFlow:
         else:
             if self.args["target_fps"]:
                 self.target_fps = self.args["target_fps"]
-                if abs(self.args["target_fps"] - 2 ** self.exp * self.fps) > 1e-3:
-                    """Activate Any FPS Mode"""
-                    self.logger.info(
-                        f"Activate Any FPS Mode: fps: {self.fps:.2f} -> target_fps: {self.args['target_fps']:.2f}")
             else:
                 self.target_fps = (2 ** self.exp) * self.fps
 
         """Update All Frames Count"""
-        self.all_frames_cnt = int(self.video_info["cnt"])  # 视频总帧数
         self.all_frames_cnt = int(self.video_info["duration"] * self.target_fps)
 
         """Crop Video"""
@@ -510,6 +554,7 @@ class InterpWorkFlow:
 
         """Guess Memory and Render System"""
         if self.args["use_manual_buffer"]:
+            # 手动指定内存占用量
             free_mem = self.args["manual_buffer_size"] * 1024
         else:
             mem = psutil.virtual_memory()
@@ -520,14 +565,15 @@ class InterpWorkFlow:
         if self.frames_output_size < 100:
             self.frames_output_size = 100
         self.logger.info(f"Buffer Size to {self.frames_output_size}")
+
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
-        self.rife_task_queue = Queue(maxsize=self.frames_output_size)
-        self.rife_thread = None  # 帧插值线程
-        self.sr_module = SuperResolution()
+        self.rife_task_queue = Queue(maxsize=self.frames_output_size)  # 补帧任务队列（生产者）
+        self.rife_thread = None  # 帧插值预处理线程（生产者）
+        self.sr_module = SuperResolution()  # 超分类
         self.frame_reader = None  # 读帧的迭代器／帧生成器
         self.render_gap = self.args["render_gap"]  # 每个chunk的帧数
         self.render_thread = None  # 帧渲染器
-        self.render_info_pipe = {"rendering": (0, 0, 0, 0)}  # 有关渲染的实时信息，目前只有一个key
+        self.task_info = {"chunk_cnt": -1, "render": -1, "now_frame": -1}  # 有关渲染的实时信息
 
         """Scene Detection"""
         self.scene_detection = TransitionDetection(int(0.5 * self.fps), **self.args)
@@ -546,12 +592,13 @@ class InterpWorkFlow:
             if k.startswith("-"):
                 self.color_info[k] = self.video_info[k]
 
-        """Set output extension"""
+        """maintain output extension"""
         self.output_ext = "." + self.args["output_ext"]
         if self.args["encoder"] == "ProRes":
             self.output_ext = ".mov"
 
         self.main_error = None
+        self.first_hdr_check_report = True
         pass
 
     def generate_frame_reader(self, start_frame=-1, frame_check=False):
@@ -569,8 +616,9 @@ class InterpWorkFlow:
             return img_io
 
         """If input is a video"""
-        input_dict = {"-vsync": "0", "-hwaccel": "auto"}
+        input_dict = {"-vsync": "cfr", "-hwaccel": "auto"}
         if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
+            """任意时段补帧"""
             time_fmt = "%H:%M:%S"
             start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
             end_point = datetime.datetime.strptime(self.args["end_point"], time_fmt)
@@ -586,11 +634,13 @@ class InterpWorkFlow:
                 self.logger.warning(f"Input Time Section change to origianl course")
 
         output_dict = {
-            "-vframes": str(int(abs(self.all_frames_cnt * 100)))}  # use read frames cnt to avoid ffprobe, fuck
+            "-vframes": str(int(abs(self.all_frames_cnt * 100))),
+            "-r": f"{self.target_fps}"}  # use read frames cnt to avoid ffprobe, fuck
 
         output_dict.update(self.color_info)
 
         if frame_check:
+            """用以一拍二一拍N除重模式的预处理"""
             output_dict.update({"-sws_flags": "lanczos+full_chroma_inp",
                                 "-s": "256x256"})
         elif len(self.args["resize"]) and not self.args["use_sr"]:
@@ -598,7 +648,6 @@ class InterpWorkFlow:
                                 "-s": self.args["resize"].replace(":", "x").replace("*", "x")})
 
         vf_args = f"copy"
-        vf_args += f",minterpolate=fps={self.target_fps}:mi_mode=dup"
         if start_frame not in [-1, 0]:
             vf_args += f",trim=start_frame={start_frame}"
 
@@ -617,8 +666,6 @@ class InterpWorkFlow:
         :param output_path:
         :return:
         """
-        hdr = False
-        first_report = True
         params_265 = ("ref=4:rd=3:no-rect=1:no-amp=1:b-intra=1:rdoq-level=2:limit-tu=4:me=3:subme=5:"
                       "weightb=1:no-strong-intra-smoothing=1:psy-rd=2.0:psy-rdoq=1.0:no-open-gop=1:"
                       f"keyint={int(self.target_fps * 3)}:min-keyint=1:rc-lookahead=120:bframes=6:"
@@ -626,7 +673,7 @@ class InterpWorkFlow:
                       f"deblock=-1:no-sao=1")
 
         def HDRChecker():
-            nonlocal hdr, params_265, first_report
+            nonlocal params_265
             if self.args["img_input"]:
                 return
 
@@ -634,9 +681,10 @@ class InterpWorkFlow:
                 self.logger.warning("Strict Mode, Skip HDR Check")
                 return
 
-            if "color_transfer" not in self.video_info["video_info"] and first_report:
-                self.logger.warning("Not Find Color Transfer\n%s" % str(self.video_info["video_info"]))
-                first_report = False
+            if "color_transfer" not in self.video_info["video_info"]:
+                if self.first_hdr_check_report:
+                    self.logger.warning("Not Find Color Transfer\n%s" % str(self.video_info["video_info"]))
+                    self.first_hdr_check_report = False
                 return
 
             color_trc = self.video_info["video_info"]["color_transfer"]
@@ -648,15 +696,15 @@ class InterpWorkFlow:
                 if "master-display" in str(self.video_info["video_info"]):
                     self.args["hwaccel_mode"] = "CPU"
                     params_265 += ":hdr10-opt=1:repeat-headers=1"
-                    self.logger.warning("\nWARNING - Detect HDR10+ Content, Switch to NonHwaccel Compulsorily")
+                    self.logger.warning("\nWARNING - Detect HDR10+ Content, Switch to CPU Render Compulsorily")
                 else:
-                    self.logger.warning("\nWARNING - PQ or BT2020 Content Detected, Switch to NonHwaccel Compulsorily")
+                    self.logger.warning("\nWARNING - PQ or BT2020 Content Detected, Switch to CPU Render Compulsorily")
 
             elif "arib-std-b67" in color_trc:
                 hdr = True
                 self.args["encoder"] = "H265, 10bit"
                 self.args["hwaccel_mode"] = "CPU"
-                self.logger.warning("\nWARNING - HLG Content Detected, Switch to NonHwaccel Compulsorily")
+                self.logger.warning("\nWARNING - HLG Content Detected, Switch to CPU Render Compulsorily")
             pass
 
         """If output is sequence of frames"""
@@ -664,7 +712,8 @@ class InterpWorkFlow:
             return ImgSeqIO(folder=self.output, is_read=False, **self.args)
 
         """HDR Check"""
-        HDRChecker()
+        if self.first_hdr_check_report:
+            HDRChecker()
 
         """Output Video"""
         input_dict = {"-vsync": "cfr"}
@@ -697,25 +746,25 @@ class InterpWorkFlow:
         """CRF / Bitrate Controll"""
         if self.args["hwaccel_mode"] == "CPU":
             if "H264" in self.args["encoder"]:
-                """
-                -preset:v [ultrafast-placebo] crf=[0-51] -pix_fmt [ yuv420p / yuv420p10 ]
-                """
                 output_dict.update({"-c:v": "libx264", "-preset:v": self.args["preset"]})
                 if "8bit" in self.args["encoder"]:
                     output_dict.update({"-pix_fmt": "yuv420p", "-profile:v": "high",
                                         "-weightb": "1", "-weightp": "2", "-mbtree": "1", "-forced-idr": "1",
                                         "-coder": "1",
-                                        "-x264-params": "keyint=200:min-keyint=1:bframes=6:b-adapt=2:no-open-gop=1:ref=8:deblock='-1:-1':rc-lookahead=50:chroma-qp-offset=-2:aq-mode=1:aq-strength=0.8:qcomp=0.75:me=umh:merange=24:subme=10:psy-rd='1:0.1'",
+                                        "-x264-params": "keyint=200:min-keyint=1:bframes=6:b-adapt=2:no-open-gop=1:"
+                                                        "ref=8:deblock='-1:-1':rc-lookahead=50:chroma-qp-offset=-2:"
+                                                        "aq-mode=1:aq-strength=0.8:qcomp=0.75:me=umh:merange=24:"
+                                                        "subme=10:psy-rd='1:0.1'",
                                         })
                 else:
                     """10bit"""
-                    """
-                    ffmpeg -i [.png] -c:v libx264 -preset:v [ultrafast-placebo] -profile:v high10 -weightb 1 -weightp 2 -mbtree 1 -forced-idr 1 -coder 1 -crf=[-12-51] -x264-params "keyint=200:min-keyint=1:bframes=6:b-adapt=2:no-open-gop=1:ref=8:deblock='-1:-1':rc-lookahead=50:chroma-qp-offset=-2:aq-mode=1:aq-strength=0.8:qcomp=0.75:me=umh:merange=24:subme=10:psy-rd='1:0.1':colorprim=bt709:transfer=bt709:colormatrix=bt709" -pix_fmt yuv420p10 [.mp4]
-                    """
                     output_dict.update({"-pix_fmt": "yuv420p10", "-profile:v": "high10",
                                         "-weightb": "1", "-weightp": "2", "-mbtree": "1", "-forced-idr": "1",
                                         "-coder": "1",
-                                        "-x264-params": "keyint=200:min-keyint=1:bframes=6:b-adapt=2:no-open-gop=1:ref=8:deblock='-1:-1':rc-lookahead=50:chroma-qp-offset=-2:aq-mode=1:aq-strength=0.8:qcomp=0.75:me=umh:merange=24:subme=10:psy-rd='1:0.1'",
+                                        "-x264-params": "keyint=200:min-keyint=1:bframes=6:b-adapt=2:no-open-gop=1:"
+                                                        "ref=8:deblock='-1:-1':rc-lookahead=50:chroma-qp-offset=-2:"
+                                                        "aq-mode=1:aq-strength=0.8:qcomp=0.75:me=umh:merange=24:"
+                                                        "subme=10:psy-rd='1:0.1'",
                                         })
             elif "H265" in self.args["encoder"]:
                 output_dict.update({"-c:v": "libx265", "-preset:v": self.args["preset"]})
@@ -804,12 +853,15 @@ class InterpWorkFlow:
         """
         chunk_list = list()
         chunk_regex = rf"chunk-[\d+].*?\{self.output_ext}"
+
+        """获得现有区块"""
         for f in os.listdir(self.project_dir):
             if re.match(chunk_regex, f):
                 if del_chunk:
                     os.remove(os.path.join(self.project_dir, f))
                 else:
                     chunk_list.append(f)
+
         """If remove only"""
         if del_chunk:
             return 1, 0
@@ -834,16 +886,16 @@ class InterpWorkFlow:
         last_frame = int(match_result[2])
         return chunk + 1, last_frame + 1
 
-    def render(self, chunk_cnt, render_start):
+    def render(self, chunk_cnt, render):
         """
         Render thread
         :param chunk_cnt:
-        :param render_start:
+        :param render:
         :return:
         """
 
         def rename_chunk():
-            chunk_desc_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}{}".format(chunk_cnt, render_start, now_frame,
+            chunk_desc_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}{}".format(chunk_cnt, render, now_frame,
                                                                        self.output_ext)
             chunk_desc_path = os.path.join(self.project_dir, chunk_desc_path)
             if os.path.exists(chunk_desc_path):
@@ -862,7 +914,9 @@ class InterpWorkFlow:
 
             concat_filepath = f"{os.path.join(self.output, 'concat_test')}" + output_ext
             map_audio = f'-i "{self.input}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy -shortest '
-            ffmpeg_command = f'{self.ffmpeg} -hide_banner -i "{chunk_tmp_path}" {map_audio} -c:v copy {Utils.fillQuotation(concat_filepath)} -y'
+            ffmpeg_command = f'{self.ffmpeg} -hide_banner -i "{chunk_tmp_path}" {map_audio} -c:v copy ' \
+                             f'{Utils.fillQuotation(concat_filepath)} -y'
+
             self.logger.info("Start Audio Concat Test")
             os.system(ffmpeg_command)
             if not os.path.exists(concat_filepath) or not os.path.getsize(concat_filepath):
@@ -878,7 +932,7 @@ class InterpWorkFlow:
         chunk_tmp_path = os.path.join(self.project_dir, f"chunk-tmp{self.output_ext}")
         frame_writer = self.generate_frame_renderer(chunk_tmp_path)  # get frame renderer
 
-        now_frame = render_start
+        now_frame = render
         while True:
             if not self.main_event.is_set():
                 self.logger.warning("Main interpolation thread Dead, break")  # 主线程已结束，这里的锁其实没用，调试用的
@@ -898,7 +952,7 @@ class InterpWorkFlow:
             frame_writer.writeFrame(frame)
 
             chunk_frame_cnt += 1
-            self.render_info_pipe["rendering"] = (chunk_cnt, render_start, now_frame, now_frame)  # update render info
+            self.task_info.update({"chunk_cnt": chunk_cnt, "render": now_frame})  # update render info
 
             if not chunk_frame_cnt % self.render_gap:
                 frame_writer.close()
@@ -907,16 +961,14 @@ class InterpWorkFlow:
                     concat_test_flag = False
                 rename_chunk()
                 chunk_cnt += 1
-                render_start = now_frame + 1
+                render = now_frame + 1
                 frame_writer = self.generate_frame_renderer(chunk_tmp_path)
         return
 
-    def feed_to_render(self, frames_list: list, is_scene=False, is_end=False, skipper=0):
+    def feed_to_render(self, frames_list: list, is_end=False):
         """
         维护输出帧数组的输入（往输出渲染线程喂帧
-        :param skipper:
         :param frames_list:
-        :param is_scene: 是否是转场
         :param is_end: 是否是视频结尾
         :return:
         """
@@ -937,20 +989,20 @@ class InterpWorkFlow:
 
     def feed_to_rife(self, now_frame: int, img0, img1, n=0, exp=0, is_end=False, add_scene=False, ):
         """
-
-        :param now_frame:
-        :param add_scene:
+        创建任务，输出到补帧任务队列消费者
+        :param now_frame:当前帧数
+        :param add_scene:加入转场的前一帧（避免音画不同步和转场鬼畜）
         :param img0:
         :param img1:
-        :param n:
-        :param exp:
-        :param is_end:
+        :param n:要补的帧数
+        :param exp:使用指定的补帧倍率（2**exp）
+        :param is_end:是否是任务结束
         :return:
         """
 
         scale = self.args["scale"]
         if self.args.get("auto_scale", False):
-
+            """使用动态光流"""
             img0_ = np.float64(cv2.resize(img0, (256, 256)))
             img1_ = np.float64(cv2.resize(img1, (256, 256)))
             mse = np.mean((img0_ - img1_) ** 2)
@@ -970,7 +1022,8 @@ class InterpWorkFlow:
 
     def rife_task_consumer(self, start_frame):
         """
-        Consume Rife Task
+        补帧队列消费者
+        :param start_frame: 起始帧
         :return:
         """
 
@@ -989,6 +1042,7 @@ class InterpWorkFlow:
                     f"Load AI SR at {self.args['use_sr_algo']}, {self.args['use_sr_model']}, scale = {sr_scale}")
             else:
                 self.logger.warning("Abort to load AI SR since Resolution Rate < 1")
+
         previous_cnt = start_frame
         now_frame = start_frame
 
@@ -996,20 +1050,20 @@ class InterpWorkFlow:
             nonlocal previous_cnt, task_acquire_time, process_time
             scene_status = self.scene_detection.get_scene_status()
 
-            render_status = self.render_info_pipe["rendering"]  # render status quo
+            render_status = self.task_info  # render status quo
             """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
 
             pbar.set_description(
-                f"Process at Chunk {render_status[0]:0>3d}")
-            pbar.set_postfix({"Render": f"{render_status[3]}", "Current": f"{now_frame}",
-                              "Scene": f"{scene_status['recent_scene']}",
-                              "SceneCnt": f"{self.scene_detection.scdet_cnt}", "TAT": f"{task_acquire_time:.2f}s",
+                f"Process at Chunk {render_status['chunk_cnt']:0>3d}")
+            pbar.set_postfix({"R": f"{render_status['render']}", "C": f"{now_frame}",
+                              "S": f"{scene_status['recent_scene']}",
+                              "SC": f"{self.scene_detection.scdet_cnt}", "TAT": f"{task_acquire_time:.2f}s",
                               "PT": f"{process_time:.2f}s", "QL": f"{self.rife_task_queue.qsize()}"})
             pbar.update(now_frame - previous_cnt)
             previous_cnt = now_frame
             pass
 
-        pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="frames")
+        pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="it")
         pbar.update(n=start_frame)
         pbar.unpause()
         task_acquire_time = time.time()
@@ -1038,6 +1092,7 @@ class InterpWorkFlow:
             debug = False
 
             if self.args["use_sr"] and self.args.get("use_sr_mode", 0) == 0:
+                """先超后补"""
                 img0, img1 = self.sr_module.svfi_process(img0), self.sr_module.svfi_process(img1)
 
             if n > 0:
@@ -1051,14 +1106,12 @@ class InterpWorkFlow:
                 frames_list.append(img1)
 
             if self.args["use_sr"] and self.args.get("use_sr_mode", 0) == 1:
+                """先补后超"""
                 for i in range(len(frames_list)):
                     frames_list[i] = self.sr_module.svfi_process(frames_list[i])
 
             feed_list = [[now_frame, i] for i in frames_list]
 
-            """Super Resolution"""
-            if self.args["use_sr"]:
-                pass
             self.feed_to_render(feed_list, is_end=is_end)
             process_time = time.time() - process_time
             update_progress()
@@ -1066,6 +1119,7 @@ class InterpWorkFlow:
                 break
 
         while self.render_thread is not None and self.render_thread.is_alive():
+            """等待渲染线程结束"""
             update_progress()
             time.sleep(0.1)
 
@@ -1086,44 +1140,50 @@ class InterpWorkFlow:
 
         h, w, _ = img.shape
         if self.crop_param[0] > w or self.crop_param[1] > h:
+            """奇怪的黑边参数，不予以处理"""
             return img
         return img[self.crop_param[1]:h - self.crop_param[1], self.crop_param[0]:w - self.crop_param[0]]
 
-    def nvidia_vram_test(self, img):
-        # if self.args.get("auto_scale", False):
-        #     return
+    def nvidia_vram_test(self):
+        """
+        显存测试
+        :param img:
+        :return:
+        """
         try:
             if len(self.args["resize"]):
                 w, h = list(map(lambda x: int(x), self.args["resize"].split("x")))
             else:
-                h, w, _ = list(map(lambda x: round(x), img.shape))
+
+                w, h = list(map(lambda x: round(x), self.video_info["size"]))
 
             if w * h > 1920 * 1080:
                 if self.args["scale"] > 0.5:
+                    """超过1080p锁光流尺度为0.5"""
                     self.args["scale"] = 0.5
                 self.logger.warning(f"Big Resolution (>1080p) Input found")
-            else:
-                self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
+            # else:
+            self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
 
-                test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
-                                       np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
-                tmp = self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"], test=True)
-                self.logger.info(f"VRAM Test Success")
-                del test_img0, test_img1, tmp
+            test_img0, test_img1 = np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8), \
+                                   np.random.randint(0, 255, size=(w, h, 3)).astype(np.uint8)
+            self.rife_core.generate_interp(test_img0, test_img1, 1, self.args["scale"], test=True)
+            self.logger.info(f"VRAM Test Success")
+            del test_img0, test_img1
         except Exception as e:
             self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
             raise e
 
     def get_check_frames_list(self, videogen_check: FFmpegReader.nextFrame):
         """
-
+        获得新除重预处理帧数序列
         :param videogen_check:
         :return:
         """
-        check_queue_size = 1500
+        check_queue_size = 1000  # 预处理长度
         side_vec = self.args["dup_threshold"]  # 双边最小运动幅度
-        check_frame_list = list()
-        check_frame_data = dict()
+        check_frame_list = list()  # 采样图片帧数序列
+        check_frame_data = dict()  # 采样图片数据
         """
             check_frame_list contains key, check_frame_data contains (key, frame_data)
         """
@@ -1239,38 +1299,12 @@ class InterpWorkFlow:
 
         self.logger.info("Activate Remove Duplicate Frames Mode")
 
-        if self.args["ncnn"]:
-            self.args["selected_model"] = os.path.basename(self.args["selected_model"])
-            import inference_A as inference
-        else:
-            try:
-                import inference  # 导入补帧模块
-            except Exception:
-                self.logger.warning("Import Torch Failed, use NCNN-RIFE instead")
-                traceback.print_exc()
-                self.args.update({"ncnn": True, "selected_model": "rife-v2"})
-                import inference_A as inference
-
-        """Update RIFE Core"""
-        self.rife_core = inference.RifeInterpolation(self.args)
-        self.rife_core.initiate_rife(args)
-
         """Get Start Info"""
         _debug = False
         chunk_cnt, start_frame = self.check_chunk()  # start_frame = 0
         self.logger.info("Resuming Video Frames...")
         frame_reader = self.generate_frame_reader(start_frame)
         frame_check_reader = self.generate_frame_reader(start_frame, frame_check=True)
-
-        """Get Rife Interpolator"""
-        self.rife_thread = threading.Thread(target=self.rife_task_consumer, name="[ARGS] RifeThread",
-                                            args=(start_frame,))
-        self.rife_thread.start()
-
-        """Get Renderer"""
-        self.render_thread = threading.Thread(target=self.render, name="[ARGS] RenderThread",
-                                              args=(chunk_cnt, start_frame,))
-        self.render_thread.start()
 
         """Get Frames to interpolate"""
         videogen = frame_reader.nextFrame()
@@ -1280,10 +1314,6 @@ class InterpWorkFlow:
         now_frame = start_frame
         if img1 is None:
             raise OSError(f"Input file not valid: {self.input}, img_input: {self.args['img_input']}")
-
-        """VRAM Test"""
-        if not self.args["ncnn"]:
-            self.nvidia_vram_test(img1)
 
         is_end = False
 
@@ -1326,7 +1356,6 @@ class InterpWorkFlow:
                 for f in check_frame_list:
                     before_img = img1
                     while frame_cnt < f:
-                        before_img = img1
                         img1 = self.crop_read_img(Utils.gen_next(videogen))
                         frame_cnt += 1
                         self.scene_detection.update_scene_status(now_frame + frame_cnt, "dup")
@@ -1338,7 +1367,8 @@ class InterpWorkFlow:
                                           is_end=is_end)
                         self.scene_detection.update_scene_status(now_frame + frame_cnt, "scene")
                     else:
-                        self.feed_to_rife(now_frame + frame_cnt, img0, img1, n=frame_cnt - last_frame_cnt - 1,
+                        before_img = img1
+                        self.feed_to_rife(now_frame + frame_cnt, img0, before_img, n=frame_cnt - last_frame_cnt - 1,
                                           add_scene=False,
                                           is_end=is_end)
                         self.scene_detection.update_scene_status(now_frame + frame_cnt, "normal")
@@ -1346,21 +1376,11 @@ class InterpWorkFlow:
                     img0 = img1
 
                 now_frame += frame_cnt
+                self.task_info.update({"now_frame": now_frame})
 
         pass
         self.rife_task_queue.put(None)  # bad way to end # TODO need optimize
         """Wait for Rife and Render Thread to finish"""
-        while self.rife_thread.is_alive() or self.render_thread.is_alive():
-            time.sleep(0.1)
-
-        """Check Finished Safely"""
-        if self.main_error is not None:
-            raise self.main_error
-
-        """Concat the chunks"""
-        if not self.args["no_concat"] and not self.args["img_output"]:
-            self.concat_all()
-            return
 
     def rife_run_any_fps(self):
         """
@@ -1370,37 +1390,11 @@ class InterpWorkFlow:
 
         self.logger.info("Activate Any FPS Mode")
 
-        if self.args["ncnn"]:
-            self.args["selected_model"] = os.path.basename(self.args["selected_model"])
-            import inference_A as inference
-        else:
-            try:
-                import inference  # 导入补帧模块
-            except Exception:
-                self.logger.warning("Import Torch Failed, use NCNN-RIFE instead")
-                traceback.print_exc()
-                self.args.update({"ncnn": True, "selected_model": "rife-v2"})
-                import inference_A as inference
-
-        """Update RIFE Core"""
-        self.rife_core = inference.RifeInterpolation(self.args)
-        self.rife_core.initiate_rife(args)
-
         """Get Start Info"""
         _debug = False
         chunk_cnt, start_frame = self.check_chunk()  # start_frame = 0
         self.logger.info("Resuming Video Frames...")
         self.frame_reader = self.generate_frame_reader(start_frame)
-
-        """Get Rife Interpolator"""
-        self.rife_thread = threading.Thread(target=self.rife_task_consumer, name="[ARGS] RifeThread",
-                                            args=(start_frame,))
-        self.rife_thread.start()
-
-        """Get Renderer"""
-        self.render_thread = threading.Thread(target=self.render, name="[ARGS] RenderThread",
-                                              args=(chunk_cnt, start_frame,))
-        self.render_thread.start()
 
         """Get Frames to interpolate"""
         videogen = self.frame_reader.nextFrame()
@@ -1408,10 +1402,6 @@ class InterpWorkFlow:
         now_frame = start_frame
         if img1 is None:
             raise OSError(f"Input file not valid: {self.input}")
-
-        """VRAM Test"""
-        if not self.args["ncnn"]:
-            self.nvidia_vram_test(img1)
 
         is_end = False
 
@@ -1493,21 +1483,10 @@ class InterpWorkFlow:
                     """normal frames"""
                     self.feed_to_rife(now_frame, img0, img1, is_end=is_end)
                     self.scene_detection.update_scene_status(now_frame, "normal")
+                self.task_info.update({"now_frame": now_frame})
             pass
 
         self.rife_task_queue.put(None)  # bad way to end # TODO need optimize
-        """Wait for Rife and Render Thread to finish"""
-        while self.rife_thread.is_alive() or self.render_thread.is_alive():
-            time.sleep(0.1)
-
-        """Check Finished Safely"""
-        if self.main_error is not None:
-            raise self.main_error
-
-        """Concat the chunks"""
-        if not self.args["no_concat"] and not self.args["img_output"]:
-            self.concat_all()
-            return
 
     def run(self):
         if self.args["concat_only"]:
@@ -1516,10 +1495,151 @@ class InterpWorkFlow:
             self.extract_only()
             pass
         else:
+            def update_progress():
+                nonlocal previous_cnt, task_acquire_time, process_time
+                scene_status = self.scene_detection.get_scene_status()
+
+                render_status = self.task_info  # render status quo
+                """(chunk_cnt, start_frame, end_frame, frame_cnt)"""
+
+                pbar.set_description(
+                    f"Process at Chunk {render_status['chunk_cnt']:0>3d}")
+                pbar.set_postfix({"R": f"{render_status['render']}", "C": f"{now_frame}",
+                                  "S": f"{scene_status['recent_scene']}",
+                                  "SC": f"{self.scene_detection.scdet_cnt}", "TAT": f"{task_acquire_time:.2f}s",
+                                  "PT": f"{process_time:.2f}s", "QL": f"{self.rife_task_queue.qsize()}"})
+                pbar.update(now_frame - previous_cnt)
+                previous_cnt = now_frame
+                pass
+
+            """Load RIFE Model"""
+            if self.args["ncnn"]:
+                self.args["selected_model"] = os.path.basename(self.args["selected_model"])
+                import inference_A as inference
+            else:
+                try:
+                    import inference  # 导入补帧模块
+                except Exception:
+                    self.logger.warning("Import Torch Failed, use NCNN-RIFE instead")
+                    traceback.print_exc()
+                    self.args.update({"ncnn": True, "selected_model": "rife-v2"})
+                    import inference_A as inference
+
+            """Update RIFE Core"""
+            self.rife_core = inference.RifeInterpolation(self.args)
+            self.rife_core.initiate_rife(args)
+
+            if not self.args["ncnn"]:
+                self.nvidia_vram_test()
+
+            """Get Renderer"""
             if self.args.get("remove_dup_mode", 0) in [0, 3]:
-                self.rife_run_any_fps()
-            else:  # 1, 2 => remove 12 or 13
-                self.rife_run()
+                self.rife_thread = threading.Thread(target=self.rife_run_any_fps, name="[ARGS] RifeTaskThread", )
+            else:  # 1, 2 => 去重一拍二或一拍三
+                self.rife_thread = threading.Thread(target=self.rife_run, name="[ARGS] RifeTaskThread", )
+            self.rife_thread.start()
+
+            chunk_cnt, start_frame = self.check_chunk()  # start_frame = 0
+
+            """Get Renderer"""
+            self.render_thread = threading.Thread(target=self.render, name="[ARGS] RenderThread",
+                                                  args=(chunk_cnt, start_frame,))
+            self.render_thread.start()
+
+            """Build SR"""
+            if self.args["use_sr"]:
+                input_resolution = self.video_info["size"][0] * self.video_info["size"][1]
+                output_resolution = self.args.get("resize_width", 0) * self.args.get("resize_height", 0)
+                resolution_rate = math.sqrt(output_resolution / input_resolution)
+                if input_resolution and resolution_rate > 1:
+                    sr_scale = Utils.get_exp_edge(resolution_rate)
+                    if self.args["use_sr_algo"] == "waifu2x":
+                        self.sr_module = SvfiWaifu(model=self.args["use_sr_model"], scale=sr_scale)
+                    elif self.args["use_sr_algo"] == "realSR":
+                        self.sr_module = SvfiRealSR(model=self.args["use_sr_model"], scale=sr_scale)
+                    self.logger.info(
+                        f"Load AI SR at {self.args['use_sr_algo']}, {self.args['use_sr_model']}, scale = {sr_scale}")
+                else:
+                    self.logger.warning("Abort to load AI SR since Resolution Rate < 1")
+
+            previous_cnt = start_frame
+            now_frame = start_frame
+
+            pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="it")
+            pbar.update(n=start_frame)
+            pbar.unpause()
+            task_acquire_time = time.time()
+            process_time = time.time()
+            while True:
+                task_acquire_time = time.time()
+                task = self.rife_task_queue.get()
+                task_acquire_time = time.time() - task_acquire_time
+                if task is None:
+                    self.feed_to_render([None], is_end=True)
+                    break
+                """
+                task = {"now_frame", "img0", "img1", "n", "exp","scale", "is_end", "is_scene", "add_scene"}
+                """
+                process_time = time.time()
+                now_frame = task["now_frame"]
+                img0 = task["img0"]
+                img1 = task["img1"]
+                n = task["n"]
+                exp = task["exp"]
+                scale = task["scale"]
+                is_end = task["is_end"]
+                add_scene = task["add_scene"]
+                frames_list = [img0]
+
+                debug = False
+
+                if self.args["use_sr"] and self.args.get("use_sr_mode", 0) == 0:
+                    """先超后补"""
+                    img0, img1 = self.sr_module.svfi_process(img0), self.sr_module.svfi_process(img1)
+
+                if n > 0:
+                    interp_list = self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug)
+                    frames_list.extend(interp_list)
+                elif exp > 0:
+                    interp_list = self.rife_core.generate_interp(img0, img1, exp=exp, scale=scale, debug=debug)
+                    frames_list.extend(interp_list)
+
+                if add_scene:
+                    frames_list.append(img1)
+
+                if self.args["use_sr"] and self.args.get("use_sr_mode", 0) == 1:
+                    """先补后超"""
+                    for i in range(len(frames_list)):
+                        frames_list[i] = self.sr_module.svfi_process(frames_list[i])
+
+                feed_list = [[now_frame, i] for i in frames_list]
+
+                self.feed_to_render(feed_list, is_end=is_end)
+                process_time = time.time() - process_time
+                update_progress()
+                if is_end:
+                    break
+
+            while (self.render_thread is not None and self.render_thread.is_alive()) or \
+                    (self.rife_thread is not None and self.rife_thread.is_alive()):
+                """等待渲染线程结束"""
+                update_progress()
+                time.sleep(0.1)
+
+            pbar.update(abs(self.all_frames_cnt - now_frame))
+            pbar.close()
+
+            self.logger.info(f"Scedet Status Quo: {self.scene_detection.get_scene_status()}")
+
+            """Check Finished Safely"""
+            if self.main_error is not None:
+                raise self.main_error
+
+            """Concat the chunks"""
+            if not self.args["no_concat"] and not self.args["img_output"]:
+                self.concat_all()
+                return
+
         self.logger.info(f"Program finished at {datetime.datetime.now()}")
         pass
 
@@ -1579,26 +1699,24 @@ class InterpWorkFlow:
         if self.args["encoder"] == "ProRes":
             output_ext = ".mov"
 
-        input_filenames = os.path.splitext(os.path.basename(self.input))
-
         concat_filepath = f"{os.path.join(self.output, Utils.get_filename(self.input))}"
-        concat_filepath += f"_{int(self.target_fps)}fps"
-        if self.args["slow_motion"]:
+        concat_filepath += f"_{int(self.target_fps)}fps"  # 输出帧率
+        if self.args["slow_motion"]:  # 慢动作
             concat_filepath += f"_slowmo_{self.args['slow_motion_fps']}"
-        concat_filepath += f"_scale{self.args['scale']}"
-        if not self.args["ncnn"]:
-            concat_filepath += f"_{os.path.basename(self.args['selected_model'])}"
+        concat_filepath += f"_scale{self.args['scale']}"  # 全局光流尺度
+        if not self.args["ncnn"]:  # 不使用NCNN
+            concat_filepath += f"_{os.path.basename(self.args['selected_model'])}"  # 添加模型信息
         else:
             concat_filepath += f"_rife-ncnn"
-        if self.args["remove_dup_mode"]:
+        if self.args["remove_dup_mode"]:  # 去重模式
             concat_filepath += f"_RD{self.args['remove_dup_mode']}"
-        if self.args["use_sr"]:
+        if self.args["use_sr"]:  # 使用超分
             concat_filepath += f"_{self.args['use_sr_algo']}_{self.args['use_sr_model']}"
-        concat_filepath += output_ext
+        concat_filepath += output_ext  # 添加后缀名
 
         if self.args["save_audio"] and not self.args["img_input"]:
             audio_path = self.input
-            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy '  # TODO Check VA Sync Only
+            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy '  # TODO No shortest, Check VA Sync Only
             if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
                 time_fmt = "%H:%M:%S"
                 start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
@@ -1622,7 +1740,6 @@ class InterpWorkFlow:
                 self.logger.error(f"Concat Error, {output_ext}, empty output")
                 raise FileExistsError("Concat Error, empty output, Check Output Extension!!!")
             self.check_chunk(del_chunk=True)
-            # Utils.make_dirs(self.env, rm=True)
 
     def concat_check(self, concat_list, concat_filepath):
         """

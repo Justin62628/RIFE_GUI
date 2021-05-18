@@ -34,40 +34,38 @@ class RifeInterpolation(rife_ncnn_vulkan.RIFE):
             return
         self.initiated = True
 
-    def __make_inference(self, img1, img2, scale, exp):
-        i1 = self.generate_torch_img(img1)
-        i2 = self.generate_torch_img(img2)
+    def __make_inference(self, i1: Image, i2: Image, scale, exp):
+        # i1 = self.generate_input_img(img1)
+        # i2 = self.generate_input_img(img2)
         if self.args["reverse"]:
-            mid = self.process(i1, i2)
+            mid = self.process(i1, i2)[0]
         else:
-            mid = self.process(i2, i1)
-        del i1, i2
-        mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
+            mid = self.process(i2, i1)[0]
+        # del i1, i2
+        # mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
         if exp == 1:
             return [mid]
-        first_half = self.__make_inference(img1, mid, scale, exp=exp - 1)
-        second_half = self.__make_inference(mid, img2, scale, exp=exp - 1)
+        first_half = self.__make_inference(i1, mid, scale, exp=exp - 1)
+        second_half = self.__make_inference(mid, i2, scale, exp=exp - 1)
         return [*first_half, mid, *second_half]
 
-    def __make_n_inference(self, img1, img2, scale, n):
-        i1 = self.generate_torch_img(img1)
-        i2 = self.generate_torch_img(img2)
+    def __make_n_inference(self, i1: Image, i2: Image, scale, n):
         if self.args["reverse"]:
-            mid = self.process(i1, i2)
+            mid = self.process(i1, i2)[0]
         else:
-            mid = self.process(i2, i1)
-        del i1, i2
-        mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
+            mid = self.process(i2, i1)[0]
+        # del i1, i2
+        # mid = cv2.cvtColor(numpy.asarray(mid), cv2.COLOR_RGB2BGR)
         if n == 1:
             return [mid]
-        first_half = self.__make_n_inference(img1, mid, scale, n=n // 2)
-        second_half = self.__make_n_inference(mid, img2, scale, n=n // 2)
+        first_half = self.__make_n_inference(i1, mid, scale, n=n // 2)
+        second_half = self.__make_n_inference(mid, i2, scale, n=n // 2)
         if n % 2:
             return [*first_half, mid, *second_half]
         else:
             return [*first_half, *second_half]
 
-    def generate_torch_img(self, img):
+    def generate_input_img(self, img):
         """
         :param img: cv2.imread [:, :, ::-1]
         :return:
@@ -80,9 +78,10 @@ class RifeInterpolation(rife_ncnn_vulkan.RIFE):
             traceback.print_exc()
             raise e
 
-    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False):
+    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False, test=False):
         """
 
+        :param test:
         :param img1: cv2.imread
         :param img2:
         :param exp:
@@ -100,21 +99,26 @@ class RifeInterpolation(rife_ncnn_vulkan.RIFE):
             for i in range(dup):
                 output_gen.append(img1)
             return output_gen
-
+        img1 = self.generate_input_img(img1)
+        img2 = self.generate_input_img(img2)
         if n is not None:
             interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
         else:
             interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
-        return interp_gen
 
-    def generate_n_interp(self, img1, img2, n, scale, debug=False):
+        return [cv2.cvtColor(numpy.asarray(i), cv2.COLOR_RGB2BGR) for i in interp_gen]
+
+    def generate_n_interp(self, img1, img2, n, scale, debug=False, test=False):
         if debug:
             output_gen = list()
             for i in range(n):
                 output_gen.append(img1)
             return output_gen
+        img1 = self.generate_input_img(img1)
+        img2 = self.generate_input_img(img2)
         interp_gen = self.__make_n_inference(img1, img2, scale, n)
-        return interp_gen
+        return [cv2.cvtColor(numpy.asarray(i), cv2.COLOR_RGB2BGR) for i in interp_gen]
+        # return interp_gen
 
     def run(self):
         pass

@@ -42,6 +42,9 @@ ico_path = os.path.join(dname, "svfi.ico")
 
 
 class SVFI_Config_Manager:
+    """
+    SVFI 配置文件管理类
+    """
     def __init__(self, **kwargs):
         self.filename = ""
         self.dirname = dname
@@ -49,6 +52,11 @@ class SVFI_Config_Manager:
         pass
 
     def FetchConfig(self, filename):
+        """
+        根据输入文件名获得配置文件路径
+        :param filename:
+        :return:
+        """
         config_path = self.__generate_config_path(filename)
         if os.path.exists(config_path):
             return config_path
@@ -56,6 +64,11 @@ class SVFI_Config_Manager:
             return None
 
     def DuplicateConfig(self, filename):
+        """
+        复制配置文件
+        :param filename:
+        :return:
+        """
         config_path = self.__generate_config_path(filename)
         if not os.path.exists(self.SVFI_config_path):
             raise OSError("Not find Config")
@@ -63,6 +76,11 @@ class SVFI_Config_Manager:
         pass
 
     def RemoveConfig(self, filename):
+        """
+        移除配置文件
+        :param filename:
+        :return:
+        """
         config_path = self.__generate_config_path(filename)
         if os.path.exists(config_path):
             os.remove(config_path)
@@ -71,6 +89,11 @@ class SVFI_Config_Manager:
         pass
 
     def MaintainConfig(self, filename):
+        """
+        维护配置文件
+        :param filename:
+        :return:
+        """
         config_path = self.__generate_config_path(filename)
         if os.path.exists(config_path):
             shutil.copy(config_path, self.SVFI_config_path)
@@ -118,7 +141,7 @@ class SVFI_Preference_Dialog(QDialog, SVFI_preference.Ui_Dialog):
 
     def update_preference(self):
         """
-
+        初始化，更新偏好设置
         :return:
         """
         if self.preference_dict is None:
@@ -137,7 +160,7 @@ class SVFI_Preference_Dialog(QDialog, SVFI_preference.Ui_Dialog):
 
     def request_preference(self):
         """
-
+        申请偏好设置更改
         :return:
         """
         preference_dict = dict()
@@ -154,7 +177,7 @@ class SVFI_Run_Others(QThread):
 
     def __init__(self, command, task_id=0, data=None, parent=None):
         """
-
+        多线程运行系统命令
         :param command:
         :param task_id:
         :param data: 信息回传时的数据
@@ -182,6 +205,12 @@ class SVFI_Run(QThread):
     run_signal = pyqtSignal(str)
 
     def __init__(self, parent=None, concat_only=False, extract_only=False):
+        """
+        
+        :param parent:
+        :param concat_only:
+        :param extract_only:
+        """
         super(SVFI_Run, self).__init__(parent)
         self.concat_only = concat_only
         self.extract_only = extract_only
@@ -993,7 +1022,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
     def auto_set(self):
         chunk_list = list()
-        output_dir = self.OutputFolder.text()
+        if not len(self.get_input_files()) or self.InputFileName.currentItem() is None:
+            return
+        output_dir = os.path.join(self.OutputFolder.text(), Utils.get_filename(self.InputFileName.currentItem().text()))
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
         output_ext = self.ExtSelector.currentText()
         ratio = float(self.OutputFPS.text()) / float(self.InputFPS.text())
         for f in os.listdir(output_dir):
@@ -1221,7 +1254,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                     输出理想情况只有一行，如果遇到消息叠加，请将窗口拉长。
 
                     参数说明：
-                    Render: 当前渲染的帧数，Current: 当前处理的帧数，Scene: 最近识别到的转场，SceneCnt：识别到的转场数量，
+                    R: 当前渲染的帧数，C: 当前处理的帧数，S: 最近识别到的转场，SC：识别到的转场数量，
                     TAT：Task Acquire Time， 单帧任务获取时间，即任务阻塞时间，如果该值过大，请考虑增加虚拟内存
                     PT：Process Time，单帧任务处理时间，单帧补帧（+超分）花费时间
                     QL：Queue Length，任务队列长度
@@ -1581,6 +1614,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(bool)
     def on_actionStartProcess_triggered(self):
         self.on_AllInOne_clicked()
+
+    @pyqtSlot(bool)
+    def on_actionStopProcess_triggered(self):
+        self.on_KillProcButton_clicked()
 
     @pyqtSlot(bool)
     def on_actionClearVideo_triggered(self):
