@@ -6,6 +6,7 @@ import re
 import shutil
 import threading
 import time
+import math
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from queue import Queue
 
@@ -204,7 +205,7 @@ class Utils:
         pass
 
     def check_pure_img(self, img1):
-        if np.var(img1) == 0:
+        if np.var(img1) < 10:
             return True
         return False
 
@@ -230,6 +231,41 @@ class Utils:
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         diff = cv2.absdiff(img1, img2).mean()
         return diff
+
+    def get_norm_img_flow(self, img1, img2, resize=True, flow_thres=1) -> (int, np.array):
+        """
+        Normalize Difference
+        :param flow_thres: 光流移动像素长
+        :param resize:
+        :param img1: cv2
+        :param img2: cv2
+        :return:  (int, np.array)
+        """
+        prevgray = self.get_norm_img(img1, resize)
+        gray = self.get_norm_img(img2, resize)
+        # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
+        # prevgray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        # 使用Gunnar Farneback算法计算密集光流
+        flow = cv2.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        # 绘制线
+        step=10
+        h, w = gray.shape[:2]
+        y, x = np.mgrid[step / 2:h:step, step / 2:w:step].reshape(2, -1).astype(int)
+        fx, fy = flow[y, x].T
+        lines = np.vstack([x, y, x + fx, y + fy]).T.reshape(-1, 2, 2)
+        lines = np.int32(lines)
+        line = []
+        flow_cnt = 0
+
+        for l in lines:
+            if math.sqrt(math.pow(l[0][0] - l[1][0],2)+math.pow(l[0][1] - l[1][1], 2)) > flow_thres:
+                flow_cnt += 1
+                line.append(l)
+
+        cv2.polylines(prevgray, line, 0, (0, 255, 255))
+        comp_stack = np.hstack((prevgray, gray))
+        return flow_cnt, comp_stack
 
     def get_filename(self, path):
         if not os.path.isfile(path):
@@ -322,13 +358,20 @@ class Utils:
         return scale
 
     def get_mixed_scenes(self, img0, img1, n):
+        """
+        return n-1 images
+        :param img0:
+        :param img1:
+        :param n:
+        :return:
+        """
         step = 1 / n
-        alpha = 0
+        beta = 0
         output = list()
         for _ in range(n - 1):
-            alpha += step
-            beta = 1 - alpha
-            mix = cv2.addWeighted(img0[:, :, ::-1], beta, img1[:, :, ::-1], alpha, 0)[:, :, ::-1].copy()
+            beta += step
+            alpha = 1 - beta
+            mix = cv2.addWeighted(img0[:, :, ::-1], alpha, img1[:, :, ::-1], beta, 0)[:, :, ::-1].copy()
             output.append(mix)
         return output
 
