@@ -576,6 +576,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ScdetFlowLen.setCurrentIndex(appData.value("scdet_flow", 0, type=int))
         self.UseFixedScdet.setChecked(appData.value("use_fixed_scdet", False, type=bool))
         self.ScdetMaxDiffSelector.setValue(appData.value("fixed_max_scdet", 40, type=int))
+        self.ScdetMode.setCurrentIndex(appData.value("scdet_mode", 0, type=int))
         # self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupRmMode.setCurrentIndex(appData.value("remove_dup_mode", 0, type=int))
         self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
@@ -690,6 +691,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("scdet_threshold", self.ScdetSelector.value())
         appData.setValue("fixed_max_scdet", self.ScdetMaxDiffSelector.value())
         appData.setValue("scdet_flow", self.ScdetFlowLen.currentIndex())
+        appData.setValue("scdet_mode", self.ScdetMode.currentIndex())
 
         """Duplicate Frames Removal"""
         appData.setValue("remove_dup_mode", self.DupRmMode.currentIndex())
