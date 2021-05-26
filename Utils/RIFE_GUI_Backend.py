@@ -507,8 +507,16 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         """Table Maintainer"""
         # self.
         """Dilapidation Maintainer"""
+        self.dilapidation_hide()
+
+    def dilapidation_hide(self):
+        """Dilapidation Maintainer"""
         self.TtaModeChecker.setVisible(False)
         self.TtaModeChecker.setChecked(False)
+        self.ScdetModeLabel.setVisible(False)
+        self.ScdetMode.setVisible(False)
+        self.ScdetFlowLen.setVisible(False)
+        self.AutoInterpScaleChecker.setVisible(False)
 
     def free_hide(self):
         """
@@ -1658,6 +1666,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         if self.free:
             self.free_hide()
+        self.dilapidation_hide()
 
     @pyqtSlot(bool)
     def on_actionImportVideos_triggered(self):
