@@ -1,12 +1,12 @@
 # coding: utf-8
 import datetime
 import logging
+import math
 import os
 import re
 import shutil
 import threading
 import time
-import math
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from queue import Queue
 
@@ -65,11 +65,12 @@ class CommandResult:
     def __init__(self, command, output_path="output.txt"):
         self.command = command
         self.output_path = output_path
+        self.Utils = Utils()
         pass
 
     def execute(self, ):
-        os.system(f"{self.command} > {Utils().fillQuotation(self.output_path)} 2>&1")
-        with open(self.output_path, "r", encoding="UTF-8") as tool_read:
+        os.system(f"{self.command} > {self.Utils.fillQuotation(self.output_path)} 2>&1")
+        with open(self.output_path, "r") as tool_read:
             content = tool_read.read()
         return content
 

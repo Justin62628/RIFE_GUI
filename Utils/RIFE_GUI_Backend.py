@@ -1,23 +1,24 @@
 import datetime
+import hashlib
+import html
 import json
 import math
 import os
 import re
+import shlex
+import shutil
+import subprocess as sp
+import sys
+import time
 import traceback
 
 import cv2
+import psutil
 import torch
 from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
-import html
-import sys
-import subprocess as sp
-import shlex
-import time
-import psutil
-import hashlib
-import shutil
+from PyQt5.QtWidgets import *
+
 from Utils import SVFI_UI, SVFI_help, SVFI_about, SVFI_preference
 from Utils.utils import Utils, EncodePresetAssemply
 
@@ -234,7 +235,7 @@ class SVFI_Run(QThread):
         if os.path.splitext(appData.value("OneLineShotPath"))[-1] == ".exe":
             self.command = appData.value("OneLineShotPath") + " "
         else:
-            self.command = f'python {appData.value("OneLineShotPath")} '
+            self.command = f'python "{appData.value("OneLineShotPath")}" '
 
         if not len(input_file) or not os.path.exists(input_file):
             self.command = ""
@@ -549,7 +550,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         if not os.path.exists(ols_potential):
             appData.setValue("OneLineShotPath",
-                             r"D:\60-fps-Project\Projects\RIFE_GUI\one_line_shot_args.py")
+                             r"D:\60-fps-Project\Projects\RIFE GUI\one_line_shot_args.py")
             appData.setValue("ffmpeg", "ffmpeg")
             logger.info("Change to Debug Path")
 
@@ -587,7 +588,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ScdetMode.setCurrentIndex(appData.value("scdet_mode", 0, type=int))
         # self.DupRmChecker.setChecked(appData.value("remove_dup", False, type=bool))
         self.DupRmMode.setCurrentIndex(appData.value("remove_dup_mode", 0, type=int))
-        self.DupFramesTSelector.setValue(appData.value("dup_threshold", 1.00, type=float))
+        self.DupFramesTSelector.setValue(appData.value("dup_threshold", 10.00, type=float))
 
         self.CropHeightSettings.setValue(appData.value("crop_height", 0, type=int))
         self.CropWidthpSettings.setValue(appData.value("crop_width", 0, type=int))

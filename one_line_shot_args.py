@@ -25,7 +25,7 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.5.0 2021/5/26")
+print("INFO - ONE LINE SHOT ARGS 6.5.2 2021/6/5")
 Utils = Utils()
 
 """设置环境路径"""
@@ -204,7 +204,8 @@ class PathManager:
 
 
 class VideoInfo:
-    def __init__(self, input: str, logger: Utils.get_logger, project_dir: str, HDR=False, ffmpeg=None, img_input=False, strict_mode=False, exp=0, **kwargs):
+    def __init__(self, input: str, logger: Utils.get_logger, project_dir: str, HDR=False, ffmpeg=None, img_input=False,
+                 strict_mode=False, exp=0, **kwargs):
         self.filepath = input
         self.img_input = img_input
         self.strict_mode = strict_mode
@@ -213,8 +214,8 @@ class VideoInfo:
         self.logger = logger
         self.project_dir = project_dir
         if ffmpeg is not None:
-            self.ffmpeg = os.path.join(ffmpeg, "ffmpeg.exe")
-            self.ffprobe = os.path.join(ffmpeg, "ffprobe.exe")
+            self.ffmpeg = Utils.fillQuotation(os.path.join(ffmpeg, "ffmpeg.exe"))
+            self.ffprobe = Utils.fillQuotation(os.path.join(ffmpeg, "ffprobe.exe"))
         if not os.path.exists(self.ffmpeg):
             self.ffmpeg = "ffmpeg"
             self.ffprobe = "ffprobe"
@@ -242,7 +243,8 @@ class VideoInfo:
             f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
             f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
             f'color_primaries,color_range,color_space,color_transfer -print_format json '
-            f'{Utils.fillQuotation(self.filepath)}', output_path=os.path.join(self.project_dir, "video_info.txt")).execute()
+            f'{Utils.fillQuotation(self.filepath)}',
+            output_path=os.path.join(self.project_dir, "video_info.txt")).execute()
         try:
             video_info = json.loads(result)["streams"][0]  # select first video stream as input
         except Exception as e:
@@ -414,7 +416,7 @@ class TransitionDetection_ST:
             return
         try:
             comp_stack = np.hstack((self.img1, self.img2))
-            comp_stack = cv2.resize(comp_stack, (960, int(270 * 960 / comp_stack.shape[1])), )
+            comp_stack = cv2.resize(comp_stack, (960, int(960 * comp_stack.shape[0] / comp_stack.shape[1])), )
             cv2.putText(comp_stack,
                         title,
                         (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0))
@@ -767,8 +769,8 @@ class InterpWorkFlow:
         self.logger.info("Changing working dir to {0}".format(dname))
 
         """Set FFmpeg"""
-        self.ffmpeg = os.path.join(self.args["ffmpeg"], "ffmpeg.exe")
-        self.ffplay = os.path.join(self.args["ffmpeg"], "ffplay.exe")
+        self.ffmpeg = Utils.fillQuotation(os.path.join(self.args["ffmpeg"], "ffmpeg.exe"))
+        self.ffplay = Utils.fillQuotation(os.path.join(self.args["ffmpeg"], "ffplay.exe"))
         if not os.path.exists(self.ffmpeg):
             self.ffmpeg = "ffmpeg"
             self.logger.warning("Not find selected ffmpeg, use default")
@@ -838,16 +840,16 @@ class InterpWorkFlow:
             free_mem = round(mem.free / 1024 / 1024)
         if self.args['resize_width'] != 0 and self.args['resize_height'] != 0:
             if self.args['resize_width'] % 2 != 0:
-                self.args['resize_width'] += 1  
-            if self.args['resize_height'] %2 != 0:
+                self.args['resize_width'] += 1
+            if self.args['resize_height'] % 2 != 0:
                 self.args['resize_height'] += 1
             self.frames_output_size = round(free_mem / (sys.getsizeof(
                 np.random.rand(3, round(self.args['resize_width']),
-                        round(self.args['resize_height']))) / 1024 / 1024) * 0.8)
+                               round(self.args['resize_height']))) / 1024 / 1024) * 0.8)
         else:
             self.frames_output_size = round(free_mem / (sys.getsizeof(
                 np.random.rand(3, round(self.video_info["size"][0]),
-                            round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
+                               round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
         self.frames_output_size = max(self.frames_output_size, 100)
         self.logger.info(f"Buffer Size to {self.frames_output_size}")
 
@@ -919,7 +921,7 @@ class InterpWorkFlow:
                 self.logger.info(
                     f"Update Input Range: in {self.args['start_point']} -> out {self.args['end_point']}, all_frames_cnt -> {self.all_frames_cnt}")
             else:
-                self.logger.warning(f"Input Time Section change to origianl course")
+                self.logger.warning(f"Input Time Section change to original course")
 
         output_dict = {
             "-vframes": str(int(abs(self.all_frames_cnt * 100))), }  # use read frames cnt to avoid ffprobe, fuck
@@ -1652,7 +1654,7 @@ class InterpWorkFlow:
             skip = 0  # 用于记录跳过的帧数
 
             """Find Scene"""
-            if self.scene_detection.check_scene(img0, img1, use_diff=diff):
+            if self.scene_detection.check_scene(img0, img1):
                 self.feed_to_rife(now_frame, img0, img1, n=0,
                                   is_end=is_end)  # add img0 only, for there's no gap between img0 and img1
                 self.scene_detection.update_scene_status(now_frame, "scene")
@@ -1674,7 +1676,7 @@ class InterpWorkFlow:
 
                         diff = Utils.get_norm_img_diff(img0, img1)
 
-                        is_scene = self.scene_detection.check_scene(img0, img1, use_diff=diff)  # update scene stack
+                        is_scene = self.scene_detection.check_scene(img0, img1)  # update scene stack
                         if is_scene:
                             break
                         if skip == self.dup_skip_limit * self.target_fps // self.fps:
@@ -1972,7 +1974,7 @@ class InterpWorkFlow:
         output_ext = os.path.splitext(self.input)[-1]
         if output_ext not in [".mp4", ".mov", ".mkv"]:
             output_ext = self.output_ext
-        if "ProRes" in self.args["encoder"] :
+        if "ProRes" in self.args["encoder"]:
             output_ext = ".mov"
 
         concat_filepath = f"{os.path.join(self.output, Utils.get_filename(self.input))}"

@@ -76,7 +76,7 @@ class RifeInterpolation:
 
         self.model.eval()
         self.model.device()
-        print(f"INFO - Load model at {self.model_path}")
+        # print(f"INFO - Load model at {self.model_path}")
         self.initiated = True
 
     def __make_inference(self, img1, img2, scale, exp):

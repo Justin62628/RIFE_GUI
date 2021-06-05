@@ -1,8 +1,9 @@
 import sys
-import QCandyUi
 import traceback
-from PyQt5.QtWidgets import *
+
+import QCandyUi
 from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 """High Resolution Support"""
 if hasattr(Qt, 'AA_EnableHighDpiScaling'):
@@ -24,7 +25,7 @@ app_backend_module = RIFE_GUI_Backend
 app_backend = app_backend_module.RIFE_GUI_BACKEND()
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 3.2.0 alpha")
+                                             title="Squirrel Video Frame Interpolation 3.2.1 alpha")
     form.show()
     app.exec_()
     """Save Settings"""
