@@ -836,11 +836,19 @@ class InterpWorkFlow:
         else:
             mem = psutil.virtual_memory()
             free_mem = round(mem.free / 1024 / 1024)
-        self.frames_output_size = round(free_mem / (sys.getsizeof(
-            np.random.rand(3, round(self.video_info["size"][0]),
-                           round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
-        if self.frames_output_size < 100:
-            self.frames_output_size = 100
+        if self.args['resize_width'] != 0 and self.args['resize_height'] != 0:
+            if self.args['resize_width'] % 2 != 0:
+                self.args['resize_width'] += 1  
+            if self.args['resize_height'] %2 != 0:
+                self.args['resize_height'] += 1
+            self.frames_output_size = round(free_mem / (sys.getsizeof(
+                np.random.rand(3, round(self.args['resize_width']),
+                        round(self.args['resize_height']))) / 1024 / 1024) * 0.8)
+        else:
+            self.frames_output_size = round(free_mem / (sys.getsizeof(
+                np.random.rand(3, round(self.video_info["size"][0]),
+                            round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
+        self.frames_output_size = max(self.frames_output_size, 100)
         self.logger.info(f"Buffer Size to {self.frames_output_size}")
 
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
@@ -857,12 +865,8 @@ class InterpWorkFlow:
         """Scene Detection"""
         if self.args.get('scdet_mode', 0) == 0:
             """Old Mode"""
-            self.scene_detection = TransitionDetection_ST(int(0.5 * self.fps), project_dir=self.project_dir,
-                                                          **self.args)
-        else:
-            self.scene_detection = TransitionDetection_ST(int(0.5 * self.fps), project_dir=self.project_dir,
-                                                          **self.args)
-
+        self.scene_detection = TransitionDetection_ST(int(0.5 * self.fps), project_dir=self.project_dir,
+                                                      **self.args)
         """Duplicate Frames Removal"""
         self.dup_skip_limit = int(0.5 * self.fps) + 1  # 当前跳过的帧计数超过这个值，将结束当前判断循环
 
@@ -884,7 +888,6 @@ class InterpWorkFlow:
 
         self.main_error = None
         self.first_hdr_check_report = True
-        pass
 
     def generate_frame_reader(self, start_frame=-1, frame_check=False):
         """
@@ -1467,7 +1470,7 @@ class InterpWorkFlow:
                     Current.append(i)  # 加入标记序号
             opted = len(opt)  # 记录opt长度
             for x in Current:
-                if x not in opt:  # 优化:该轮一拍N不可能出现在上一轮中
+                if x - 1 not in opt and x + 1 not in opt and x not in opt:  # 优化:该轮一拍N不可能出现在上一轮中
                     for t in range(queue_size - 3):
                         opt.append(t + x)
             if len(opt) == opted:  # 如果相等则证明已经标记完了所有帧，不存在更多的节拍数
