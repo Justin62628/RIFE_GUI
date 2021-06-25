@@ -125,6 +125,4 @@ class Ui_Dialog(object):
         self.label.setText(_translate("Dialog", "补帧任务完成后："))
         self.ForceCpuChecker.setText(_translate("Dialog", "实验功能：有N卡但强制使用CPU？"))
         self.ExpertModeChecker.setText(_translate("Dialog", "开启专家模式"))
-
-
 from Utils.RIFE_GUI_Custom import MySpinBox

@@ -105,7 +105,7 @@ class SVFI_Config_Manager:
         pass
 
     def __generate_config_path(self, filename):
-        m = hashlib.md5(filename.encode(encoding='gb2312'))
+        m = hashlib.md5(filename.encode(encoding='utf-8'))
         return os.path.join(self.dirname, f"SVFI_Config_{m.hexdigest()[:6]}.ini")
 
 
@@ -495,6 +495,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.on_HwaccelSelector_currentTextChanged()  # Flush Encoder Sets
         self.on_ExpertMode_changed()
         self.on_UseAiSR_clicked()
+        self.on_UseEncodeThread_clicked()
 
         """Initiate Beautiful Layout and Signals"""
         self.AdvanceSettingsArea.setVisible(False)
@@ -572,6 +573,9 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         # self.PresetSelector.setCurrentText(appData.value("preset", "slow"))
         self.HwaccelSelector.setCurrentText(appData.value("hwaccel_mode", "CPU", type=str))
         self.HwaccelPresetSelector.setCurrentText(appData.value("hwaccel_preset", "None"))
+        self.HwaccelDecode.setChecked(appData.value("hwaccel_decode", True, type=bool))
+        self.UseEncodeThread.setChecked(appData.value("use_encode_thread", False, type=bool))
+        self.EncodeThreadSelector.setValue(appData.value("encode_thread", 16, type=int))
         self.EncoderSelector.setCurrentText(appData.value("encoder", "~"))
         self.FFmpegCustomer.setText(appData.value("ffmpeg_customized", ""))
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
@@ -665,6 +669,9 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("encoder", self.EncoderSelector.currentText())
         appData.setValue("hwaccel_mode", self.HwaccelSelector.currentText())
         appData.setValue("hwaccel_preset", self.HwaccelPresetSelector.currentText())
+        appData.setValue("hwaccel_decode", self.HwaccelDecode.isChecked())
+        appData.setValue("use_encode_thread", self.UseEncodeThread.isChecked())
+        appData.setValue("encode_thread", self.EncodeThreadSelector.value())
         appData.setValue("quick_extract", self.QuickExtractChecker.isChecked())
         appData.setValue("strict_mode", self.StrictModeChecker.isChecked())
         appData.setValue("ffmpeg_customized", self.FFmpegCustomer.text())
@@ -1061,41 +1068,40 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             logger.error(traceback.format_exc())
 
     def auto_set(self):
-        chunk_list = list()
-        if not len(self.get_input_files()) or self.InputFileName.currentItem() is None:
+        if not len(self.get_input_files()):
             return
-        output_dir = os.path.join(self.OutputFolder.text(), Utils.get_filename(self.InputFileName.currentItem().text()))
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-        output_ext = self.ExtSelector.currentText()
-        ratio = float(self.OutputFPS.text()) / float(self.InputFPS.text())
-        for f in os.listdir(output_dir):
-            if re.match(f"chunk-[\d+].*?\.{output_ext}", f):
-                chunk_list.append(os.path.join(output_dir, f))
-        if not len(chunk_list):
+        if self.InputFileName.currentItem() is None:
+            self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
+            return
+        project_dir = os.path.join(self.OutputFolder.text(),
+                                   Utils.get_filename(self.InputFileName.currentItem().text()))
+        if not os.path.exists(project_dir):
+            os.mkdir(project_dir)
             self.set_start_info(0, 1, True)
+            return
+
+        chunk_info_path = os.path.join(project_dir, "chunk.json")
+
+        if not os.path.exists(chunk_info_path):
             logger.info("AutoSet find None to resume interpolation")
+            self.set_start_info(0, 1, True)
             return
 
-        logger.info("Found Previous Chunks")
-        chunk_list.sort(key=lambda x: int(os.path.basename(x).split('-')[2]))
-
-        reply = self.sendWarning(f"恢复进度？", f"检测到上次还有未完成的补帧任务，要继续吗？", 3)
-        if reply == QMessageBox.No:
-            if self.set_start_info(0, 1, True):
-                logger.info("Delete Previous Chunk")
-                for c in chunk_list:
-                    os.remove(c)
-            logger.info("User Abort Auto Set")
-            return
-        last_chunk = chunk_list[-1]
-        match_result = re.findall(f"chunk-(\d+)-(\d+)-(\d+)\.{output_ext}", last_chunk)[0]
-        chunk = int(match_result[0])
-        last_frame = int(match_result[2])
-        # first_interp_cnt = (last_frame + 1) * ratio + 1
-        self.set_start_info(last_frame + 1, chunk + 1)
-        logger.info("AutoSet Ready")
-        pass
+        with open(chunk_info_path, "r", encoding="utf-8") as r:
+            chunk_info = json.load(r)
+        """
+        key: project_dir, input filename, chunk cnt, chunk list, last frame
+        """
+        chunk_cnt = chunk_info["chunk_cnt"]
+        last_frame = chunk_info["last_frame"]
+        if chunk_cnt > 0:
+            reply = self.sendWarning(f"恢复进度？", f"检测到未完成的补帧任务，载入进度？", 3)
+            if reply == QMessageBox.No:
+                self.set_start_info(0, 1, True)
+                logger.info("User Abort Auto Set")
+                return
+        self.set_start_info(last_frame + 1, chunk_cnt + 1, False)
+        return
 
     def update_gpu_info(self):
         infos = {}
@@ -1391,6 +1397,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     def on_slowmotion_clicked(self):
         self.SlowmotionFPS.setEnabled(self.slowmotion.isChecked())
 
+    @pyqtSlot(bool)
+    def on_UseEncodeThread_clicked(self):
+        self.EncodeThreadSelector.setVisible(self.UseEncodeThread.isChecked())
+
     @pyqtSlot(str)
     def on_ResizeTemplate_currentTextChanged(self):
         current_template = self.ResizeTemplate.currentText()
@@ -1449,6 +1459,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         presets = EncodePresetAssemply.encoder[currentHwaccel][currentEncoder]
         for preset in presets:
             self.PresetSelector.addItem(preset)
+
+    @pyqtSlot(str)
+    def on_DupRmMode_currentTextChanged(self):
+        self.DupFramesTSelector.setVisible(
+            self.DupRmMode.currentIndex() == 1)  # Single Threshold Duplicated Frames Removal
 
     @pyqtSlot(str)
     def on_ExpSelecter_currentTextChanged(self):
