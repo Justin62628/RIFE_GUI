@@ -9,7 +9,7 @@ from torch.nn import functional as F
 from Utils.utils import Utils
 
 warnings.filterwarnings("ignore")
-Utils = Utils()
+# Utils = Utils()
 
 
 class RifeInterpolation:

@@ -26,7 +26,7 @@ from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
 print("INFO - ONE LINE SHOT ARGS 6.6.0 2021/6/25")
-Utils = Utils()
+# Utils = Utils()
 
 """设置环境路径"""
 abspath = os.path.abspath(__file__)
@@ -1488,8 +1488,10 @@ class InterpWorkFlow:
                 return predict_dict[(pos1, pos0)]
 
             w, h, _ = get_img(pos0).shape
-            diff = cv2.Canny(sobel(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
-                                               cv2.resize(get_img(pos0), resize_param))), 100, 200)
+            # diff = cv2.Canny(sobel(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
+            #                                    cv2.resize(get_img(pos0), resize_param))), 100, 200)
+            diff = cv2.Canny(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
+                                         cv2.resize(get_img(pos0), resize_param)), 100, 200)
             mask = np.where(diff != 0)
             try:
                 xmin = min(list(mask)[0])

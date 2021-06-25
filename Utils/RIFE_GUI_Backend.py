@@ -303,7 +303,7 @@ class SVFI_Run(QThread):
 
         if self.task_cnt > 1:
             """MultiTask"""
-            appData.setValue("output_only", True)
+            # appData.setValue("output_only", True)
             appData.setValue("batch", True)
 
         if not self.task_cnt:
@@ -1496,6 +1496,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         :return:
         """
+        self.load_current_settings()  # update settings
         self.ConcatAllButton.setEnabled(False)
         self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)

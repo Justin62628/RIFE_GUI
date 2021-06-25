@@ -109,16 +109,21 @@ class DefaultConfigParser(ConfigParser):
 
 
 class Utils:
+    resize_param = (480, 270)
+    crop_param = (0, 0, 0, 0)
+
     def __init__(self):
         self.resize_param = (480, 270)
         self.crop_param = (0, 0, 0, 0)
         pass
 
-    def fillQuotation(self, string):
+    @staticmethod
+    def fillQuotation(string):
         if string[0] != '"':
             return f'"{string}"'
 
-    def get_logger(self, name, log_path, debug=False):
+    @staticmethod
+    def get_logger(name, log_path, debug=False):
         logger = logging.getLogger(name)
         logger.setLevel(logging.INFO)
         logger_formatter = logging.Formatter(f'%(asctime)s - %(module)s - %(lineno)s - %(levelname)s - %(message)s')
@@ -144,7 +149,8 @@ class Utils:
         logger.addHandler(txt_handler)
         return logger
 
-    def make_dirs(self, dir_lists, rm=False):
+    @staticmethod
+    def make_dirs(dir_lists, rm=False):
         for d in dir_lists:
             if rm and os.path.exists(d):
                 shutil.rmtree(d)
@@ -153,34 +159,15 @@ class Utils:
                 os.mkdir(d)
         pass
 
-    def gen_next(self, gen: iter):
+    @staticmethod
+    def gen_next(gen: iter):
         try:
             return next(gen)
         except StopIteration:
             return None
 
-    def generate_prebuild_map(self, exp, req):
-        """
-        For Inference duplicate frames removal
-        :return:
-        """
-        I_step = 1 / (2 ** exp)
-        IL = [x * I_step for x in range(1, 2 ** exp)]
-        N_step = 1 / (req + 1)
-        NL = [x * N_step for x in range(1, req + 1)]
-        KPL = []
-        for x1 in NL:
-            min = 1
-            kpt = 0
-            for x2 in IL:
-                value = abs(x1 - x2)
-                if value < min:
-                    min = value
-                    kpt = x2
-            KPL.append(IL.index(kpt))
-        return KPL
-
-    def clean_parsed_config(self, args: dict) -> dict:
+    @staticmethod
+    def clean_parsed_config(args: dict) -> dict:
         for a in args:
             if args[a] in ["false", "true"]:
                 if args[a] == "false":
@@ -205,21 +192,24 @@ class Utils:
         return args
         pass
 
-    def check_pure_img(self, img1):
+    @staticmethod
+    def check_pure_img(img1):
         if np.var(img1) < 10:
             return True
         return False
 
-    def get_norm_img(self, img1, resize=True):
+    @staticmethod
+    def get_norm_img(img1, resize=True):
         if resize:
-            img1 = cv2.resize(img1, self.resize_param, interpolation=cv2.INTER_LINEAR)
+            img1 = cv2.resize(img1, Utils.resize_param, interpolation=cv2.INTER_LINEAR)
         img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
         img1 = cv2.equalizeHist(img1)  # 进行直方图均衡化
         # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         # _, img1 = cv2.threshold(img1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return img1
 
-    def get_norm_img_diff(self, img1, img2, resize=True) -> float:
+    @staticmethod
+    def get_norm_img_diff(img1, img2, resize=True) -> float:
         """
         Normalize Difference
         :param resize:
@@ -227,13 +217,14 @@ class Utils:
         :param img2: cv2
         :return: float
         """
-        img1 = self.get_norm_img(img1, resize)
-        img2 = self.get_norm_img(img2, resize)
+        img1 = Utils.get_norm_img(img1, resize)
+        img2 = Utils.get_norm_img(img2, resize)
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         diff = cv2.absdiff(img1, img2).mean()
         return diff
 
-    def get_norm_img_flow(self, img1, img2, resize=True, flow_thres=1) -> (int, np.array):
+    @staticmethod
+    def get_norm_img_flow(img1, img2, resize=True, flow_thres=1) -> (int, np.array):
         """
         Normalize Difference
         :param flow_thres: 光流移动像素长
@@ -242,15 +233,15 @@ class Utils:
         :param img2: cv2
         :return:  (int, np.array)
         """
-        prevgray = self.get_norm_img(img1, resize)
-        gray = self.get_norm_img(img2, resize)
+        prevgray = Utils.get_norm_img(img1, resize)
+        gray = Utils.get_norm_img(img2, resize)
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         # prevgray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         # gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
         # 使用Gunnar Farneback算法计算密集光流
         flow = cv2.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
         # 绘制线
-        step=10
+        step = 10
         h, w = gray.shape[:2]
         y, x = np.mgrid[step / 2:h:step, step / 2:w:step].reshape(2, -1).astype(int)
         fx, fy = flow[y, x].T
@@ -260,7 +251,7 @@ class Utils:
         flow_cnt = 0
 
         for l in lines:
-            if math.sqrt(math.pow(l[0][0] - l[1][0],2)+math.pow(l[0][1] - l[1][1], 2)) > flow_thres:
+            if math.sqrt(math.pow(l[0][0] - l[1][0], 2) + math.pow(l[0][1] - l[1][1], 2)) > flow_thres:
                 flow_cnt += 1
                 line.append(l)
 
@@ -268,97 +259,22 @@ class Utils:
         comp_stack = np.hstack((prevgray, gray))
         return flow_cnt, comp_stack
 
-    def get_filename(self, path):
+    @staticmethod
+    def get_filename(path):
         if not os.path.isfile(path):
             return os.path.basename(path)
         return os.path.splitext(os.path.basename(path))[0]
 
-    def rm_edge(self, img):
-        """
-        return img info of edges
-        :param img:
-        :return:
-        """
-        gray = img
-        x = gray.shape[1]
-        y = gray.shape[0]
-
-        if np.var(gray) == 0:
-            """pure image, like white or black"""
-            return 0, y, 0, x
-
-        # if np.mean(self.crop_param) != 0:
-        #     return self.crop_param
-
-        edges_x = []
-        edges_y = []
-        edges_x_up = []
-        edges_y_up = []
-        edges_x_down = []
-        edges_y_down = []
-        edges_x_left = []
-        edges_y_left = []
-        edges_x_right = []
-        edges_y_right = []
-
-        for i in range(x):
-            for j in range(y):
-                if int(gray[j][i]) > 10:
-                    edges_x_left.append(i)
-                    edges_y_left.append(j)
-            if len(edges_x_left) != 0 or len(edges_y_left) != 0:
-                break
-
-        for i in range(x):
-            for j in range(y):
-                if int(gray[j][x - i - 1]) > 10:
-                    edges_x_right.append(i)
-                    edges_y_right.append(j)
-            if len(edges_x_right) != 0 or len(edges_y_right) != 0:
-                break
-
-        for j in range(y):
-            for i in range(x):
-                if int(gray[j][i]) > 10:
-                    edges_x_up.append(i)
-                    edges_y_up.append(j)
-            if len(edges_x_up) != 0 or len(edges_y_up) != 0:
-                break
-
-        for j in range(y):
-            for i in range(x):
-                if int(gray[y - j - 1][i]) > 10:
-                    edges_x_down.append(i)
-                    edges_y_down.append(j)
-            if len(edges_x_down) != 0 or len(edges_y_down) != 0:
-                break
-
-        edges_x.extend(edges_x_left)
-        edges_x.extend(edges_x_right)
-        edges_x.extend(edges_x_up)
-        edges_x.extend(edges_x_down)
-        edges_y.extend(edges_y_left)
-        edges_y.extend(edges_y_right)
-        edges_y.extend(edges_y_up)
-        edges_y.extend(edges_y_down)
-
-        left = min(edges_x) if len(edges_x) else 0  # 左边界
-        right = max(edges_x) if len(edges_x) else x  # 右边界
-        bottom = min(edges_y) if len(edges_y) else 0  # 底部
-        top = max(edges_y) if len(edges_y) else y  # 顶部
-
-        # image2 = img[bottom:top, left:right]
-        self.crop_param = (bottom, top, left, right)
-        return bottom, top, left, right
-
-    def get_exp_edge(self, num):
+    @staticmethod
+    def get_exp_edge(num):
         b = 2
         scale = 0
         while num > b ** scale:
             scale += 1
         return scale
 
-    def get_mixed_scenes(self, img0, img1, n):
+    @staticmethod
+    def get_mixed_scenes(img0, img1, n):
         """
         return n-1 images
         :param img0:

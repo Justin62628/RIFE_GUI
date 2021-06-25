@@ -6,7 +6,7 @@ from Utils.utils import Utils
 from ncnn.rife import rife_ncnn_vulkan
 
 warnings.filterwarnings("ignore")
-Utils = Utils()
+# Utils = Utils()
 raw = rife_ncnn_vulkan.raw
 
 

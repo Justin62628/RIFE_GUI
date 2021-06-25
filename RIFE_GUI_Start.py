@@ -22,7 +22,7 @@ except ImportError as e:
 
 app = QApplication(sys.argv)
 app_backend_module = RIFE_GUI_Backend
-app_backend = app_backend_module.RIFE_GUI_BACKEND()
+app_backend = app_backend_module.RIFE_GUI_BACKEND(free=False)
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
                                              title="Squirrel Video Frame Interpolation 3.2.3 alpha")
