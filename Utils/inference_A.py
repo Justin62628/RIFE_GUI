@@ -2,7 +2,6 @@ import os
 import traceback
 import warnings
 
-from Utils.utils import Utils
 from ncnn.rife import rife_ncnn_vulkan
 
 warnings.filterwarnings("ignore")

@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Utils.model.warplayer import warp
+from model.warplayer import warp
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1):
     return nn.Sequential(
@@ -12,7 +11,6 @@ def conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1):
                   padding=padding, dilation=dilation, bias=True),
         nn.PReLU(out_planes)
     )
-
 
 def conv_bn(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1):
     return nn.Sequential(
@@ -73,8 +71,7 @@ class IFBlock(nn.Module):
         mask = F.interpolate(mask, scale_factor=scale, mode="bilinear", align_corners=False,
                              recompute_scale_factor=False)
         return flow, mask
-
-
+        
 class IFNet(nn.Module):
     def __init__(self):
         super(IFNet, self).__init__()
@@ -84,7 +81,7 @@ class IFNet(nn.Module):
         # self.contextnet = Contextnet()
         # self.unet = Unet()
 
-    def forward(self, x, scale_list=[4, 2, 1], training=False, ada_scale=True, ensemble=False):
+    def forward(self, x, scale_list=[4, 2, 1], training=False, ada_scale=True, ensemble=True):
         if training == False:
             channel = x.shape[1] // 2
             img0 = x[:, :channel]

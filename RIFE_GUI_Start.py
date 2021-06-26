@@ -19,13 +19,14 @@ except ImportError as e:
     print("Not Find RIFE GUI Backend, please contact developers for support")
     input("Press Any Key to Quit")
     exit()
-
+SVFI_version = "3.2 Professional"
+# SVFI_version = "3.2 Platinum"
 app = QApplication(sys.argv)
 app_backend_module = RIFE_GUI_Backend
-app_backend = app_backend_module.RIFE_GUI_BACKEND(free=False)
+app_backend = app_backend_module.RIFE_GUI_BACKEND(free=False, version=SVFI_version)
 try:
     form = QCandyUi.CandyWindow.createWindow(app_backend, theme="blueDeep", ico_path="svfi.png",
-                                             title="Squirrel Video Frame Interpolation 3.2.3 alpha")
+                                             title=f"Squirrel Video Frame Interpolation {SVFI_version}")
     form.show()
     app.exec_()
     """Save Settings"""

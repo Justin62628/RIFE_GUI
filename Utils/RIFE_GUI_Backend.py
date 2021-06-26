@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import subprocess as sp
 import sys
 import time
@@ -196,7 +197,8 @@ class SVFI_Run_Others(QThread):
 
     def run(self):
         logger.info(f"[CMD Thread]: Start execute {self.command}")
-        os.system(self.command)
+        ps = subprocess.Popen(self.command)
+        ps.wait()
         self.fire_finish_signal()
         pass
 
@@ -447,7 +449,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     kill_proc = pyqtSignal(int)
     notfound = pyqtSignal(int)
 
-    def __init__(self, parent=None, free=False):
+    def __init__(self, parent=None, free=False, version="0.0.0 beta"):
         """
         SVFI 主界面类
         :param parent:
@@ -457,7 +459,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.setupUi(self)
         self.thread = None
         self.Exp = int(math.log(float(appData.value("exp", "2")), 2))
-
+        self.version = version
         self.free = free
         if self.free:
             self.free_hide()
@@ -465,9 +467,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("app_path", ddname)
 
         if appData.value("ffmpeg", "") != "ffmpeg":
-            self.ffmpeg = os.path.join(appData.value("ffmpeg", ""), "ffmpeg.exe")
+            self.ffmpeg = f'"{os.path.join(appData.value("ffmpeg", ""), "ffmpeg.exe")}"'
         else:
             self.ffmpeg = appData.value("ffmpeg", "")
+
+        # debug
+        # self.ffmpeg = '"D:/60-fps-Project/Projects/RIFE GUI/release/SVFI.Env/神威 SVFI 3.2/Package/ffmpeg.exe"'
 
         if os.path.exists(appDataPath):
             logger.info("Previous Settings Found")
@@ -528,8 +533,18 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         # self.DupRmChecker.setVisible(False)
         self.DupFramesTSelector.setVisible(False)
         self.DupFramesTSelector.setValue(0.2)
+        self.DupRmMode.clear()
+        ST_RmMode = ["不去除重复帧", "单一识别"]
+        for m in ST_RmMode:
+            self.DupRmMode.addItem(m)
+
         self.StartPoint.setVisible(False)
         self.EndPoint.setVisible(False)
+        self.StartPointLabel.setVisible(False)
+        self.EndPointLabel.setVisible(False)
+        self.ScdetUseMix.setVisible(False)
+        self.UseAiSR.setVisible(False)
+        self.RenderOnlyGroupbox.setVisible(False)
         # self.label_16.setVisible(False)
         # self.label_18.setVisible(False)
         # _translate = QCoreApplication.translate
@@ -581,6 +596,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ExtSelector.setCurrentText(appData.value("output_ext", "mp4"))
         self.RenderGapSelector.setValue(appData.value("render_gap", 1000, type=int))
         self.SaveAudioChecker.setChecked(appData.value("save_audio", True, type=bool))
+        self.FastDenoiseChecker.setChecked(appData.value("fast_denoise", False, type=bool))
 
         self.ScedetChecker.setChecked(not appData.value("no_scdet", False, type=bool))
         self.ScdetSelector.setValue(appData.value("scdet_threshold", 12, type=int))
@@ -612,6 +628,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.FP16Checker.setChecked(appData.value("fp16", False, type=bool))
         self.InterpScaleSelector.setCurrentText(appData.value("scale", "1.00"))
         self.ReverseChecker.setChecked(appData.value("reverse", False, type=bool))
+        self.ForwardEnsembleChecker.setChecked(appData.value("forward_ensemble", False, type=bool))
         self.AutoInterpScaleChecker.setChecked(appData.value("auto_scale", False, type=bool))
         self.on_AutoInterpScaleChecker_clicked()
         self.UseNCNNButton.setChecked(appData.value("ncnn", False, type=bool))
@@ -621,6 +638,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         self.slowmotion.setChecked(appData.value("slow_motion", False, type=bool))
         self.SlowmotionFPS.setText(appData.value("slow_motion_fps", "", type=str))
+        self.GifLoopChecker.setChecked(appData.value("gif_loop", True, type=bool))
 
         self.multi_task_rest = appData.value("multi_task_rest", False, type=bool)
         self.multi_task_rest_interval = appData.value("multi_task_rest_interval", False, type=bool)
@@ -676,8 +694,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("strict_mode", self.StrictModeChecker.isChecked())
         appData.setValue("ffmpeg_customized", self.FFmpegCustomer.text())
         appData.setValue("no_concat", False)  # always concat
+        appData.setValue("fast_denoise", self.FastDenoiseChecker.isChecked())
 
         """Special Render Effect"""
+        appData.setValue("gif_loop", self.GifLoopChecker.isChecked())
         appData.setValue("slow_motion", self.slowmotion.isChecked())
         appData.setValue("slow_motion_fps", self.SlowmotionFPS.text())
         if appData.value("slow_motion", False, type=bool):
@@ -734,6 +754,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("selected_model", os.path.join(appData.value("model"), self.ModuleSelector.currentText()))
         appData.setValue("use_specific_gpu", self.DiscreteCardSelector.currentIndex())
         appData.setValue("auto_scale", self.AutoInterpScaleChecker.isChecked())
+        appData.setValue("forward_ensemble", self.ForwardEnsembleChecker.isChecked())
 
         """Debug Mode"""
         appData.setValue("debug", self.DebugChecker.isChecked())
@@ -820,6 +841,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 return
             elif "Concat Test Error" in now_text:
                 self.sendWarning("Concat Failed", "区块合并音轨测试失败，请检查输出文件格式是否支持源文件音频", )
+                self.current_failed = True
+                return
+            elif "Broken Pipe" in now_text:
+                self.sendWarning("Render Failed", "请检查渲染设置，确保输出分辨率为偶数，尝试关闭硬件编码以解决问题", )
                 self.current_failed = True
                 return
             elif "error" in data.get("subprocess", "").lower():
@@ -1001,7 +1026,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {Utils.fillQuotation(output_v)} -y
         """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] concat {ffmpeg_command}")
-        os.system(ffmpeg_command)
+        ps = subprocess.Popen(ffmpeg_command)
+        ps.wait()
         self.sendWarning("音视频合并操作完成！", f"请查收", msg_type=2)
 
     def update_gif_making(self, emit_json: str):
@@ -1021,24 +1047,29 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             appData.setValue("target_fps", 50)
             logger.info("Not find output GIF fps, Auto set GIF output fps to 50 as it's smooth enough")
         target_fps = appData.value("target_fps", 50, type=float)
-        if target_fps > 50:
-            target_fps = 50
-            logger.info("Auto set GIF output fps to 50 as it's smooth enough")
+        # if target_fps > 50:
+        #     target_fps = 50
+        #     logger.info("Auto set GIF output fps to 50 as it's smooth enough")
         width = self.ResizeWidthSettings.value()
         height = self.ResizeHeightSettings.value()
         resize = f"scale={width}:{height},"
         if not all((width, height)):
             resize = ""
-        ffmpeg_command = f'{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps} ' \
-                         f'-lavfi "{resize}split[s0][s1];' \
-                         f'[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" ' \
-                         f'{Utils.fillQuotation(output_v)} -y'.strip().strip("\n").replace("\n", "").replace("\\", "/")
+        ffmpeg_command = f"""{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps}
+                         -lavfi "{resize}split[s0][s1];
+                         [s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" 
+                         {"-loop 0" if self.GifLoopChecker.isChecked() else ""}
+                         {Utils.fillQuotation(output_v)} -y""".strip().strip("\n").replace("\n", "").replace("\\", "\\")
 
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
         self.GifButton.setEnabled(False)
-        GIF_Thread = SVFI_Run_Others(ffmpeg_command, 23333, data={"target_fps": target_fps})
-        GIF_Thread.run_signal.connect(self.update_gif_making)
-        GIF_Thread.start()
+        ps = subprocess.Popen(ffmpeg_command)
+        ps.wait()
+        self.GifButton.setEnabled(True)
+        self.sendWarning("GIF制作完成", f"GIF帧率：{target_fps}", 2)
+        # GIF_Thread = SVFI_Run_Others(ffmpeg_command, 23333, data={"target_fps": target_fps})
+        # GIF_Thread.run_signal.connect(self.update_gif_making)
+        # GIF_Thread.start()
 
     def set_start_info(self, sf, sc, custom_prior=False):
         """
@@ -1071,8 +1102,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         if not len(self.get_input_files()):
             return
         if self.InputFileName.currentItem() is None:
-            self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
-            return
+            self.InputFileName.setCurrentRow(0)
+            # self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
         project_dir = os.path.join(self.OutputFolder.text(),
                                    Utils.get_filename(self.InputFileName.currentItem().text()))
         if not os.path.exists(project_dir):
@@ -1138,7 +1169,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         if self.UseNCNNButton.isChecked():
             model_dir = os.path.join(rife_ncnn_dir, "models")
         else:
-            model_dir = os.path.join(app_dir, "Utils", "train_log")
+            model_dir = os.path.join(app_dir, "train_log")
         appData.setValue("model", model_dir)
 
         if not os.path.exists(model_dir):
@@ -1290,7 +1321,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         self.thread = RIFE_thread
         update_text = f"""
-                    [补帧操作启动]
+                    [SVFI {self.version} 补帧操作启动]
                     显示“Program finished”则任务完成
                     如果遇到任何问题，请将命令行（黑色界面）、基础设置、高级设置和输出窗口截全图并联系开发人员解决，
                     群号在首页说明\n
@@ -1372,6 +1403,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.DiscreteCardSelector.setEnabled(bool_result)
         self.ncnnInterpThreadCnt.setEnabled(not bool_result)
         self.ncnnSelectGPU.setEnabled(not bool_result)
+        self.ForwardEnsembleChecker.setEnabled(bool_result)
         self.update_model_info()
         self.on_ExpSelecter_currentTextChanged()
 
@@ -1504,9 +1536,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
-        self.OptionCheck.setText("[仅合并操作启动，请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
-                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
-                                 "\n\n\n\n\n")
+        self.OptionCheck.setText(f"""
+                    [SVFI {self.version} 仅合并操作启动，请移步命令行查看进度详情]
+                    显示“Program finished”则任务完成
+                    如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，
+                    \n\n\n\n\n""")
 
     @pyqtSlot(bool)
     def on_StartExtractButton_clicked(self):
@@ -1522,9 +1556,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
-        self.OptionCheck.setText("[仅拆帧操作启动，图片序列将会按照补帧规则输出。请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
-                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
-                                 "\n\n\n\n\n")
+        self.OptionCheck.setText(f"""
+                            [SVFI {self.version} 仅拆帧操作启动，请移步命令行查看进度详情]
+                            显示“Program finished”则任务完成
+                            如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，
+                            \n\n\n\n\n""")
 
     @pyqtSlot(bool)
     def on_StartRenderButton_clicked(self):
@@ -1540,9 +1576,11 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         RIFE_thread.run_signal.connect(self.update_rife_process)
         RIFE_thread.start()
         self.thread = RIFE_thread
-        self.OptionCheck.setText("[仅渲染操作启动，图片序列将会按照补帧规则输出。请移步命令行查看进度详情]\n显示“Program finished”则任务完成\n"
-                                 "如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，"
-                                 "\n\n\n\n\n")
+        self.OptionCheck.setText(f"""
+                            [SVFI {self.version} 仅渲染操作启动，请移步命令行查看进度详情]
+                            显示“Program finished”则任务完成
+                            如果遇到任何问题，请将软件运行界面截图并联系开发人员解决，
+                            \n\n\n\n\n""")
 
     @pyqtSlot(bool)
     def on_KillProcButton_clicked(self):

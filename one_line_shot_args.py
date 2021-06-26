@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import traceback
+import subprocess
 from collections import deque
 from queue import Queue
 
@@ -25,7 +26,7 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.6.0 2021/6/25")
+print("INFO - ONE LINE SHOT ARGS 6.6.1 2021/6/26")
 # Utils = Utils()
 
 """设置环境路径"""
@@ -1263,7 +1264,8 @@ class InterpWorkFlow:
                              f'{Utils.fillQuotation(concat_filepath)} -y'
 
             self.logger.info("Start Audio Concat Test")
-            os.system(ffmpeg_command)
+            sp = subprocess.Popen(ffmpeg_command)
+            sp.wait()
             if not os.path.exists(concat_filepath) or not os.path.getsize(concat_filepath):
                 self.logger.error(f"Concat Test Error, {output_ext}, empty output")
                 self.main_error = FileExistsError("Concat Test Error, empty output, Check Output Extension!!!")
@@ -1298,6 +1300,10 @@ class InterpWorkFlow:
 
             frame = frame_data[1]
             now_frame = frame_data[0]
+
+            if self.args.get("fast_denoise", False):
+                frame = cv2.fastNlMeansDenoising(frame)
+
             frame_writer.writeFrame(frame)
 
             chunk_frame_cnt += 1
@@ -1424,17 +1430,15 @@ class InterpWorkFlow:
         flow_dict = dict()
         canny_dict = dict()
         predict_dict = dict()
-        resize_param = (32, 32)  # TODO: needing more check
+        resize_param = (40, 40)  # TODO: needing more check
 
         def get_img(i0):
-            nonlocal check_frame_data
             if i0 in check_frame_data:
                 return check_frame_data[i0]
             else:
                 return None
 
         def calc_flow_distance(pos0: int, pos1: int, _use_flow=True):
-            nonlocal check_frame_data
             if not _use_flow:
                 return diff_canny(pos0, pos1)
             if (pos0, pos1) in flow_dict:
@@ -1455,20 +1459,15 @@ class InterpWorkFlow:
             y = flow[:, :, 1]
             dis = np.linalg.norm(x) + np.linalg.norm(y)
             flow_dict[(pos0, pos1)] = dis
-            flow_dict[(pos1, pos0)] = dis
             return dis
 
         def diff_canny(pos0, pos1):
-            nonlocal check_frame_data
-
             if (pos0, pos1) in canny_dict:
                 return canny_dict[(pos0, pos1)]
             if (pos1, pos0) in canny_dict:
                 return canny_dict[(pos1, pos0)]
-            canny_diff = cv2.Canny(cv2.absdiff(cv2.resize(get_img(pos0), (256, 256)),
-                                               cv2.resize(get_img(pos0), (256, 256))), 100, 200).mean()
+            canny_diff = cv2.Canny(cv2.absdiff(get_img(pos0), get_img(pos0)), 100, 200).mean()
             canny_dict[(pos0, pos1)] = canny_diff
-            canny_dict[(pos1, pos0)] = canny_diff
             return canny_diff
 
         def sobel(src):
@@ -1480,8 +1479,6 @@ class InterpWorkFlow:
             return cv2.addWeighted(grad_x, 0.5, grad_y, 0.5, 0)
 
         def predict_scale(pos0, pos1):
-            nonlocal check_frame_data
-
             if (pos0, pos1) in predict_dict:
                 return predict_dict[(pos0, pos1)]
             if (pos1, pos0) in predict_dict:
@@ -1490,8 +1487,7 @@ class InterpWorkFlow:
             w, h, _ = get_img(pos0).shape
             # diff = cv2.Canny(sobel(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
             #                                    cv2.resize(get_img(pos0), resize_param))), 100, 200)
-            diff = cv2.Canny(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
-                                         cv2.resize(get_img(pos0), resize_param)), 100, 200)
+            diff = cv2.Canny(cv2.absdiff(get_img(pos0), get_img(pos0)), 100, 200)
             mask = np.where(diff != 0)
             try:
                 xmin = min(list(mask)[0])
@@ -1515,7 +1511,6 @@ class InterpWorkFlow:
             S1 = W * H
             prediction = -2 * (S1 / S0) + 3
             predict_dict[(pos0, pos1)] = prediction
-            predict_dict[(pos1, pos0)] = prediction
             return prediction
 
         if init:
@@ -1523,12 +1518,10 @@ class InterpWorkFlow:
 
         use_flow = True
         check_queue_size = min(self.frames_output_size, 1000)  # 预处理长度
-        # side_vec = int(self.args["dup_threshold"])  # 中间最大运动幅度
-        # if side_vec > 12:
-        #     side_vec = 12
         check_frame_list = list()  # 采样图片帧数序列,key ~ LabData
         scene_frame_list = list()  # 转场图片帧数序列,key,和check_frame_list同步
-        check_frame_data = dict()  # 采样图片数据
+        input_frame_data = dict()  # 输入图片数据
+        check_frame_data = dict()  # 用于判断的采样图片数据
         """
             check_frame_list contains key, check_frame_data contains (key, frame_data)
         """
@@ -1540,20 +1533,21 @@ class InterpWorkFlow:
             if check_frame is None:
                 break
             if len(check_frame_list):  # len>1
-                if Utils.get_norm_img_diff(check_frame_data[check_frame_list[-1]],
+                if Utils.get_norm_img_diff(input_frame_data[check_frame_list[-1]],
                                            check_frame) < 0.001 and not Utils.check_pure_img(check_frame):
                     # duplicate frames
-                    # TODO check pure img
                     continue
             check_frame_list.append(check_frame_cnt)  # key list
-            check_frame_data[check_frame_cnt] = check_frame
+            input_frame_data[check_frame_cnt] = check_frame
+            # check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
+            check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
         if not len(check_frame_list):
             return [], [], []
 
         """Scene Batch Detection"""
         for i in range(len(check_frame_list) - 1):
-            i1 = check_frame_data[check_frame_list[i]]
-            i2 = check_frame_data[check_frame_list[i + 1]]
+            i1 = input_frame_data[check_frame_list[i]]
+            i2 = input_frame_data[check_frame_list[i + 1]]
             result = self.scene_detection.check_scene(i1, i2)
             if result:
                 scene_frame_list.append(check_frame_list[i + 1])  # at i find scene
@@ -1594,13 +1588,13 @@ class InterpWorkFlow:
             if check_frame_list[d] not in scene_frame_list:
                 check_frame_list[d] = -1
 
-        max_key = np.max(list(check_frame_data.keys()))
+        max_key = np.max(list(input_frame_data.keys()))
         if max_key not in check_frame_list:
             check_frame_list.append(max_key)
         if 0 not in check_frame_list:
             check_frame_list.insert(0, 0)
         check_frame_list = [i for i in check_frame_list if i > -1]
-        return check_frame_list, scene_frame_list, check_frame_data
+        return check_frame_list, scene_frame_list, input_frame_data
 
     def rife_run(self):
         """
@@ -1859,15 +1853,15 @@ class InterpWorkFlow:
             """Load RIFE Model"""
             if self.args["ncnn"]:
                 self.args["selected_model"] = os.path.basename(self.args["selected_model"])
-                import inference_A as inference
+                from Utils import inference_A as inference
             else:
                 try:
-                    import inference  # 导入补帧模块
+                    from Utils import inference
                 except Exception:
                     self.logger.warning("Import Torch Failed, use NCNN-RIFE instead")
                     traceback.print_exc()
                     self.args.update({"ncnn": True, "selected_model": "rife-v2"})
-                    import inference_A as inference
+                    from Utils import inference_A as inference
 
             """Update RIFE Core"""
             self.rife_core = inference.RifeInterpolation(self.args)
@@ -2111,7 +2105,7 @@ class InterpWorkFlow:
 
         if self.args["save_audio"] and not self.args["img_input"]:
             audio_path = self.input
-            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy '  # TODO No shortest, Check VA Sync Only
+            map_audio = f'-i "{audio_path}" -map 0:v:0 -map 1:a? -map 1:s? -c:a copy -c:s copy '
             if self.args.get("start_point", None) is not None or self.args.get("end_point", None) is not None:
                 time_fmt = "%H:%M:%S"
                 start_point = datetime.datetime.strptime(self.args["start_point"], time_fmt)
@@ -2129,7 +2123,8 @@ class InterpWorkFlow:
 
         ffmpeg_command = f'{self.ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy {Utils.fillQuotation(concat_filepath)} -y'
         self.logger.debug(f"Concat command: {ffmpeg_command}")
-        os.system(ffmpeg_command)
+        sp = subprocess.Popen(ffmpeg_command)
+        sp.wait()
         if self.args["output_only"] and os.path.exists(concat_filepath):
             if not os.path.getsize(concat_filepath):
                 self.logger.error(f"Concat Error, {output_ext}, empty output")

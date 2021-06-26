@@ -4,17 +4,18 @@ import numpy as np
 from torch.optim import AdamW
 import torch.optim as optim
 import itertools
-from Utils.model.warplayer import warp
+from model.warplayer import warp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from Utils.model.IFNet_HDv3 import *
+from model.IFNet_HDv3 import *
 import torch.nn.functional as F
-from Utils.model.loss import *
+from model.loss import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Model:
-    def __init__(self, local_rank=-1):
+    def __init__(self, forward_ensemble=False, local_rank=-1):
+        self.forward_ensemble = forward_ensemble
         self.flownet = IFNet()
         self.device()
         self.optimG = AdamW(self.flownet.parameters(), lr=1e-6, weight_decay=1e-4)
@@ -58,7 +59,7 @@ class Model:
     def inference(self, img0, img1, scale=1.0):
         imgs = torch.cat((img0, img1), 1)
         scale_list = [4 / scale, 2 / scale, 1 / scale]
-        flow, mask, merged = self.flownet(imgs, scale_list)
+        flow, mask, merged = self.flownet(imgs, scale_list, ensemble=self.forward_ensemble)
         return merged[2]
 
     def update(self, imgs, gt, learning_rate=0, mul=1, training=True, flow_gt=None):

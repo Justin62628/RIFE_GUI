@@ -6,14 +6,12 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
-from Utils.utils import Utils
-
 warnings.filterwarnings("ignore")
 # Utils = Utils()
 
 
 class RifeInterpolation:
-    def __init__(self, __args):
+    def __init__(self, __args: dict):
         self.initiated = False
         self.args = {}
         if __args is not None:
@@ -57,17 +55,17 @@ class RifeInterpolation:
 
         try:
             try:
-                from Utils.model.RIFE_HDv2 import Model
+                from model.RIFE_HDv2 import Model
                 model = Model()
                 model.load_model(self.model_path, -1)
                 print("INFO - Loaded v2.x HD model.")
             except:
-                from Utils.model.RIFE_HDv3 import Model
-                model = Model()
+                from model.RIFE_HDv3 import Model
+                model = Model(forward_ensemble=self.args.get("forward_ensemble", False))
                 model.load_model(self.model_path, -1)
                 print("INFO - Loaded v3.x HD model.")
         except:
-            from Utils.model.RIFE_HD import Model
+            from model.RIFE_HD import Model
             model = Model()
             model.load_model(self.model_path, -1)
             print("INFO - Loaded v1.x HD model")
