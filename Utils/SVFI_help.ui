@@ -46,9 +46,6 @@
                                     <property name="text">
                                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot;
                                             font-size:12pt; font-weight:600; color:#ffffff;&quot;&gt;快速补帧流程：（鼠标悬浮在选项上可见帮助信息）&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
-                                            style=&quot; color:#ffffff;&quot;&gt;0. 请确保本软件在&lt;/span&gt;&lt;span style=&quot;
-                                            font-weight:600; color:#ffffff;&quot;&gt;纯英文、无特殊标点符号及空格的路径&lt;/span&gt;&lt;span
-                                            style=&quot; color:#ffffff;&quot;&gt;下运行&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
                                             style=&quot; color:#ffffff;&quot;&gt;1.
                                             选择要补帧的文件。可以选择多个视频文件进行批量补帧，也可以选择包括图片序列的文件夹，后者需要手动填写输入帧率。如果输入的文件有误，&lt;/span&gt;&lt;span
                                             style=&quot; font-weight:600; color:#ffffff;&quot;&gt;需要重新拖动文件或者点击下方的输入按钮&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span

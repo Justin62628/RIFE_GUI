@@ -20,7 +20,7 @@ os.replace(r".\release\one_line_shot_args.dist\one_line_shot_args.exe",
 os.replace(r".\release\RIFE_GUI_Start.dist\RIFE_GUI_Start.exe", os.path.join(pack_dir, f"SVFI.{tag_version}.exe"))
 os.chdir(pack_dir)
 os.system(f"""
-echo cd /d %%~dp0/Package > 启动SVFI.bat
+echo cd /d %%~dp0/Package >> 启动SVFI.bat
 echo start SVFI.{tag_version}.exe >> 启动SVFI.bat
 """
           )

@@ -657,17 +657,6 @@
                                                                                     </item>
                                                                                 </layout>
                                                                             </item>
-                                                                            <item row="0" column="0">
-                                                                                <widget class="QLabel"
-                                                                                        name="AdvanceSettingsLabel">
-                                                                                    <property name="text">
-                                                                                        <string>高级设置</string>
-                                                                                    </property>
-                                                                                    <property name="alignment">
-                                                                                        <set>Qt::AlignCenter</set>
-                                                                                    </property>
-                                                                                </widget>
-                                                                            </item>
                                                                             <item row="1" column="0">
                                                                                 <widget class="QToolBox" name="toolBox">
                                                                                     <property name="maximumSize">
@@ -677,7 +666,7 @@
                                                                                         </size>
                                                                                     </property>
                                                                                     <property name="currentIndex">
-                                                                                        <number>5</number>
+                                                                                        <number>3</number>
                                                                                     </property>
                                                                                     <widget class="QWidget"
                                                                                             name="ResumeSettings">
@@ -2182,7 +2171,7 @@
                                                                                                 <x>0</x>
                                                                                                 <y>0</y>
                                                                                                 <width>536</width>
-                                                                                                <height>450</height>
+                                                                                                <height>452</height>
                                                                                             </rect>
                                                                                         </property>
                                                                                         <attribute name="label">
@@ -2559,7 +2548,7 @@
                                                                                                     </property>
                                                                                                     <layout class="QGridLayout"
                                                                                                             name="gridLayout_32">
-                                                                                                        <item row="7"
+                                                                                                        <item row="3"
                                                                                                               column="1">
                                                                                                             <widget class="MyComboBox"
                                                                                                                     name="EncoderSelector">
@@ -2586,171 +2575,7 @@
                                                                                                                 </item>
                                                                                                             </widget>
                                                                                                         </item>
-                                                                                                        <item row="6"
-                                                                                                              column="0">
-                                                                                                            <widget class="QLabel"
-                                                                                                                    name="label_25">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;CPU:&lt;/span&gt;
-                                                                                                                        不使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;NVENC:
-                                                                                                                        &lt;/span&gt;使用NVIDIA显卡进行硬件编码，速度快，质量高&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;QSV:
-                                                                                                                        &lt;/span&gt;使用Intel集显进行硬件编码，编码质量看情况而定。没有Intel集显不要使用此项。&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;如果在输出窗口遇到&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;Broken
-                                                                                                                        Pipe&lt;/span&gt;错误，请尝试勾选None以取消使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        编码器
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="12"
-                                                                                                              column="0">
-                                                                                                            <widget class="QCheckBox"
-                                                                                                                    name="QuickExtractChecker">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用ffmpeg内置视频导出图片算法，速度稍快，但可能出现颜色偏差&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        快速拆帧
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="checked">
-                                                                                                                    <bool>
-                                                                                                                        true
-                                                                                                                    </bool>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="11"
-                                                                                                              column="1">
-                                                                                                            <widget class="MyComboBox"
-                                                                                                                    name="HwaccelPresetSelector">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;第几代N卡&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            None
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            5th
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            6th
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            7th+
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="10"
-                                                                                                              column="0">
-                                                                                                            <widget class="QLabel"
-                                                                                                                    name="PresetReminder">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;slow或veryslow的压制质量一般是好的，速度慢&lt;/span&gt;&lt;/p&gt;&lt;p&gt;ll是硬件编码专用预设，代表low
-                                                                                                                        latency，低延迟，速度快，质量不高&lt;/p&gt;&lt;p&gt;hq是硬件编码专用预设，代表high
-                                                                                                                        quality，相对高质量，但不会比slow高&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;其他都是字面意思&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        选择压制预设：
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="alignment">
-                                                                                                                    <set>
-                                                                                                                        Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter
-                                                                                                                    </set>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="6"
-                                                                                                              column="1">
-                                                                                                            <widget class="QComboBox"
-                                                                                                                    name="HwaccelSelector">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            CPU
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            NVENC
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            QSV
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="1"
+                                                                                                        <item row="0"
                                                                                                               column="1">
                                                                                                             <widget class="MySpinBox"
                                                                                                                     name="CRFSelector">
@@ -2787,15 +2612,51 @@
                                                                                                                 </property>
                                                                                                             </widget>
                                                                                                         </item>
-                                                                                                        <item row="10"
+                                                                                                        <item row="2"
                                                                                                               column="1">
-                                                                                                            <widget class="MyComboBox"
-                                                                                                                    name="PresetSelector">
+                                                                                                            <widget class="QComboBox"
+                                                                                                                    name="HwaccelSelector">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <item>
+                                                                                                                    <property
+                                                                                                                            name="text">
+                                                                                                                        <string>
+                                                                                                                            CPU
+                                                                                                                        </string>
+                                                                                                                    </property>
+                                                                                                                </item>
+                                                                                                                <item>
+                                                                                                                    <property
+                                                                                                                            name="text">
+                                                                                                                        <string>
+                                                                                                                            NVENC
+                                                                                                                        </string>
+                                                                                                                    </property>
+                                                                                                                </item>
+                                                                                                                <item>
+                                                                                                                    <property
+                                                                                                                            name="text">
+                                                                                                                        <string>
+                                                                                                                            QSV
+                                                                                                                        </string>
+                                                                                                                    </property>
+                                                                                                                </item>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="1"
+                                                                                                              column="0">
+                                                                                                            <widget class="QRadioButton"
+                                                                                                                    name="UseTargetBitrate">
                                                                                                                 <property
                                                                                                                         name="sizePolicy">
                                                                                                                     <sizepolicy
                                                                                                                             hsizetype="Preferred"
-                                                                                                                            vsizetype="Fixed">
+                                                                                                                            vsizetype="Preferred">
                                                                                                                         <horstretch>
                                                                                                                             0
                                                                                                                         </horstretch>
@@ -2807,26 +2668,22 @@
                                                                                                                 <property
                                                                                                                         name="toolTip">
                                                                                                                     <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;目标码率，1pass下不代表实际码率&lt;/p&gt;&lt;p&gt;最终输出码率大概率低于目标码率，&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;请勿恐慌&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;如果想输出高码率，请使用ProRes编码（剪辑专用）&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
                                                                                                                     </string>
                                                                                                                 </property>
                                                                                                                 <property
-                                                                                                                        name="currentText">
+                                                                                                                        name="text">
                                                                                                                     <string>
-                                                                                                                        slow
+                                                                                                                        目标码率：
                                                                                                                     </string>
                                                                                                                 </property>
-                                                                                                                <item>
-                                                                                                                    <property
-                                                                                                                            name="text">
-                                                                                                                        <string>
-                                                                                                                            slow
-                                                                                                                        </string>
-                                                                                                                    </property>
-                                                                                                                </item>
                                                                                                             </widget>
                                                                                                         </item>
-                                                                                                        <item row="4"
+                                                                                                        <item row="1"
                                                                                                               column="1">
                                                                                                             <layout class="QHBoxLayout"
                                                                                                                     name="horizontalLayout_4">
@@ -2886,28 +2743,225 @@
                                                                                                                 </item>
                                                                                                             </layout>
                                                                                                         </item>
-                                                                                                        <item row="13"
-                                                                                                              column="1">
-                                                                                                            <layout class="QHBoxLayout"
-                                                                                                                    name="horizontalLayout_15">
-                                                                                                                <item>
-                                                                                                                    <widget class="QCheckBox"
-                                                                                                                            name="UseEncodeThread">
-                                                                                                                        <property
-                                                                                                                                name="text">
-                                                                                                                            <string>
-                                                                                                                                指定编码线程数
-                                                                                                                            </string>
-                                                                                                                        </property>
-                                                                                                                    </widget>
-                                                                                                                </item>
-                                                                                                                <item>
-                                                                                                                    <widget class="QSpinBox"
-                                                                                                                            name="EncodeThreadSelector"/>
-                                                                                                                </item>
-                                                                                                            </layout>
+                                                                                                        <item row="7"
+                                                                                                              column="0">
+                                                                                                            <widget class="QCheckBox"
+                                                                                                                    name="HwaccelDecode">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;减小CPU解码负担，输入为4K时推荐开启&lt;/p&gt;&lt;p&gt;如果无法补帧，请尝试关闭此选项&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        硬件解码
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="checked">
+                                                                                                                    <bool>
+                                                                                                                        true
+                                                                                                                    </bool>
+                                                                                                                </property>
+                                                                                                            </widget>
                                                                                                         </item>
-                                                                                                        <item row="1"
+                                                                                                        <item row="3"
+                                                                                                              column="0">
+                                                                                                            <widget class="QLabel"
+                                                                                                                    name="EncoderReminder">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;HEVC&lt;/span&gt;：高效视频压制格式，用更低的码率获得更优的画面质量。对于配置较低的电脑，解码可能会有困难。4K、HDR、用于收藏的蓝光原盘等内容只推荐使用此编码&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;H264&lt;/span&gt;：非常通用的压制编码，不推荐用于超高清内容&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;ProRes:
+                                                                                                                        &lt;/span&gt;剪辑中间格式专用，如果你希望码率越大越好，选这个就完事了&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;8bit，10bit的区别：&lt;/span&gt;自行百度，10bit可以有效除去画面色带&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;带透明通道的输出：&lt;/span&gt;使用ProRes的yuv444p10le编码&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        选择压制编码：
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="alignment">
+                                                                                                                    <set>
+                                                                                                                        Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter
+                                                                                                                    </set>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="4"
+                                                                                                              column="0">
+                                                                                                            <widget class="QLabel"
+                                                                                                                    name="PresetReminder">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;slow或veryslow的压制质量一般是好的，速度慢&lt;/span&gt;&lt;/p&gt;&lt;p&gt;ll是硬件编码专用预设，代表low
+                                                                                                                        latency，低延迟，速度快，质量不高&lt;/p&gt;&lt;p&gt;hq是硬件编码专用预设，代表high
+                                                                                                                        quality，相对高质量，但不会比slow高&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;其他都是字面意思&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        选择压制预设：
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="alignment">
+                                                                                                                    <set>
+                                                                                                                        Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter
+                                                                                                                    </set>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="2"
+                                                                                                              column="0">
+                                                                                                            <widget class="QLabel"
+                                                                                                                    name="label_25">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;CPU:&lt;/span&gt;
+                                                                                                                        不使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;NVENC:
+                                                                                                                        &lt;/span&gt;使用NVIDIA显卡进行硬件编码，速度快，质量高&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;QSV:
+                                                                                                                        &lt;/span&gt;使用Intel集显进行硬件编码，编码质量看情况而定。没有Intel集显不要使用此项。&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;如果在输出窗口遇到&lt;span
+                                                                                                                        style=&quot;
+                                                                                                                        font-weight:600;&quot;&gt;Broken
+                                                                                                                        Pipe&lt;/span&gt;错误，请尝试勾选None以取消使用硬件编码&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        编码器
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="8"
+                                                                                                              column="0">
+                                                                                                            <widget class="QCheckBox"
+                                                                                                                    name="DeinterlaceChecker">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用ffmpeg的YADIF滤镜&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        开启反交错（仅支持视频输入）
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="6"
+                                                                                                              column="1">
+                                                                                                            <widget class="QCheckBox"
+                                                                                                                    name="StrictModeChecker">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;勾选此项则严格按照自定义的编码设置进行编码，不进行HDR内容检查&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        HDR输入严格模式
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="4"
+                                                                                                              column="1">
+                                                                                                            <widget class="MyComboBox"
+                                                                                                                    name="PresetSelector">
+                                                                                                                <property
+                                                                                                                        name="sizePolicy">
+                                                                                                                    <sizepolicy
+                                                                                                                            hsizetype="Preferred"
+                                                                                                                            vsizetype="Fixed">
+                                                                                                                        <horstretch>
+                                                                                                                            0
+                                                                                                                        </horstretch>
+                                                                                                                        <verstretch>
+                                                                                                                            0
+                                                                                                                        </verstretch>
+                                                                                                                    </sizepolicy>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="currentText">
+                                                                                                                    <string>
+                                                                                                                        slow
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <item>
+                                                                                                                    <property
+                                                                                                                            name="text">
+                                                                                                                        <string>
+                                                                                                                            slow
+                                                                                                                        </string>
+                                                                                                                    </property>
+                                                                                                                </item>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="6"
+                                                                                                              column="0">
+                                                                                                            <widget class="QCheckBox"
+                                                                                                                    name="QuickExtractChecker">
+                                                                                                                <property
+                                                                                                                        name="toolTip">
+                                                                                                                    <string>
+                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用ffmpeg内置视频导出图片算法，速度稍快，但可能出现颜色偏差&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="text">
+                                                                                                                    <string>
+                                                                                                                        快速拆帧
+                                                                                                                    </string>
+                                                                                                                </property>
+                                                                                                                <property
+                                                                                                                        name="checked">
+                                                                                                                    <bool>
+                                                                                                                        true
+                                                                                                                    </bool>
+                                                                                                                </property>
+                                                                                                            </widget>
+                                                                                                        </item>
+                                                                                                        <item row="0"
                                                                                                               column="0">
                                                                                                             <widget class="QRadioButton"
                                                                                                                     name="UseCRF">
@@ -2942,143 +2996,29 @@
                                                                                                                 </property>
                                                                                                             </widget>
                                                                                                         </item>
-                                                                                                        <item row="12"
-                                                                                                              column="1">
-                                                                                                            <widget class="QCheckBox"
-                                                                                                                    name="StrictModeChecker">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;勾选此项则严格按照自定义的编码设置进行编码，不进行HDR内容检查&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        HDR输入严格模式
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="4"
-                                                                                                              column="0">
-                                                                                                            <widget class="QRadioButton"
-                                                                                                                    name="UseTargetBitrate">
-                                                                                                                <property
-                                                                                                                        name="sizePolicy">
-                                                                                                                    <sizepolicy
-                                                                                                                            hsizetype="Preferred"
-                                                                                                                            vsizetype="Preferred">
-                                                                                                                        <horstretch>
-                                                                                                                            0
-                                                                                                                        </horstretch>
-                                                                                                                        <verstretch>
-                                                                                                                            0
-                                                                                                                        </verstretch>
-                                                                                                                    </sizepolicy>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;目标码率，1pass下不代表实际码率&lt;/p&gt;&lt;p&gt;最终输出码率大概率低于目标码率，&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;请勿恐慌&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;如果想输出高码率，请使用ProRes编码（剪辑专用）&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        目标码率：
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="13"
-                                                                                                              column="0">
-                                                                                                            <widget class="QCheckBox"
-                                                                                                                    name="HwaccelDecode">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;减小CPU解码负担，输入为4K时推荐开启&lt;/p&gt;&lt;p&gt;如果无法补帧，请尝试关闭此选项&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        硬件解码
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="checked">
-                                                                                                                    <bool>
-                                                                                                                        true
-                                                                                                                    </bool>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
                                                                                                         <item row="7"
-                                                                                                              column="0">
-                                                                                                            <widget class="QLabel"
-                                                                                                                    name="EncoderReminder">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;HEVC&lt;/span&gt;：高效视频压制格式，用更低的码率获得更优的画面质量。对于配置较低的电脑，解码可能会有困难。4K、HDR、用于收藏的蓝光原盘等内容只推荐使用此编码&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;H264&lt;/span&gt;：非常通用的压制编码，不推荐用于超高清内容&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;ProRes:
-                                                                                                                        &lt;/span&gt;剪辑中间格式专用，如果你希望码率越大越好，选这个就完事了&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;8bit，10bit的区别：&lt;/span&gt;自行百度，10bit可以有效除去画面色带&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        选择压制编码：
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="alignment">
-                                                                                                                    <set>
-                                                                                                                        Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter
-                                                                                                                    </set>
-                                                                                                                </property>
-                                                                                                            </widget>
+                                                                                                              column="1">
+                                                                                                            <layout class="QHBoxLayout"
+                                                                                                                    name="horizontalLayout_15">
+                                                                                                                <item>
+                                                                                                                    <widget class="QCheckBox"
+                                                                                                                            name="UseEncodeThread">
+                                                                                                                        <property
+                                                                                                                                name="text">
+                                                                                                                            <string>
+                                                                                                                                指定编码线程数
+                                                                                                                            </string>
+                                                                                                                        </property>
+                                                                                                                    </widget>
+                                                                                                                </item>
+                                                                                                                <item>
+                                                                                                                    <widget class="QSpinBox"
+                                                                                                                            name="EncodeThreadSelector"/>
+                                                                                                                </item>
+                                                                                                            </layout>
                                                                                                         </item>
-                                                                                                        <item row="11"
-                                                                                                              column="0">
-                                                                                                            <widget class="QLabel"
-                                                                                                                    name="HwaccelPresetLabel">
-                                                                                                                <property
-                                                                                                                        name="toolTip">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;仅在使用NVENC编码器时生效&lt;/span&gt;&lt;/p&gt;&lt;p&gt;针对10系或20系N卡，右为编码器辈数（请自行查阅自己显卡的NVENC辈数）&lt;/p&gt;&lt;p&gt;辈数越高，压缩率越好&lt;/p&gt;&lt;p&gt;如果使用此项报Broken
-                                                                                                                        Pipe错误，请尝试降级（如7th改为6th）或关闭（调为None）&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;恰当选择此项有望显著提高N卡硬编压制质量&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;详询开发团队&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        N卡硬编预设：（老黄送的福利！）
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
-                                                                                                        <item row="14"
-                                                                                                              column="0">
+                                                                                                        <item row="8"
+                                                                                                              column="1">
                                                                                                             <widget class="QCheckBox"
                                                                                                                     name="FastDenoiseChecker">
                                                                                                                 <property
@@ -3094,6 +3034,80 @@
                                                                                                                     </string>
                                                                                                                 </property>
                                                                                                             </widget>
+                                                                                                        </item>
+                                                                                                        <item row="5"
+                                                                                                              column="0"
+                                                                                                              colspan="2">
+                                                                                                            <layout class="QHBoxLayout"
+                                                                                                                    name="HwaccelEncodeBox">
+                                                                                                                <item>
+                                                                                                                    <widget class="QLabel"
+                                                                                                                            name="HwaccelPresetLabel">
+                                                                                                                        <property
+                                                                                                                                name="toolTip">
+                                                                                                                            <string>
+                                                                                                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span
+                                                                                                                                style=&quot;
+                                                                                                                                font-weight:600;&quot;&gt;仅在使用NVENC编码器时生效&lt;/span&gt;&lt;/p&gt;&lt;p&gt;右为编码器辈数（请自行查阅自己显卡的NVENC辈数）&lt;/p&gt;&lt;p&gt;辈数越高，压缩率越好&lt;/p&gt;&lt;p&gt;如果使用此项报Broken
+                                                                                                                                Pipe错误，请尝试降级（如7th改为6th）或关闭（调为None）&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                                style=&quot;
+                                                                                                                                font-weight:600;&quot;&gt;恰当选择此项有望显著提高N卡硬编压制质量&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span
+                                                                                                                                style=&quot;
+                                                                                                                                font-weight:600;&quot;&gt;详询开发团队&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                            </string>
+                                                                                                                        </property>
+                                                                                                                        <property
+                                                                                                                                name="text">
+                                                                                                                            <string>
+                                                                                                                                N卡硬编预设：（老黄送的福利！）
+                                                                                                                            </string>
+                                                                                                                        </property>
+                                                                                                                    </widget>
+                                                                                                                </item>
+                                                                                                                <item>
+                                                                                                                    <widget class="MyComboBox"
+                                                                                                                            name="HwaccelPresetSelector">
+                                                                                                                        <property
+                                                                                                                                name="toolTip">
+                                                                                                                            <string>
+                                                                                                                                &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;第几代N卡&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                                            </string>
+                                                                                                                        </property>
+                                                                                                                        <item>
+                                                                                                                            <property
+                                                                                                                                    name="text">
+                                                                                                                                <string>
+                                                                                                                                    None
+                                                                                                                                </string>
+                                                                                                                            </property>
+                                                                                                                        </item>
+                                                                                                                        <item>
+                                                                                                                            <property
+                                                                                                                                    name="text">
+                                                                                                                                <string>
+                                                                                                                                    5th
+                                                                                                                                </string>
+                                                                                                                            </property>
+                                                                                                                        </item>
+                                                                                                                        <item>
+                                                                                                                            <property
+                                                                                                                                    name="text">
+                                                                                                                                <string>
+                                                                                                                                    6th
+                                                                                                                                </string>
+                                                                                                                            </property>
+                                                                                                                        </item>
+                                                                                                                        <item>
+                                                                                                                            <property
+                                                                                                                                    name="text">
+                                                                                                                                <string>
+                                                                                                                                    7th+
+                                                                                                                                </string>
+                                                                                                                            </property>
+                                                                                                                        </item>
+                                                                                                                    </widget>
+                                                                                                                </item>
+                                                                                                            </layout>
                                                                                                         </item>
                                                                                                     </layout>
                                                                                                 </widget>
@@ -3608,6 +3622,18 @@
                                                                                                     </property>
                                                                                                 </widget>
                                                                                             </item>
+                                                                                            <item row="5" column="0">
+                                                                                                <widget class="QLabel"
+                                                                                                        name="label">
+                                                                                                    <property
+                                                                                                            name="text">
+                                                                                                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;仅对输入使用&lt;span
+                                                                                                            style=&quot;
+                                                                                                            font-weight:600;&quot;&gt;输出质量设置&lt;/span&gt;内的指定参数压制（可以顺便超分）&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                                                                                                        </string>
+                                                                                                    </property>
+                                                                                                </widget>
+                                                                                            </item>
                                                                                             <item row="2" column="0">
                                                                                                 <layout class="QGridLayout"
                                                                                                         name="gridLayout_16">
@@ -3987,14 +4013,14 @@
                                                                                             </item>
                                                                                             <item row="6" column="0">
                                                                                                 <widget class="QGroupBox"
-                                                                                                        name="RenderOnlyGroupbox">
+                                                                                                        name="groupBox_5">
                                                                                                     <property
                                                                                                             name="title">
                                                                                                         <string/>
                                                                                                     </property>
                                                                                                     <layout class="QGridLayout"
                                                                                                             name="gridLayout_34">
-                                                                                                        <item row="1"
+                                                                                                        <item row="0"
                                                                                                               column="0">
                                                                                                             <widget class="QPushButton"
                                                                                                                     name="StartRenderButton">
@@ -4006,25 +4032,22 @@
                                                                                                                 </property>
                                                                                                             </widget>
                                                                                                         </item>
-                                                                                                        <item row="0"
-                                                                                                              column="0">
-                                                                                                            <widget class="QLabel"
-                                                                                                                    name="label">
-                                                                                                                <property
-                                                                                                                        name="text">
-                                                                                                                    <string>
-                                                                                                                        &lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;仅对输入使用&lt;span
-                                                                                                                        style=&quot;
-                                                                                                                        font-weight:600;&quot;&gt;输出质量设置&lt;/span&gt;内的指定参数压制（可以顺便超分）&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
-                                                                                                                    </string>
-                                                                                                                </property>
-                                                                                                            </widget>
-                                                                                                        </item>
                                                                                                     </layout>
                                                                                                 </widget>
                                                                                             </item>
                                                                                         </layout>
                                                                                     </widget>
+                                                                                </widget>
+                                                                            </item>
+                                                                            <item row="0" column="0">
+                                                                                <widget class="QLabel"
+                                                                                        name="AdvanceSettingsLabel">
+                                                                                    <property name="text">
+                                                                                        <string>高级设置</string>
+                                                                                    </property>
+                                                                                    <property name="alignment">
+                                                                                        <set>Qt::AlignCenter</set>
+                                                                                    </property>
                                                                                 </widget>
                                                                             </item>
                                                                         </layout>
@@ -4452,7 +4475,6 @@
         <tabstop>HwaccelSelector</tabstop>
         <tabstop>EncoderSelector</tabstop>
         <tabstop>PresetSelector</tabstop>
-        <tabstop>HwaccelPresetSelector</tabstop>
         <tabstop>QuickExtractChecker</tabstop>
         <tabstop>StrictModeChecker</tabstop>
         <tabstop>RenderGapSelector</tabstop>

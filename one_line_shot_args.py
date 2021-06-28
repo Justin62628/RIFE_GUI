@@ -26,7 +26,7 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.6.1 2021/6/26")
+print("INFO - ONE LINE SHOT ARGS 6.6.2 2021/6/26")
 # Utils = Utils()
 
 """设置环境路径"""
@@ -390,14 +390,15 @@ class TransitionDetection_ST:
                 self.save_scene(f"diff: {diff:.3f}, Dead Scene, cnt: {self.scdet_cnt}")
                 self.scene_checked_queue.append(diff)
                 return True
-            if len(self.scene_checked_queue):
-                max_scene_diff = np.max(self.scene_checked_queue)
-                if diff > max_scene_diff * 0.9:
-                    self.scene_checked_queue.append(diff)
-                    self.scdet_cnt += 1
-                    self.save_scene(f"diff: {diff:.3f}, Scene Band, "
-                                    f"max: {max_scene_diff:.3f}, cnt: {self.scdet_cnt}")
-                    return True
+            # TODO: Check Removing Band Detection makes things better
+            # if len(self.scene_checked_queue):
+            #     max_scene_diff = np.max(self.scene_checked_queue)
+            #     if diff > max_scene_diff * 0.9:
+            #         self.scene_checked_queue.append(diff)
+            #         self.scdet_cnt += 1
+            #         self.save_scene(f"diff: {diff:.3f}, Scene Band, "
+            #                         f"max: {max_scene_diff:.3f}, cnt: {self.scdet_cnt}")
+            #         return True
             # see_result(f"compare: False, diff: {diff}, bm: {before_measure}")
             return False
 
@@ -451,10 +452,10 @@ class TransitionDetection_ST:
         :param no_diff: check after "add_diff" mode
         :return: 是转场则返回帧
         """
-        # TODO Check IO Obstacle
-
         img1 = _img1.copy()
         img2 = _img2.copy()
+        self.img1 = img1
+        self.img2 = img2
 
         if self.no_scdet:
             return False
@@ -472,9 +473,6 @@ class TransitionDetection_ST:
                 self.save_scene(f"diff: {diff:.3f}, Fix Scdet, cnt: {self.scdet_cnt}")
                 return True
 
-        self.img1 = img1
-        self.img2 = img2
-
         """检测开头转场"""
         if diff < 0.001:
             """000000"""
@@ -489,20 +487,17 @@ class TransitionDetection_ST:
             # self.save_flow()
             return True
 
-        self.img1 = img1
-        self.img2 = img2
-        # if diff == 0:
-        #     """重复帧，不可能是转场，也不用添加到判断队列里"""
-        #     return False
+        # Check really hard scene at the beginning
+        if diff > self.dead_thres:
+            self.absdiff_queue.clear()
+            self.scdet_cnt += 1
+            self.save_scene(f"diff: {diff:.3f}, Dead Scene, cnt: {self.scdet_cnt}")
+            self.scene_checked_queue.append(diff)
+            return True
 
         if len(self.absdiff_queue) < self.scene_stack_len or add_diff:
             if diff not in self.absdiff_queue:
                 self.absdiff_queue.append(diff)
-            # if diff > dead_thres:
-            #     if not add_diff:
-            #         see_result(f"compare: True, diff: {diff:.3f}, Sparse Stack, cnt: {self.scdet_cnt + 1}")
-            #     self.scene_stack.clear()
-            #     return True
             return False
 
         """Duplicate Frames Special Judge"""
@@ -943,6 +938,8 @@ class InterpWorkFlow:
             output_dict.update({"-sws_flags": "lanczos+full_chroma_inp",
                                 "-s": self.args["resize"].replace(":", "x").replace("*", "x")})
         vf_args = f"copy"
+        if self.args.get("deinterlace", False):
+            vf_args += f",yadif=parity=auto"
         vf_args += f",minterpolate=fps={self.target_fps}:mi_mode=dup"
         if start_frame not in [-1, 0]:
             input_dict.update({"-ss": f"{start_frame / self.target_fps:.3f}"})
@@ -1430,7 +1427,7 @@ class InterpWorkFlow:
         flow_dict = dict()
         canny_dict = dict()
         predict_dict = dict()
-        resize_param = (40, 40)  # TODO: needing more check
+        resize_param = (40, 40)
 
         def get_img(i0):
             if i0 in check_frame_data:
@@ -1700,7 +1697,7 @@ class InterpWorkFlow:
                 self.task_info.update({"now_frame": check_frame_list[-1]})
 
         pass
-        self.rife_task_queue.put(None)  # bad way to end # TODO need optimize
+        self.rife_task_queue.put(None)  # bad way to end
         """Wait for Rife and Render Thread to finish"""
 
     def rife_run_any_fps(self):
@@ -1743,7 +1740,6 @@ class InterpWorkFlow:
                 self.logger.critical("Render Thread Dead Unexpectedly")
                 break
 
-            # TODO 计时器类化
             if self.args["multi_task_rest"] and self.args["multi_task_rest_interval"] and \
                     time.time() - run_time > self.args["multi_task_rest_interval"] * 3600:
                 self.logger.info(
@@ -1820,7 +1816,7 @@ class InterpWorkFlow:
                 self.task_info.update({"now_frame": now_frame})
             pass
 
-        self.rife_task_queue.put(None)  # bad way to end # TODO need optimize
+        self.rife_task_queue.put(None)  # bad way to end
 
     def run(self):
         if self.args["concat_only"]:
@@ -1833,7 +1829,7 @@ class InterpWorkFlow:
             pass
         else:
             def update_progress():
-                nonlocal previous_cnt, task_acquire_time, process_time
+                nonlocal previous_cnt
                 scene_status = self.scene_detection.get_scene_status()
 
                 render_status = self.task_info  # render status quo
@@ -1847,7 +1843,6 @@ class InterpWorkFlow:
                                   "PT": f"{process_time:.2f}s", "QL": f"{self.rife_task_queue.qsize()}"})
                 pbar.update(now_frame - previous_cnt)
                 previous_cnt = now_frame
-                task_acquire_time = time.time()
                 pass
 
             """Load RIFE Model"""
@@ -1918,7 +1913,6 @@ class InterpWorkFlow:
                 """
                 task = {"now_frame", "img0", "img1", "n", "exp","scale", "is_end", "is_scene", "add_scene"}
                 """
-                process_time = time.time()
                 # now_frame = task["now_frame"]
                 img0 = task["img0"]
                 img1 = task["img1"]
@@ -1965,9 +1959,13 @@ class InterpWorkFlow:
                 self.feed_to_render(feed_list, is_end=is_end)
                 process_time = time.time() - process_time
                 update_progress()
+                process_time = time.time()
+                task_acquire_time = time.time()
                 if is_end:
                     break
 
+            process_time = 0  # rife's work is done
+            task_acquire_time = 0  # task acquire is impossible
             while (self.render_thread is not None and self.render_thread.is_alive()) or \
                     (self.rife_thread is not None and self.rife_thread.is_alive()):
                 """等待渲染线程结束"""
