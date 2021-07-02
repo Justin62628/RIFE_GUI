@@ -26,7 +26,7 @@ from Utils.utils import Utils, ImgSeqIO, DefaultConfigParser, CommandResult
 from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
 from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
 
-print("INFO - ONE LINE SHOT ARGS 6.6.2 2021/6/26")
+print("INFO - ONE LINE SHOT ARGS 6.6.3 2021/7/2")
 # Utils = Utils()
 
 """设置环境路径"""
@@ -413,7 +413,6 @@ class TransitionDetection_ST:
             self.save_scene(title)
 
     def save_scene(self, title):
-        # return
         if not self.scdet_output:
             return
         try:
@@ -450,7 +449,7 @@ class TransitionDetection_ST:
         :param _img1:
         :param add_diff:
         :param no_diff: check after "add_diff" mode
-        :return: 是转场则返回帧
+        :return: 是转场则返回真
         """
         img1 = _img1.copy()
         img2 = _img2.copy()
@@ -473,7 +472,7 @@ class TransitionDetection_ST:
                 self.save_scene(f"diff: {diff:.3f}, Fix Scdet, cnt: {self.scdet_cnt}")
                 return True
 
-        """检测开头转场"""
+        """检测开头黑场"""
         if diff < 0.001:
             """000000"""
             if self.utils.check_pure_img(img1):
@@ -811,7 +810,7 @@ class InterpWorkFlow:
                 self.target_fps = (2 ** self.exp) * self.fps  # default
 
         """Update All Frames Count"""
-        self.all_frames_cnt = int(self.video_info["duration"] * self.target_fps)
+        self.all_frames_cnt = min(abs(int(self.video_info["duration"] * self.target_fps)), 10**10)  # constrain frames cnt
 
         """Crop Video"""
         self.crop_param = [0, 0]  # crop parameter, 裁切参数
@@ -850,7 +849,8 @@ class InterpWorkFlow:
             self.frames_output_size = round(free_mem / (sys.getsizeof(
                 np.random.rand(3, round(self.video_info["size"][0]),
                                round(self.video_info["size"][1]))) / 1024 / 1024) * 0.8)
-        self.frames_output_size = max(self.frames_output_size, 100)
+        if not self.args["use_manual_buffer"]:
+            self.frames_output_size = max(self.frames_output_size, 100)
         self.logger.info(f"Buffer Size to {self.frames_output_size}")
 
         self.frames_output = Queue(maxsize=self.frames_output_size)  # 补出来的帧序列队列（消费者）
@@ -926,7 +926,7 @@ class InterpWorkFlow:
                 self.logger.warning(f"Input Time Section change to original course")
 
         output_dict = {
-            "-vframes": str(int(abs(self.all_frames_cnt * 100))), }  # use read frames cnt to avoid ffprobe, fuck
+            "-vframes": str(10**10), }  # use read frames cnt to avoid ffprobe, fuck
 
         output_dict.update(self.color_info)
 
@@ -1417,7 +1417,7 @@ class InterpWorkFlow:
             self.logger.error("VRAM Check Failed, PLS Lower your presets\n" + traceback.format_exc())
             raise e
 
-    def remove_duplicate_frames(self, videogen_check: FFmpegReader.nextFrame, init=False) -> (list, list, list):
+    def remove_duplicate_frames(self, videogen_check: FFmpegReader.nextFrame, init=False) -> (list, list, dict):
         """
         获得新除重预处理帧数序列
         :param init: 第一次重复帧
@@ -1467,14 +1467,6 @@ class InterpWorkFlow:
             canny_dict[(pos0, pos1)] = canny_diff
             return canny_diff
 
-        def sobel(src):
-            src = cv2.GaussianBlur(src, (3, 3), 0)
-            src = cv2.fastNlMeansDenoising(src)
-            gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
-            grad_x = cv2.Sobel(gray, -1, 3, 0, ksize=5)
-            grad_y = cv2.Sobel(gray, -1, 0, 3, ksize=5)
-            return cv2.addWeighted(grad_x, 0.5, grad_y, 0.5, 0)
-
         def predict_scale(pos0, pos1):
             if (pos0, pos1) in predict_dict:
                 return predict_dict[(pos0, pos1)]
@@ -1482,8 +1474,6 @@ class InterpWorkFlow:
                 return predict_dict[(pos1, pos0)]
 
             w, h, _ = get_img(pos0).shape
-            # diff = cv2.Canny(sobel(cv2.absdiff(cv2.resize(get_img(pos0), resize_param),
-            #                                    cv2.resize(get_img(pos0), resize_param))), 100, 200)
             diff = cv2.Canny(cv2.absdiff(get_img(pos0), get_img(pos0)), 100, 200)
             mask = np.where(diff != 0)
             try:
@@ -1531,7 +1521,8 @@ class InterpWorkFlow:
                 break
             if len(check_frame_list):  # len>1
                 if Utils.get_norm_img_diff(input_frame_data[check_frame_list[-1]],
-                                           check_frame) < 0.001 and not Utils.check_pure_img(check_frame):
+                                           check_frame) < 0.001:
+                    # do not use pure scene check to avoid too much duplication result
                     # duplicate frames
                     continue
             check_frame_list.append(check_frame_cnt)  # key list
@@ -1539,12 +1530,12 @@ class InterpWorkFlow:
             # check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
             check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
         if not len(check_frame_list):
-            return [], [], []
+            return [], [], {}
 
         """Scene Batch Detection"""
         for i in range(len(check_frame_list) - 1):
-            i1 = input_frame_data[check_frame_list[i]]
-            i2 = input_frame_data[check_frame_list[i + 1]]
+            i1 = check_frame_data[check_frame_list[i]]
+            i2 = check_frame_data[check_frame_list[i + 1]]
             result = self.scene_detection.check_scene(i1, i2)
             if result:
                 scene_frame_list.append(check_frame_list[i + 1])  # at i find scene
@@ -1613,7 +1604,7 @@ class InterpWorkFlow:
         videogen_check = frame_check_reader.nextFrame()
 
         img1 = self.crop_read_img(Utils.gen_next(videogen_check))
-        now_frame = start_frame
+        now_frame_key = start_frame
         if img1 is None:
             raise OSError(f"Input file not valid: {self.input}, img_input: {self.args['img_input']}")
 
@@ -1638,33 +1629,35 @@ class InterpWorkFlow:
                 time.sleep(600)
                 run_time = time.time()
 
-            check_frame_list, scene_frame_list, check_frame_data = self.remove_duplicate_frames(videogen,
+            check_frame_list, scene_frame_list, input_frame_data = self.remove_duplicate_frames(videogen,
                                                                                                 init=first_run)
+            input_frame_data = dict(input_frame_data)
             first_run = False
             if not len(check_frame_list):
                 while True:
                     img1 = self.crop_read_img(Utils.gen_next(videogen))
                     if img1 is None:
                         is_end = True
-                        self.feed_to_rife(now_frame, img1, img1, n=0,
+                        self.feed_to_rife(now_frame_key, img1, img1, n=0,
                                           is_end=is_end)
                         break
-                    self.feed_to_rife(now_frame, img1, img1, n=0)
+                    self.feed_to_rife(now_frame_key, img1, img1, n=0)
                 break
 
             else:
-                img0 = check_frame_data[check_frame_list[0]]
-                last_frame = check_frame_list[0]
+                img0 = input_frame_data[check_frame_list[0]]
+                last_frame_key = check_frame_list[0]
                 for frame_cnt in range(1, len(check_frame_list)):
-                    img1 = check_frame_data[check_frame_list[frame_cnt]]
-                    now_frame = check_frame_list[frame_cnt]
-                    self.task_info.update({"now_frame": now_frame})
-                    if now_frame in scene_frame_list:
-                        self.scene_detection.update_scene_status(now_frame, "scene")
-                        if frame_cnt < 1:
-                            before_img = now_frame
+                    img1 = input_frame_data[check_frame_list[frame_cnt]]
+                    now_frame_key = check_frame_list[frame_cnt]
+                    self.task_info.update({"now_frame": now_frame_key})
+                    if now_frame_key in scene_frame_list:
+                        self.scene_detection.update_scene_status(now_frame_key, "scene")
+                        potential_key = check_frame_list[frame_cnt] - 1
+                        if potential_key > 0 and potential_key in input_frame_data:
+                            before_img = input_frame_data[potential_key]
                         else:
-                            before_img = check_frame_data[check_frame_list[frame_cnt - 1]]
+                            before_img = img0
 
                         # Scene Review, should be annoted
                         # title = f"try:"
@@ -1676,24 +1669,24 @@ class InterpWorkFlow:
                         # cv2.destroyAllWindows()
 
                         if frame_cnt < 1 or check_frame_list[frame_cnt] - 1 == check_frame_list[frame_cnt - 1]:
-                            self.feed_to_rife(now_frame, img0, img0, n=0,
+                            self.feed_to_rife(now_frame_key, img0, img0, n=0,
                                               is_end=is_end)
                         elif self.args.get("scdet_mix", False):
-                            self.feed_to_rife(now_frame, img0, img1, n=now_frame - last_frame - 1,
+                            self.feed_to_rife(now_frame_key, img0, img1, n=now_frame_key - last_frame_key - 1,
                                               add_scene=True,
                                               is_end=is_end)
                         else:
-                            self.feed_to_rife(now_frame, img0, before_img, n=now_frame - last_frame - 2,
+                            self.feed_to_rife(now_frame_key, img0, before_img, n=now_frame_key - last_frame_key - 2,
                                               add_scene=True,
                                               is_end=is_end)
                     else:
-                        self.scene_detection.update_scene_status(now_frame, "normal")
-                        self.feed_to_rife(now_frame, img0, img1, n=now_frame - last_frame - 1,
+                        self.scene_detection.update_scene_status(now_frame_key, "normal")
+                        self.feed_to_rife(now_frame_key, img0, img1, n=now_frame_key - last_frame_key - 1,
                                           is_end=is_end)
-                    last_frame = now_frame
+                    last_frame_key = now_frame_key
                     img0 = img1
-                img1 = check_frame_data[check_frame_list[-1]]
-                self.feed_to_rife(now_frame, img1, img1, n=0, is_end=is_end)
+                img1 = input_frame_data[check_frame_list[-1]]  # write last frame since it's not in loop
+                self.feed_to_rife(now_frame_key, img1, img1, n=0, is_end=is_end)
                 self.task_info.update({"now_frame": check_frame_list[-1]})
 
         pass

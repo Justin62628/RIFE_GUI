@@ -451,7 +451,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
     def __init__(self, parent=None, free=False, version="0.0.0 beta"):
         """
-        SVFI 主界面类
+        SVFI 主界面类初始化方法
+        添加新选项/变量 3/3 实现先于load_current_settings的特殊新配置
         :param parent:
         :param free:
         """
@@ -462,7 +463,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.version = version
         self.free = free
         if self.free:
-            self.free_hide()
+            self.settings_free_hide()
 
         appData.setValue("app_path", ddname)
 
@@ -493,10 +494,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.SVFI_Preference_form = None
 
         """Initiate and Check GPU"""
-        self.init_before_settings()
+        self.settings_initiation()
         self.hasNVIDIA = True
-        self.update_gpu_info()
-        self.update_model_info()
+        self.settings_update_gpu_info()
+        self.settings_update_model_info()
         self.on_HwaccelSelector_currentTextChanged()  # Flush Encoder Sets
         self.on_ExpertMode_changed()
         self.on_UseAiSR_clicked()
@@ -506,7 +507,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.on_DupRmMode_currentTextChanged()
         self.on_ScedetChecker_clicked()
         self.on_EncoderSelector_currentTextChanged()
-        self.init_before_settings()  # A double initiation to save encoding settings
+        self.settings_initiation()  # A double initiation to save encoding settings
 
         """Initiate Beautiful Layout and Signals"""
         self.AdvanceSettingsArea.setVisible(False)
@@ -520,10 +521,10 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         """Table Maintainer"""
         # self.
         """Dilapidation Maintainer"""
-        self.dilapidation_hide()
+        self.settings_dilapidation_hide()
 
-    def dilapidation_hide(self):
-        """Dilapidation Maintainer"""
+    def settings_dilapidation_hide(self):
+        """Hide Dilapidated Options"""
         self.TtaModeChecker.setVisible(False)
         self.TtaModeChecker.setChecked(False)
         self.ScdetModeLabel.setVisible(False)
@@ -531,7 +532,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ScdetFlowLen.setVisible(False)
         self.AutoInterpScaleChecker.setVisible(False)
 
-    def free_hide(self):
+    def settings_free_hide(self):
         """
         ST only
         :return:
@@ -551,18 +552,16 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ScdetUseMix.setVisible(False)
         self.UseAiSR.setVisible(False)
         self.RenderOnlyGroupbox.setVisible(False)
-        # self.label_16.setVisible(False)
-        # self.label_18.setVisible(False)
-        # _translate = QCoreApplication.translate
-        # self.groupBox_2.setTitle(_translate("RIFEDialog", "第二步：转场识别参数设置，越低越灵敏，悬浮看说明"))
 
-    def init_before_settings(self):
+    def settings_initiation(self):
         """
         初始化用户选项载入
+        从配置文件中读取上一次设置并初始化页面
+        添加新选项/变量 1/3 appData -> Options
         :return:
         """
         input_list = appData.value("InputFileName", "").split(";")
-        if not len(self.get_input_files()):
+        if not len(self.function_get_input_files()):
             for i in input_list:
                 if len(i):
                     self.InputFileName.addItem(i)
@@ -675,9 +674,14 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         # self.setAttribute(Qt.WA_TranslucentBackground)
 
-    def load_current_settings(self):
+    def settings_load_current(self):
+        """
+        将现有界面的选项缓存至配置文件中
+        添加新选项/变量 2/3 Options -> appData
+        :return:
+        """
         input_file_names = ""
-        for i in self.get_input_files():
+        for i in self.function_get_input_files():
             if len(i):
                 input_file_names += f"{i};"
         """Input Basic Input Information"""
@@ -797,9 +801,204 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.sync()
         pass
 
-    def generate_log(self, mode=0):
+    def settings_check_args(self) -> bool:
         """
+        Check are all args available
+        :return:
+        """
+        videos = self.function_get_input_files()
+        output_dir = self.OutputFolder.text()
 
+        if not len(videos) or not len(output_dir):
+            self.function_send_msg("Empty Input", "请输入要补帧的文件和输出文件夹")
+            return False
+
+        if len(videos) > 1:
+            self.ProgressBarVisibleControl.setVisible(True)
+        else:
+            self.ProgressBarVisibleControl.setVisible(False)
+
+        if not os.path.exists(output_dir):
+            logger.info("Not Exists OutputFolder")
+            self.function_send_msg("Output Folder Not Found", "输入文件或输出文件夹不存在！请确认输入")
+            return False
+
+        if os.path.isfile(output_dir):
+            """Auto set Output Dir to correct form"""
+            self.OutputFolder.setText(os.path.dirname(output_dir))
+
+        for v in videos:
+            if not os.path.exists(v):
+                logger.info(f"Not Exists Input Source: {v}")
+                self.function_send_msg("Input Source Not Found", f"输入文件:\n{v}\n不存在！请确认输入!")
+                return False
+
+        try:
+            float(self.InputFPS.text())
+            float(self.OutputFPS.text())
+        except Exception:
+            self.function_send_msg("Wrong Inputs", "请确认输入和输出帧率为有效数据")
+            return False
+
+        try:
+            if self.slowmotion.isChecked():
+                float(self.SlowmotionFPS.text())
+        except Exception:
+            self.function_send_msg("Wrong Inputs", "请确认慢动作输入帧率")
+            return False
+
+        return True
+
+    def settings_set_start_info(self, start_frame, start_chunk, custom_prior=False):
+        """
+        设置启动帧数和区块信息
+        :param custom_prior: Input is priority
+        :param start_frame: StartFrame
+        :param start_chunk: StartChunk
+        :return: False: Custom Parameters Detected, no chunk removal is needed
+        """
+        if custom_prior:
+            if self.StartFrame.value() != 0 and self.StartChunk != 1:
+                return False
+        self.StartFrame.setValue(start_frame)
+        self.StartChunk.setValue(start_chunk)
+        return True
+
+    def settings_auto_set(self):
+        """
+        自动根据现有区块设置启动信息
+        :return:
+        """
+        if not len(self.function_get_input_files()):
+            return
+        if self.InputFileName.currentItem() is None:
+            self.InputFileName.setCurrentRow(0)
+            # self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
+        project_dir = os.path.join(self.OutputFolder.text(),
+                                   Utils.get_filename(self.InputFileName.currentItem().text()))
+        if not os.path.exists(project_dir):
+            os.mkdir(project_dir)
+            self.settings_set_start_info(0, 1, True)
+            return
+
+        chunk_info_path = os.path.join(project_dir, "chunk.json")
+
+        if not os.path.exists(chunk_info_path):
+            logger.info("AutoSet find None to resume interpolation")
+            self.settings_set_start_info(0, 1, True)
+            return
+
+        with open(chunk_info_path, "r", encoding="utf-8") as r:
+            chunk_info = json.load(r)
+        """
+        key: project_dir, input filename, chunk cnt, chunk list, last frame
+        """
+        chunk_cnt = chunk_info["chunk_cnt"]
+        last_frame = chunk_info["last_frame"]
+        if chunk_cnt > 0:
+            reply = self.function_send_msg(f"恢复进度？", f"检测到未完成的补帧任务，载入进度？", 3)
+            if reply == QMessageBox.No:
+                self.settings_set_start_info(0, 1, True)
+                logger.info("User Abort Auto Set")
+                return
+        self.settings_set_start_info(last_frame + 1, chunk_cnt + 1, False)
+        return
+
+    def settings_update_gpu_info(self):
+        infos = {}
+        for i in range(torch.cuda.device_count()):
+            card = torch.cuda.get_device_properties(i)
+            info = f"{card.name}, {card.total_memory / 1024 ** 3:.1f} GB"
+            infos[f"{i}"] = info
+        logger.info(f"NVIDIA data: {infos}")
+
+        if not len(infos):
+            self.hasNVIDIA = False
+            self.function_send_msg("No NVIDIA Card Found", "未找到N卡，将使用A卡或核显")
+            appData.setValue("ncnn", True)
+            self.UseNCNNButton.setChecked(True)
+            self.UseNCNNButton.setEnabled(False)
+            self.on_UseNCNNButton_clicked()
+            return
+        else:
+            if self.UseNCNNButton.isChecked():
+                appData.setValue("ncnn", True)
+            else:
+                appData.setValue("ncnn", False)
+
+        self.DiscreteCardSelector.clear()
+        for gpu in infos:
+            self.DiscreteCardSelector.addItem(f"{gpu}: {infos[gpu]}")
+        self.check_gpu = True
+        return infos
+
+    def settings_update_model_info(self):
+        app_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        ncnn_dir = os.path.join(app_dir, "ncnn")
+        rife_ncnn_dir = os.path.join(ncnn_dir, "rife")
+        if self.UseNCNNButton.isChecked():
+            model_dir = os.path.join(rife_ncnn_dir, "models")
+        else:
+            model_dir = os.path.join(app_dir, "train_log")
+        appData.setValue("model", model_dir)
+
+        if not os.path.exists(model_dir):
+            logger.info(f"Not find Module dir at {model_dir}")
+            self.function_send_msg("Model Dir Not Found", "未找到补帧模型路径，请检查！")
+            return
+        rife_model_list = list()
+        for m in os.listdir(model_dir):
+            if not os.path.isfile(os.path.join(model_dir, m)):
+                rife_model_list.append(m)
+        rife_model_list.reverse()
+        self.ModuleSelector.clear()
+        for mod in rife_model_list:
+            self.ModuleSelector.addItem(f"{mod}")
+
+    def settings_update_sr_algo(self):
+        sr_ncnn_dir = self.function_get_SuperResolution_paths()
+
+        if not os.path.exists(sr_ncnn_dir):
+            logger.info(f"Not find SR Algorithm dir at {sr_ncnn_dir}")
+            self.function_send_msg("Model Dir Not Found", "未找到补帧模型路径，请检查！")
+            return
+
+        algo_list = list()
+        for m in os.listdir(sr_ncnn_dir):
+            if not os.path.isfile(os.path.join(sr_ncnn_dir, m)):
+                algo_list.append(m)
+
+        self.AiSrSelector.clear()
+        for algo in algo_list:
+            self.AiSrSelector.addItem(f"{algo}")
+
+    def settings_update_sr_model(self):
+        """
+        更新NCNN超分模型
+        :return:
+        """
+        if not len(self.AiSrSelector.currentText()):
+            return
+        sr_algo_ncnn_dir = self.function_get_SuperResolution_paths(path_type=1,
+                                                                   key_word=self.AiSrSelector.currentText())
+
+        if not os.path.exists(sr_algo_ncnn_dir):
+            logger.info(f"Not find SR Algorithm dir at {sr_algo_ncnn_dir}")
+            self.function_send_msg("Model Dir Not Found", "未找到超分模型，请检查！")
+            return
+
+        model_list = list()
+        for m in os.listdir(sr_algo_ncnn_dir):
+            if not os.path.isfile(os.path.join(sr_algo_ncnn_dir, m)):
+                model_list.append(m)
+
+        self.AiSrModuleSelector.clear()
+        for model in model_list:
+            self.AiSrModuleSelector.addItem(f"{model}")
+
+    def function_generate_log(self, mode=0):
+        """
+        生成日志并提示用户
         :param mode:0 Error Log 1 Settings Log
         :return:
         """
@@ -820,14 +1019,161 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             w.write(status_check)
         os.startfile(log_path_dir)
 
-    def update_rife_process(self, json_data):
+    def function_get_input_files(self):
+        """
+        获取输入文件路径列表
+        :return:
+        """
+        widgetres = []
+        count = self.InputFileName.count()
+        for i in range(count):
+            widgetres.append(self.InputFileName.item(i).text())
+        return widgetres
+
+    def function_send_msg(self, title, string, msg_type=1):
+        """
+        标准化输出界面提示信息
+        TODO: Localization
+        :param title:
+        :param string:
+        :param msg_type: 1 warning 2 info 3 question
+        :return:
+        """
+        if self.silent:
+            return
+        QMessageBox.setWindowIcon(self, QIcon('svfi.png'))
+        if msg_type == 1:
+            reply = QMessageBox.warning(self,
+                                        f"{title}",
+                                        f"{string}",
+                                        QMessageBox.Yes)
+        elif msg_type == 2:
+            reply = QMessageBox.information(self,
+                                            f"{title}",
+                                            f"{string}",
+                                            QMessageBox.Yes)
+        elif msg_type == 3:
+            reply = QMessageBox.information(self,
+                                            f"{title}",
+                                            f"{string}",
+                                            QMessageBox.Yes | QMessageBox.No)
+        else:
+            return
+        return reply
+
+    def function_select_file(self, filename, folder=False, _filter=None, multi=False):
+        """
+        用户选择文件
+        :param filename:
+        :param folder:
+        :param _filter:
+        :param multi:
+        :return:
+        """
+        if folder:
+            directory = QFileDialog.getExistingDirectory(None, caption="选取文件夹")
+            return directory
+        if multi:
+            files = QFileDialog.getOpenFileNames(None, caption=f"选择{filename}", filter=_filter)
+            return files[0]
+        directory = QFileDialog.getOpenFileName(None, caption=f"选择{filename}", filter=_filter)
+        return directory[0]
+
+    def function_quick_concat(self):
+        """
+        快速合并
+        :return:
+        """
+        input_v = self.ConcatInputV.text()
+        input_a = self.ConcatInputA.text()
+        output_v = self.OutputConcat.text()
+        self.settings_load_current()
+        if not input_v or not input_a or not output_v:
+            self.function_send_msg("Parameters unfilled", "请填写输入或输出视频路径！")
+            return
+
+        ffmpeg_command = f"""
+            {self.ffmpeg} -i {Utils.fillQuotation(input_a)} -i {Utils.fillQuotation(input_v)} 
+            -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {Utils.fillQuotation(output_v)} -y
+        """.strip().strip("\n").replace("\n", "").replace("\\", "/")
+        logger.info(f"[GUI] concat {ffmpeg_command}")
+        ps = subprocess.Popen(ffmpeg_command)
+        ps.wait()
+        self.function_send_msg("音视频合并操作完成！", f"请查收", msg_type=2)
+
+    def function_update_gif_process(self, emit_json: str):
+        """
+        更新GIF进程信息
+        :param emit_json:
+        :return:
+        """
+        self.GifButton.setEnabled(True)
+        emit_json = json.loads(emit_json)
+        target_fps = emit_json.get("data", {"target_fps": appData.value("target_fps", 50)})["target_fps"]
+        self.function_send_msg("GIF操作完成！", f'GIF帧率:{target_fps}', 2)
+
+    def function_quick_gif(self):
+        """
+        快速生成GIF
+        :return:
+        """
+        input_v = self.GifInput.text()
+        output_v = self.GifOutput.text()
+        self.settings_load_current()
+        if not input_v or not output_v:
+            self.function_send_msg("Parameters unfilled", "请填写输入或输出视频路径！")
+            return
+        if not appData.value("target_fps"):
+            appData.setValue("target_fps", 50)
+            logger.info("Not find output GIF fps, Auto set GIF output fps to 50 as it's smooth enough")
+        target_fps = appData.value("target_fps", 50, type=float)
+        # if target_fps > 50:
+        #     target_fps = 50
+        #     logger.info("Auto set GIF output fps to 50 as it's smooth enough")
+        width = self.ResizeWidthSettings.value()
+        height = self.ResizeHeightSettings.value()
+        resize = f"scale={width}:{height},"
+        if not all((width, height)):
+            resize = ""
+        ffmpeg_command = f"""{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps}
+                         -lavfi "{resize}split[s0][s1];
+                         [s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" 
+                         {"-loop 0" if self.GifLoopChecker.isChecked() else ""}
+                         {Utils.fillQuotation(output_v)} -y""".strip().strip("\n").replace("\n", "").replace("\\", "\\")
+
+        logger.info(f"[GUI] create gif: {ffmpeg_command}")
+        self.GifButton.setEnabled(False)
+        ps = subprocess.Popen(ffmpeg_command)
+        ps.wait()
+        self.GifButton.setEnabled(True)
+        self.function_send_msg("GIF制作完成", f"GIF帧率：{target_fps}", 2)
+        # GIF_Thread = SVFI_Run_Others(ffmpeg_command, 23333, data={"target_fps": target_fps})
+        # GIF_Thread.run_signal.connect(self.update_gif_making)
+        # GIF_Thread.start()
+
+    def function_get_SuperResolution_paths(self, path_type=0, key_word=""):
+        """
+        获取超分路径
+        :param key_word: should be module name
+        :param path_type: 0: algo 1: module
+        :return:
+        """
+        app_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        ncnn_dir = os.path.join(app_dir, "ncnn")
+        sr_ncnn_dir = os.path.join(ncnn_dir, "sr")
+        if path_type == 0:
+            return sr_ncnn_dir
+        if path_type == 1:
+            return os.path.join(sr_ncnn_dir, key_word, "models")
+
+    def process_update_rife(self, json_data):
         """
         Communicate with RIFE Thread
         :return:
         """
 
         def generate_error_log():
-            self.generate_log(0)
+            self.function_generate_log(0)
 
         def remove_last_line():
             cursor = self.OptionCheck.textCursor()
@@ -842,36 +1188,36 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             if self.current_failed:
                 return
             if "Input File not valid" in now_text:
-                self.sendWarning("Inputs Failed", "你的输入文件有问题！请检查输入文件是否能播放，路径有无特殊字符", )
+                self.function_send_msg("Inputs Failed", "你的输入文件有问题！请检查输入文件是否能播放，路径有无特殊字符", )
                 self.current_failed = True
                 return
             elif "JSON" in now_text:
-                self.sendWarning("Input File Failed", "文件信息读取失败，请确保软件和视频文件路径均为纯英文、无空格且无特殊字符", )
+                self.function_send_msg("Input File Failed", "文件信息读取失败，请确保软件和视频文件路径均为纯英文、无空格且无特殊字符", )
                 self.current_failed = True
                 return
             elif "ascii" in now_text:
-                self.sendWarning("Software Path Failure", "请把软件所在文件夹移到纯英文、无中文、无空格路径下", )
+                self.function_send_msg("Software Path Failure", "请把软件所在文件夹移到纯英文、无中文、无空格路径下", )
                 self.current_failed = True
                 return
             elif "CUDA out of memory" in now_text:
-                self.sendWarning("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式/更换补帧模型~", )
+                self.function_send_msg("CUDA Failed", "你的显存不够啦！去清一下后台占用显存的程序，或者去'高级设置'降低视频分辨率/使用半精度模式/更换补帧模型~", )
                 self.current_failed = True
                 return
             elif "cudnn" in now_text.lower() and "fail" in now_text.lower():
-                self.sendWarning("CUDA Failed", "请前往官网更新驱动www.nvidia.cn/Download/index.aspx", )
+                self.function_send_msg("CUDA Failed", "请前往官网更新驱动www.nvidia.cn/Download/index.aspx", )
                 self.current_failed = True
                 return
             elif "Concat Test Error" in now_text:
-                self.sendWarning("Concat Failed", "区块合并音轨测试失败，请检查输出文件格式是否支持源文件音频", )
+                self.function_send_msg("Concat Failed", "区块合并音轨测试失败，请检查输出文件格式是否支持源文件音频", )
                 self.current_failed = True
                 return
             elif "Broken Pipe" in now_text:
-                self.sendWarning("Render Failed", "请检查渲染设置，确保输出分辨率为偶数，尝试关闭硬件编码以解决问题", )
+                self.function_send_msg("Render Failed", "请检查渲染设置，确保输出分辨率为偶数，尝试关闭硬件编码以解决问题", )
                 self.current_failed = True
                 return
             elif "error" in data.get("subprocess", "").lower():
                 logger.error(f"[At the end of One Line Shot]: \n {data.get('subprocess')}")
-                self.sendWarning("Something Went Wrong", f"程序运行出现错误！\n{data.get('subprocess')}\n联系开发人员解决", )
+                self.function_send_msg("Something Went Wrong", f"程序运行出现错误！\n{data.get('subprocess')}\n联系开发人员解决", )
                 self.current_failed = True
                 return
 
@@ -937,7 +1283,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 error_handle()
                 generate_error_log()
 
-            self.sendWarning("任务完成", complete_msg, 2)
+            self.function_send_msg("任务完成", complete_msg, 2)
             self.ConcatAllButton.setEnabled(True)
             self.StartExtractButton.setEnabled(True)
             self.StartRenderButton.setEnabled(True)
@@ -946,399 +1292,66 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         self.OptionCheck.moveCursor(QTextCursor.End)
 
-    def check_args(self) -> bool:
-        """
-        Check are all args available
-        :return:
-        """
-        videos = self.get_input_files()
-        output_dir = self.OutputFolder.text()
-
-        if not len(videos) or not len(output_dir):
-            self.sendWarning("Empty Input", "请输入要补帧的文件和输出文件夹")
-            return False
-
-        if len(videos) > 1:
-            self.ProgressBarVisibleControl.setVisible(True)
-        else:
-            self.ProgressBarVisibleControl.setVisible(False)
-
-        if not os.path.exists(output_dir):
-            logger.info("Not Exists OutputFolder")
-            self.sendWarning("Output Folder Not Found", "输入文件或输出文件夹不存在！请确认输入")
-            return False
-
-        if os.path.isfile(output_dir):
-            """Auto set Output Dir to correct form"""
-            self.OutputFolder.setText(os.path.dirname(output_dir))
-
-        for v in videos:
-            if not os.path.exists(v):
-                logger.info(f"Not Exists Input Source: {v}")
-                self.sendWarning("Input Source Not Found", f"输入文件:\n{v}\n不存在！请确认输入!")
-                return False
-
-        try:
-            float(self.InputFPS.text())
-            float(self.OutputFPS.text())
-        except Exception:
-            self.sendWarning("Wrong Inputs", "请确认输入和输出帧率")
-            return False
-
-        try:
-            if self.slowmotion.isChecked():
-                float(self.SlowmotionFPS.text())
-        except Exception:
-            self.sendWarning("Wrong Inputs", "请确认慢动作输入帧率")
-            return False
-
-        return True
-
-    def sendWarning(self, title, string, msg_type=1):
-        """
-
-        :param title:
-        :param string:
-        :param msg_type: 1 warning 2 info 3 question
-        :return:
-        """
-        if self.silent:
-            return
-        QMessageBox.setWindowIcon(self, QIcon('svfi.png'))
-        if msg_type == 1:
-            reply = QMessageBox.warning(self,
-                                        f"{title}",
-                                        f"{string}",
-                                        QMessageBox.Yes)
-        elif msg_type == 2:
-            reply = QMessageBox.information(self,
-                                            f"{title}",
-                                            f"{string}",
-                                            QMessageBox.Yes)
-        elif msg_type == 3:
-            reply = QMessageBox.information(self,
-                                            f"{title}",
-                                            f"{string}",
-                                            QMessageBox.Yes | QMessageBox.No)
-        else:
-            return
-        return reply
-
-    def select_file(self, filename, folder=False, _filter=None, multi=False):
-        if folder:
-            directory = QFileDialog.getExistingDirectory(None, caption="选取文件夹")
-            return directory
-        if multi:
-            files = QFileDialog.getOpenFileNames(None, caption=f"选择{filename}", filter=_filter)
-            return files[0]
-        directory = QFileDialog.getOpenFileName(None, caption=f"选择{filename}", filter=_filter)
-        return directory[0]
-
-    def quick_concat(self):
-        input_v = self.ConcatInputV.text()
-        input_a = self.ConcatInputA.text()
-        output_v = self.OutputConcat.text()
-        self.load_current_settings()
-        if not input_v or not input_a or not output_v:
-            self.sendWarning("Parameters unfilled", "请填写输入或输出视频路径！")
-            return
-
-        ffmpeg_command = f"""
-            {self.ffmpeg} -i {Utils.fillQuotation(input_a)} -i {Utils.fillQuotation(input_v)} 
-            -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {Utils.fillQuotation(output_v)} -y
-        """.strip().strip("\n").replace("\n", "").replace("\\", "/")
-        logger.info(f"[GUI] concat {ffmpeg_command}")
-        ps = subprocess.Popen(ffmpeg_command)
-        ps.wait()
-        self.sendWarning("音视频合并操作完成！", f"请查收", msg_type=2)
-
-    def update_gif_making(self, emit_json: str):
-        self.GifButton.setEnabled(True)
-        emit_json = json.loads(emit_json)
-        target_fps = emit_json.get("data", {"target_fps": appData.value("target_fps", 50)})["target_fps"]
-        self.sendWarning("GIF操作完成！", f'GIF帧率:{target_fps}', 2)
-
-    def quick_gif(self):
-        input_v = self.GifInput.text()
-        output_v = self.GifOutput.text()
-        self.load_current_settings()
-        if not input_v or not output_v:
-            self.sendWarning("Parameters unfilled", "请填写输入或输出视频路径！")
-            return
-        if not appData.value("target_fps"):
-            appData.setValue("target_fps", 50)
-            logger.info("Not find output GIF fps, Auto set GIF output fps to 50 as it's smooth enough")
-        target_fps = appData.value("target_fps", 50, type=float)
-        # if target_fps > 50:
-        #     target_fps = 50
-        #     logger.info("Auto set GIF output fps to 50 as it's smooth enough")
-        width = self.ResizeWidthSettings.value()
-        height = self.ResizeHeightSettings.value()
-        resize = f"scale={width}:{height},"
-        if not all((width, height)):
-            resize = ""
-        ffmpeg_command = f"""{self.ffmpeg} -hide_banner -i {Utils.fillQuotation(input_v)} -r {target_fps}
-                         -lavfi "{resize}split[s0][s1];
-                         [s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=floyd_steinberg" 
-                         {"-loop 0" if self.GifLoopChecker.isChecked() else ""}
-                         {Utils.fillQuotation(output_v)} -y""".strip().strip("\n").replace("\n", "").replace("\\", "\\")
-
-        logger.info(f"[GUI] create gif: {ffmpeg_command}")
-        self.GifButton.setEnabled(False)
-        ps = subprocess.Popen(ffmpeg_command)
-        ps.wait()
-        self.GifButton.setEnabled(True)
-        self.sendWarning("GIF制作完成", f"GIF帧率：{target_fps}", 2)
-        # GIF_Thread = SVFI_Run_Others(ffmpeg_command, 23333, data={"target_fps": target_fps})
-        # GIF_Thread.run_signal.connect(self.update_gif_making)
-        # GIF_Thread.start()
-
-    def set_start_info(self, sf, sc, custom_prior=False):
-        """
-
-        :param custom_prior: Input is priority
-        :param sf: StartFrame
-        :param sc: StartChunk
-        :return: False: Custom Parameters Detected, no chunk removal is needed
-        """
-        if custom_prior:
-            if self.StartFrame.value() != 0 and self.StartChunk != 1:
-                return False
-        self.StartFrame.setValue(sf)
-        self.StartChunk.setValue(sc)
-        return True
-
-    def auto_set_fps(self, sample_file):
-        if not os.path.isfile(sample_file):
-            return
-        currentExp = self.ExpSelecter.currentText()[1:]
-        try:
-            input_stream = cv2.VideoCapture(sample_file)
-            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
-            self.InputFPS.setText(f"{input_fps:.5f}")
-            self.OutputFPS.setText(f"{float(input_fps) * float(currentExp):.5f}")
-        except Exception:
-            logger.error(traceback.format_exc())
-
-    def auto_set(self):
-        if not len(self.get_input_files()):
-            return
-        if self.InputFileName.currentItem() is None:
-            self.InputFileName.setCurrentRow(0)
-            # self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
-        project_dir = os.path.join(self.OutputFolder.text(),
-                                   Utils.get_filename(self.InputFileName.currentItem().text()))
-        if not os.path.exists(project_dir):
-            os.mkdir(project_dir)
-            self.set_start_info(0, 1, True)
-            return
-
-        chunk_info_path = os.path.join(project_dir, "chunk.json")
-
-        if not os.path.exists(chunk_info_path):
-            logger.info("AutoSet find None to resume interpolation")
-            self.set_start_info(0, 1, True)
-            return
-
-        with open(chunk_info_path, "r", encoding="utf-8") as r:
-            chunk_info = json.load(r)
-        """
-        key: project_dir, input filename, chunk cnt, chunk list, last frame
-        """
-        chunk_cnt = chunk_info["chunk_cnt"]
-        last_frame = chunk_info["last_frame"]
-        if chunk_cnt > 0:
-            reply = self.sendWarning(f"恢复进度？", f"检测到未完成的补帧任务，载入进度？", 3)
-            if reply == QMessageBox.No:
-                self.set_start_info(0, 1, True)
-                logger.info("User Abort Auto Set")
-                return
-        self.set_start_info(last_frame + 1, chunk_cnt + 1, False)
-        return
-
-    def update_gpu_info(self):
-        infos = {}
-        for i in range(torch.cuda.device_count()):
-            card = torch.cuda.get_device_properties(i)
-            info = f"{card.name}, {card.total_memory / 1024 ** 3:.1f} GB"
-            infos[f"{i}"] = info
-        logger.info(f"NVIDIA data: {infos}")
-
-        if not len(infos):
-            self.hasNVIDIA = False
-            self.sendWarning("No NVIDIA Card Found", "未找到N卡，将使用A卡或核显")
-            appData.setValue("ncnn", True)
-            self.UseNCNNButton.setChecked(True)
-            self.UseNCNNButton.setEnabled(False)
-            self.on_UseNCNNButton_clicked()
-            return
-        else:
-            if self.UseNCNNButton.isChecked():
-                appData.setValue("ncnn", True)
-            else:
-                appData.setValue("ncnn", False)
-
-        self.DiscreteCardSelector.clear()
-        for gpu in infos:
-            self.DiscreteCardSelector.addItem(f"{gpu}: {infos[gpu]}")
-        self.check_gpu = True
-        return infos
-
-    def update_model_info(self):
-        app_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        ncnn_dir = os.path.join(app_dir, "ncnn")
-        rife_ncnn_dir = os.path.join(ncnn_dir, "rife")
-        if self.UseNCNNButton.isChecked():
-            model_dir = os.path.join(rife_ncnn_dir, "models")
-        else:
-            model_dir = os.path.join(app_dir, "train_log")
-        appData.setValue("model", model_dir)
-
-        if not os.path.exists(model_dir):
-            logger.info(f"Not find Module dir at {model_dir}")
-            self.sendWarning("Model Dir Not Found", "未找到补帧模型路径，请检查！")
-            return
-        rife_model_list = list()
-        for m in os.listdir(model_dir):
-            if not os.path.isfile(os.path.join(model_dir, m)):
-                rife_model_list.append(m)
-        rife_model_list.reverse()
-        self.ModuleSelector.clear()
-        for mod in rife_model_list:
-            self.ModuleSelector.addItem(f"{mod}")
-
-    def get_sr_paths(self, path_type=0, key_word=""):
-        """
-
-        :param key_word: should be module name
-        :param path_type: 0: algo 1: module
-        :return:
-        """
-        app_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        ncnn_dir = os.path.join(app_dir, "ncnn")
-        sr_ncnn_dir = os.path.join(ncnn_dir, "sr")
-        if path_type == 0:
-            return sr_ncnn_dir
-        if path_type == 1:
-            return os.path.join(sr_ncnn_dir, key_word, "models")
-
-    def update_sr_algo(self):
-        sr_ncnn_dir = self.get_sr_paths()
-
-        if not os.path.exists(sr_ncnn_dir):
-            logger.info(f"Not find SR Algorithm dir at {sr_ncnn_dir}")
-            self.sendWarning("Model Dir Not Found", "未找到补帧模型路径，请检查！")
-            return
-
-        algo_list = list()
-        for m in os.listdir(sr_ncnn_dir):
-            if not os.path.isfile(os.path.join(sr_ncnn_dir, m)):
-                algo_list.append(m)
-
-        self.AiSrSelector.clear()
-        for algo in algo_list:
-            self.AiSrSelector.addItem(f"{algo}")
-
-    def update_sr_model(self):
-        if not len(self.AiSrSelector.currentText()):
-            return
-        sr_algo_ncnn_dir = self.get_sr_paths(path_type=1, key_word=self.AiSrSelector.currentText())
-
-        if not os.path.exists(sr_algo_ncnn_dir):
-            logger.info(f"Not find SR Algorithm dir at {sr_algo_ncnn_dir}")
-            self.sendWarning("Model Dir Not Found", "未找到超分模型，请检查！")
-            return
-
-        model_list = list()
-        for m in os.listdir(sr_algo_ncnn_dir):
-            if not os.path.isfile(os.path.join(sr_algo_ncnn_dir, m)):
-                model_list.append(m)
-
-        self.AiSrModuleSelector.clear()
-        for model in model_list:
-            self.AiSrModuleSelector.addItem(f"{model}")
-
-    def get_input_files(self):
-        widgetres = []
-        count = self.InputFileName.count()
-        for i in range(count):
-            widgetres.append(self.InputFileName.item(i).text())
-        return widgetres
-
     # @pyqtSlot(bool)
     def on_InputFileName_currentItemChanged(self):
         if self.InputFileName.currentItem() is None:
+            if len(self.function_get_input_files()):
+                self.InputFileName.setCurrentRow(-1)
+            else:
+                return
+        if self.InputFileName.currentItem() is None:
             return
         text = self.InputFileName.currentItem().text().strip('"')
-        self.InputFileName.disconnect()
         """empty text"""
-        if text == "":
+        if text == "" or not os.path.isfile(text):
             return
-
-        # input_filename = text.strip(";").split(";")[0]
-        # self.auto_set_fps(input_filename)
-
-        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
+        input_fps = Utils.get_fps(text)
+        self.InputFPS.setText(f"{input_fps:.5f}")
         self.maintain_sep_settings_buttons()
         return
 
     @pyqtSlot(bool)
+    def on_InputButton_clicked(self):
+        input_files = self.function_select_file('要补帧的视频', multi=True)
+        if not len(input_files):
+            return
+        for f in input_files:
+            self.InputFileName.addItem(f)
+        if not len(self.OutputFolder.text()):
+            self.OutputFolder.setText(os.path.dirname(input_files[0]))
+
+    @pyqtSlot(bool)
     def on_InputDirButton_clicked(self):
-        try:
-            self.InputFileName.disconnect()
-        except TypeError:
-            pass
-        self.InputFileName.clear()
-        input_directory = self.select_file("要补帧的图片序列文件夹", folder=True)
+        input_directory = self.function_select_file("要补帧的图片序列文件夹", folder=True)
         self.InputFileName.addItem(input_directory)
-        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
         return
 
     @pyqtSlot(bool)
-    def on_InputButton_clicked(self):
-        try:
-            self.InputFileName.disconnect()
-        except TypeError:
-            pass
-
-        input_files = self.select_file('要补帧的视频', multi=True)
-        if not len(input_files):
-            return
-        self.InputFileName.clear()
-        for f in input_files:
-            self.InputFileName.addItem(f)
-
-        self.OutputFolder.setText(os.path.dirname(input_files[0]))
-        # sample_file = input_files[0]
-        # self.auto_set_fps(sample_file)
-        self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
-
-    @pyqtSlot(bool)
     def on_OutputButton_clicked(self):
-        folder = self.select_file('要输出项目的文件夹', folder=True)
+        folder = self.function_select_file('要输出项目的文件夹', folder=True)
         self.OutputFolder.setText(folder)
 
     @pyqtSlot(bool)
     def on_AllInOne_clicked(self):
         """
-        Alas
+        懒人式启动补帧按钮
         :return:
         """
-        if not self.check_args():
+        if not self.settings_check_args():
             return
-        self.auto_set()
+        self.settings_auto_set()
         # self.on_EncoderSelector_currentTextChanged()  # update Encoders
-        self.load_current_settings()  # update settings
+        self.settings_load_current()  # update settings
 
-        reply = self.sendWarning("Confirm Start Info", f"补帧将会从区块[{self.StartChunk.text()}], "
-                                                       f"起始帧[{self.StartFrame.text()}]启动。\n请确保上述两者皆不为空。"
-                                                       f"是否执行补帧？", 3)
+        reply = self.function_send_msg("Confirm Start Info", f"补帧将会从区块[{self.StartChunk.text()}], "
+                                                             f"起始帧[{self.StartFrame.text()}]启动。\n请确保上述两者皆不为空。"
+                                                             f"是否执行补帧？", 3)
         if reply == QMessageBox.No:
             return
         self.AllInOne.setEnabled(False)
         self.progressBar.setValue(0)
         RIFE_thread = SVFI_Run()
-        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.run_signal.connect(self.process_update_rife)
         RIFE_thread.start()
 
         self.thread = RIFE_thread
@@ -1370,50 +1383,75 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
     @pyqtSlot(bool)
     def on_AutoSet_clicked(self):
-        if not len(self.get_input_files()) or not len(self.OutputFolder.text()):
-            self.sendWarning("Invalid Inputs", "请检查你的输入和输出文件夹")
+        """
+        自动设置启动信息按钮（点我就完事了）
+        :return:
+        """
+        if not len(self.function_get_input_files()) or not len(self.OutputFolder.text()):
+            self.function_send_msg("Invalid Inputs", "请检查你的输入和输出文件夹")
             return
-        if self.check_args():
-            self.auto_set()
+        if self.settings_check_args():
+            self.settings_auto_set()
 
     @pyqtSlot(bool)
     def on_ConcatButton_clicked(self):
+        """
+        快速合并音视频按钮
+        :return:
+        """
         if not self.ConcatInputV.text():
-            self.load_current_settings()  # update settings
-            input_filename = self.select_file('请输入要进行音视频合并的视频文件')
+            self.settings_load_current()  # update settings
+            input_filename = self.function_select_file('请输入要进行音视频合并的视频文件')
             self.ConcatInputV.setText(input_filename)
             self.ConcatInputA.setText(input_filename)
             self.OutputConcat.setText(
                 os.path.join(os.path.dirname(input_filename), f"{Utils.get_filename(input_filename)}_concat.mp4"))
             return
-        self.quick_concat()
+        self.function_quick_concat()
         pass
 
     @pyqtSlot(bool)
     def on_GifButton_clicked(self):
+        """
+        快速制作GIF按钮
+        :return:
+        """
         if not self.GifInput.text():
-            self.load_current_settings()  # update settings
-            input_filename = self.select_file('请输入要制作成gif的视频文件')
+            self.settings_load_current()  # update settings
+            input_filename = self.function_select_file('请输入要制作成gif的视频文件')
             self.GifInput.setText(input_filename)
             self.GifOutput.setText(
                 os.path.join(os.path.dirname(input_filename), f"{Utils.get_filename(input_filename)}.gif"))
             return
-        self.quick_gif()
+        self.function_quick_gif()
         pass
 
     @pyqtSlot(bool)
     def on_MBufferChecker_clicked(self):
+        """
+        使用自定义内存限制
+        :return:
+        """
         logger.info("Switch To Manual Assign Buffer Size Mode: %s" % self.MBufferChecker.isChecked())
         self.BufferSizeSelector.setEnabled(self.MBufferChecker.isChecked())
 
-    @pyqtSlot(bool)
-    def on_UseFixedScdet_clicked(self):
-        logger.info("Switch To FixedScdetThreshold Mode: %s" % self.UseFixedScdet.isChecked())
+    @pyqtSlot(str)
+    def on_ExpSelecter_currentTextChanged(self):
+        input_files = self.function_get_input_files()
+        if not len(input_files):
+            return
+        input_filename = input_files[0]
+        input_fps = Utils.get_fps(input_filename)
+        if input_fps and len(self.OutputFPS.text()):
+            try:
+                self.OutputFPS.setText(f"{input_fps * int(self.ExpSelecter.currentText()[1:]):.5f}")
+            except Exception:
+                self.function_send_msg("帧率输入有误", "请确认输入输出帧率为有效数据")
 
     @pyqtSlot(bool)
     def on_UseNCNNButton_clicked(self):
         if self.hasNVIDIA and self.UseNCNNButton.isChecked():
-            reply = self.sendWarning(f"确定使用NCNN？", f"你有N卡，确定使用A卡/核显？", 3)
+            reply = self.function_send_msg(f"确定使用NCNN？", f"你有N卡，确定使用A卡/核显？", 3)
             if reply == QMessageBox.Yes:
                 logger.info("Switch To NCNN Mode: %s" % self.UseNCNNButton.isChecked())
             else:
@@ -1426,43 +1464,33 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ncnnInterpThreadCnt.setEnabled(not bool_result)
         self.ncnnSelectGPU.setEnabled(not bool_result)
         self.ForwardEnsembleChecker.setEnabled(bool_result)
-        self.update_model_info()
-        self.on_ExpSelecter_currentTextChanged()
+        self.settings_update_model_info()
+        # self.on_ExpSelecter_currentTextChanged()
 
     @pyqtSlot(bool)
     def on_UseAiSR_clicked(self):
         use_ai_sr = self.UseAiSR.isChecked()
         self.SrField.setVisible(use_ai_sr)
         if use_ai_sr:
-            self.update_sr_algo()
-            self.update_sr_model()
+            self.settings_update_sr_algo()
+            self.settings_update_sr_model()
 
     @pyqtSlot(str)
     def on_AiSrSelector_currentTextChanged(self):
-        self.update_sr_model()
-
-    @pyqtSlot(bool)
-    def on_AutoInterpScaleChecker_clicked(self):
-        logger.info("Switch To Auto Scale Mode: %s" % self.AutoInterpScaleChecker.isChecked())
-        bool_result = not self.AutoInterpScaleChecker.isChecked()
-        self.InterpScaleSelector.setEnabled(bool_result)
-
-    @pyqtSlot(bool)
-    def on_slowmotion_clicked(self):
-        self.SlowmotionFPS.setEnabled(self.slowmotion.isChecked())
-
-    @pyqtSlot(bool)
-    def on_UseEncodeThread_clicked(self):
-        self.EncodeThreadSelector.setVisible(self.UseEncodeThread.isChecked())
+        self.settings_update_sr_model()
 
     @pyqtSlot(str)
     def on_ResizeTemplate_currentTextChanged(self):
+        """
+        自定义输出分辨率
+        :return:
+        """
         current_template = self.ResizeTemplate.currentText()
 
-        input_files = self.get_input_files()
+        input_files = self.function_get_input_files()
         sample_file = input_files[0]
         if not os.path.isfile(sample_file):
-            self.sendWarning("Input File not Video", "输入文件非视频，请手动输入需要的分辨率")
+            self.function_send_msg("Input File not Video", "输入文件非视频，请手动输入需要的分辨率")
             return
 
         try:
@@ -1486,6 +1514,39 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             width, height = width * ratio, height * ratio
         self.ResizeWidthSettings.setValue(width)
         self.ResizeHeightSettings.setValue(height)
+
+    @pyqtSlot(bool)
+    def on_AutoInterpScaleChecker_clicked(self):
+        """使用动态光流"""
+        logger.info("Switch To Auto Scale Mode: %s" % self.AutoInterpScaleChecker.isChecked())
+        bool_result = not self.AutoInterpScaleChecker.isChecked()
+        self.InterpScaleSelector.setEnabled(bool_result)
+
+    @pyqtSlot(bool)
+    def on_slowmotion_clicked(self):
+        self.SlowmotionFPS.setEnabled(self.slowmotion.isChecked())
+
+    @pyqtSlot(bool)
+    def on_UseFixedScdet_clicked(self):
+        logger.info("Switch To FixedScdetThreshold Mode: %s" % self.UseFixedScdet.isChecked())
+
+    @pyqtSlot(bool)
+    def on_ScedetChecker_clicked(self):
+        bool_result = self.ScedetChecker.isChecked()
+        self.ScdetSelector.setVisible(bool_result)
+        self.UseFixedScdet.setVisible(bool_result)
+        self.ScdetMaxDiffSelector.setVisible(bool_result)
+        self.ScdetUseMix.setVisible(bool_result)
+        self.ScdetOutput.setVisible(bool_result)
+
+    @pyqtSlot(str)
+    def on_DupRmMode_currentTextChanged(self):
+        self.DupFramesTSelector.setVisible(
+            self.DupRmMode.currentIndex() == 1)  # Single Threshold Duplicated Frames Removal
+
+    @pyqtSlot(bool)
+    def on_UseEncodeThread_clicked(self):
+        self.EncodeThreadSelector.setVisible(self.UseEncodeThread.isChecked())
 
     @pyqtSlot(str)
     def on_HwaccelSelector_currentTextChanged(self):
@@ -1516,36 +1577,6 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.HwaccelPresetLabel.setVisible("NVENC" in currentHwaccel)
         self.HwaccelPresetSelector.setVisible("NVENC" in currentHwaccel)
 
-    @pyqtSlot(bool)
-    def on_ScedetChecker_clicked(self):
-        bool_result = self.ScedetChecker.isChecked()
-        self.ScdetSelector.setVisible(bool_result)
-        self.UseFixedScdet.setVisible(bool_result)
-        self.ScdetMaxDiffSelector.setVisible(bool_result)
-        self.ScdetUseMix.setVisible(bool_result)
-        self.ScdetOutput.setVisible(bool_result)
-
-    @pyqtSlot(str)
-    def on_DupRmMode_currentTextChanged(self):
-        self.DupFramesTSelector.setVisible(
-            self.DupRmMode.currentIndex() == 1)  # Single Threshold Duplicated Frames Removal
-
-    @pyqtSlot(str)
-    def on_ExpSelecter_currentTextChanged(self):
-        input_files = self.get_input_files()
-        if not len(input_files):
-            return
-        input_filename = input_files[0]
-        self.auto_set_fps(input_filename)
-
-    @pyqtSlot(str)
-    def on_InputFPS_textChanged(self, text):
-        currentExp = self.ExpSelecter.currentText()[1:]
-        try:
-            self.OutputFPS.setText(f"{float(text) * float(currentExp):.5f}")
-        except ValueError:
-            self.sendWarning("Pls Enter Valid InputFPS", "请输入正常的视频帧率")
-
     @pyqtSlot(int)
     def on_tabWidget_currentChanged(self, tabIndex):
         if tabIndex in [2, 3]:
@@ -1553,7 +1584,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             if tabIndex == 1:
                 self.progressBar.setValue(0)
             logger.info("[Main]: Start Loading Settings")
-            self.load_current_settings()
+            self.settings_load_current()
 
     @pyqtSlot(bool)
     def on_ConcatAllButton_clicked(self):
@@ -1561,12 +1592,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         :return:
         """
-        self.load_current_settings()  # update settings
+        self.settings_load_current()  # update settings
         self.ConcatAllButton.setEnabled(False)
         self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)
         RIFE_thread = SVFI_Run(concat_only=True)
-        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.run_signal.connect(self.process_update_rife)
         RIFE_thread.start()
         self.thread = RIFE_thread
         self.OptionCheck.setText(f"""
@@ -1581,12 +1612,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         :return:
         """
-        self.load_current_settings()
+        self.settings_load_current()
         self.StartExtractButton.setEnabled(False)
         self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)
         RIFE_thread = SVFI_Run(extract_only=True)
-        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.run_signal.connect(self.process_update_rife)
         RIFE_thread.start()
         self.thread = RIFE_thread
         self.OptionCheck.setText(f"""
@@ -1601,12 +1632,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         :return:
         """
-        self.load_current_settings()
+        self.settings_load_current()
         self.StartRenderButton.setEnabled(False)
         self.tabWidget.setCurrentIndex(1)
         self.progressBar.setValue(0)
         RIFE_thread = SVFI_Run(render_only=True)
-        RIFE_thread.run_signal.connect(self.update_rife_process)
+        RIFE_thread.run_signal.connect(self.process_update_rife)
         RIFE_thread.start()
         self.thread = RIFE_thread
         self.OptionCheck.setText(f"""
@@ -1638,7 +1669,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 self.PauseProcess.setText("暂停补帧！")
 
     def maintain_sep_settings_buttons(self):
-        multi_input = len(self.get_input_files()) > 1
+        multi_input = len(self.function_get_input_files()) > 1
         self.SaveCurrentSettings.setVisible(multi_input)
         self.LoadCurrentSettings.setVisible(multi_input)
 
@@ -1661,12 +1692,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
     @pyqtSlot(bool)
     def on_SaveCurrentSettings_clicked(self):
-        self.load_current_settings()
+        self.settings_load_current()
         try:
             self.SaveInputSettingsProcess(self.InputFileName.currentItem().text())
-            self.sendWarning("Success", "当前输入设置保存成功，可直接补帧", 3)
+            self.function_send_msg("Success", "当前输入设置保存成功，可直接补帧", 3)
         except Exception:
-            self.sendWarning("Save Failed", "请在输入列表选中要保存设置的条目")
+            self.function_send_msg("Save Failed", "请在输入列表选中要保存设置的条目")
         pass
 
     @pyqtSlot(bool)
@@ -1676,14 +1707,14 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         try:
             current_filename = self.InputFileName.currentItem().text()
             if not config_maintainer.MaintainConfig(current_filename):
-                self.sendWarning("Not Found Config", "未找到与当前输入匹配的设置文件")
+                self.function_send_msg("Not Found Config", "未找到与当前输入匹配的设置文件")
                 return
         except Exception:
-            self.sendWarning("Load Failed", "请在输入列表选中要加载设置的条目")
+            self.function_send_msg("Load Failed", "请在输入列表选中要加载设置的条目")
         appData = QSettings(appDataPath, QSettings.IniFormat)
         appData.setIniCodec("UTF-8")
-        self.init_before_settings()
-        self.sendWarning("Success", "已载入与当前输入匹配的设置", 3)
+        self.settings_initiation()
+        self.function_send_msg("Success", "已载入与当前输入匹配的设置", 3)
         pass
 
     @pyqtSlot(bool)
@@ -1692,13 +1723,13 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
     @pyqtSlot(bool)
     def on_OutputSettingsButton_clicked(self):
-        self.generate_log(1)
-        self.sendWarning("Generate Success", "设置导出成功！settings.log即为设置快照", 3)
+        self.function_generate_log(1)
+        self.function_send_msg("Generate Success", "设置导出成功！settings.log即为设置快照", 3)
         pass
 
     @pyqtSlot(bool)
     def on_RefreshStartInfo_clicked(self):
-        self.set_start_info(0, 1)
+        self.settings_set_start_info(0, 1)
         pass
 
     @pyqtSlot(bool)
@@ -1753,8 +1784,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.AutoInterpScaleChecker.setVisible(self.expert_mode)
 
         if self.free:
-            self.free_hide()
-        self.dilapidation_hide()
+            self.settings_free_hide()
+        self.settings_dilapidation_hide()
 
     @pyqtSlot(bool)
     def on_actionImportVideos_triggered(self):
@@ -1763,7 +1794,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(bool)
     def on_actionStartProcess_triggered(self):
         if not self.AllInOne.isEnabled():
-            self.sendWarning("Invalid Operation", "已有任务在执行")
+            self.function_send_msg("Invalid Operation", "已有任务在执行")
             return
         self.on_AllInOne_clicked()
 
@@ -1777,7 +1808,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             currentIndex = self.InputFileName.currentIndex().row()
             self.InputFileName.takeItem(currentIndex)
         except Exception:
-            self.sendWarning("Fail to Clear Video", "未选中输入项")
+            self.function_send_msg("Fail to Clear Video", "未选中输入项")
 
     @pyqtSlot(bool)
     def on_actionQuit_triggered(self):
@@ -1795,17 +1826,17 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     @pyqtSlot(bool)
     def on_actionLoadDefaultSettings_triggered(self):
         appData.clear()
-        self.init_before_settings()
+        self.settings_initiation()
         self.hasNVIDIA = True
-        self.update_gpu_info()
-        self.update_model_info()
+        self.settings_update_gpu_info()
+        self.settings_update_model_info()
         self.on_EncoderSelector_currentTextChanged()  # Flush Encoder Sets
-        self.sendWarning("Load Success", "已载入默认设置", 3)
+        self.function_send_msg("Load Success", "已载入默认设置", 3)
 
     def closeEvent(self, event):
-        reply = self.sendWarning("Quit", "是否保存当前设置？", 3)
+        reply = self.function_send_msg("Quit", "是否保存当前设置？", 3)
         if reply == QMessageBox.Yes:
-            self.load_current_settings()
+            self.settings_load_current()
             event.accept()
         else:
             event.ignore()

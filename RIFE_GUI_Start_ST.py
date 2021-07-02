@@ -28,6 +28,6 @@ try:
     form.show()
     app.exec_()
     """Save Settings"""
-    app_backend.load_current_settings()
+    app_backend.settings_load_current()
 except Exception:
     app_backend_module.logger.critical(traceback.format_exc())

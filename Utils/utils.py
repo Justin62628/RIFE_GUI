@@ -292,6 +292,21 @@ class Utils:
             output.append(mix)
         return output
 
+    @staticmethod
+    def get_fps(path: str):
+        """
+        Get Fps from path
+        :param path:
+        :return: fps float
+        """
+        if not os.path.isfile(path):
+            return 0
+        try:
+            input_stream = cv2.VideoCapture(path)
+            input_fps = input_stream.get(cv2.CAP_PROP_FPS)
+            return input_fps
+        except Exception:
+            return 0
 
 class ImgSeqIO:
     def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, **kwargs):

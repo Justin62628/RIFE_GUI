@@ -19,11 +19,12 @@ os.replace(r".\release\one_line_shot_args.dist\one_line_shot_args.exe",
            os.path.join(pack_dir, "one_line_shot_args.exe"))
 os.replace(r".\release\RIFE_GUI_Start.dist\RIFE_GUI_Start.exe", os.path.join(pack_dir, f"SVFI.{tag_version}.exe"))
 os.chdir(pack_dir)
-os.system(f"""
-echo cd /d %%~dp0/Package >> 启动SVFI.bat
-echo start SVFI.{tag_version}.exe >> 启动SVFI.bat
-"""
-          )
+with open("启动SVFI.bat", "w", encoding="utf-8") as w:
+    w.write(f"""
+cd /d %~dp0/Package
+start SVFI.{tag_version}.exe
+""")
+
 """
 一定要记得改版本！
 nuitka --standalone --mingw64 --show-memory --show-progress --nofollow-imports --include-qt-plugins=sensible,styles --plugin-enable=qt-plugins  --include-package=QCandyUi,PyQt5 --windows-icon-from-ico="{ico_path}" --windows-product-name="SVFI" --windows-product-version=3.2.3 --windows-file-description="Squirrel Video Frame Interpolation" --windows-company-name="SVFI" --follow-import-to=Utils --output-dir=release --windows-disable-console .\RIFE_GUI_Start.py
