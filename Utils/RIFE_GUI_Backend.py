@@ -586,6 +586,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.KeepChunksChecker.setChecked(not appData.value("output_only", True, type=bool))
         self.StartPoint.setTime(QTime.fromString(appData.value("start_point", "00:00:00"), "HH:mm:ss"))
         self.EndPoint.setTime(QTime.fromString(appData.value("end_point", "00:00:00"), "HH:mm:ss"))
+        self.DebugChecker.setChecked(appData.value("debug", False, type=bool))
 
         """Output Resize Configuration"""
         self.CropHeightSettings.setValue(appData.value("crop_height", 0, type=int))
@@ -1017,7 +1018,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             os.mkdir(log_path_dir)
         with open(log_path, "w", encoding="utf-8") as w:
             w.write(status_check)
-        os.startfile(log_path_dir)
+        if not self.DebugChecker.isChecked():
+            os.startfile(log_path_dir)
 
     def function_get_input_files(self):
         """
