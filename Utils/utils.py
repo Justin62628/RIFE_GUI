@@ -77,7 +77,7 @@ class CommandResult:
 
     def execute(self, ):
         os.system(f"{self.command} > {self.Utils.fillQuotation(self.output_path)} 2>&1")
-        with open(self.output_path, "r") as tool_read:
+        with open(self.output_path, "r", encoding="utf-8") as tool_read:
             content = tool_read.read()
         return content
 

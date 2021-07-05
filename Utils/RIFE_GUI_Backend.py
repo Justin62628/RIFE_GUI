@@ -514,8 +514,8 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.ProgressBarVisibleControl.setVisible(False)
 
         """Link InputFileName Event"""
-        self.InputFileName.clicked.connect(self.maintain_sep_settings_buttons)
-        self.InputFileName.itemClicked.connect(self.maintain_sep_settings_buttons)
+        self.InputFileName.clicked.connect(self.on_InputFileName_currentItemChanged)
+        self.InputFileName.itemClicked.connect(self.on_InputFileName_currentItemChanged)
         self.InputFileName.currentItemChanged.connect(self.on_InputFileName_currentItemChanged)
 
         """Table Maintainer"""
@@ -686,6 +686,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             if len(i):
                 input_file_names += f"{i};"
         """Input Basic Input Information"""
+        appData.setValue("version", self.version)
         appData.setValue("InputFileName", input_file_names)
         appData.setValue("output", self.OutputFolder.text())
         appData.setValue("fps", self.InputFPS.text())
@@ -1309,6 +1310,12 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             return
         input_fps = Utils.get_fps(text)
         self.InputFPS.setText(f"{input_fps:.5f}")
+        if not len(self.OutputFPS.text()):
+            try:
+                exp = int(self.ExpSelecter.currentText()[1:])
+                self.OutputFPS.setText(f"{input_fps * exp:.5f}")
+            except Exception:
+                pass
         self.maintain_sep_settings_buttons()
         return
 
@@ -1444,7 +1451,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             return
         input_filename = input_files[0]
         input_fps = Utils.get_fps(input_filename)
-        if input_fps and len(self.OutputFPS.text()):
+        if input_fps:
             try:
                 self.OutputFPS.setText(f"{input_fps * int(self.ExpSelecter.currentText()[1:]):.5f}")
             except Exception:

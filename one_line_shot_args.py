@@ -11,7 +11,12 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 
 from Utils.utils import *
 
-print("INFO - ONE LINE SHOT ARGS 6.6.4 2021/7/3")
+print("INFO - ONE LINE SHOT ARGS 6.6.5 2021/7/5")
+"""
+Update Log at 6.6.5
+1. Remove >1080p scale limit
+2. Add Render Metadata
+"""
 
 """设置环境路径"""
 abspath = os.path.abspath(__file__)
@@ -322,7 +327,8 @@ class InterpWorkFlow:
         """Output Video"""
         input_dict = {"-vsync": "cfr"}
 
-        output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"], }
+        output_dict = {"-r": f"{self.target_fps}", "-preset": self.args["preset"],
+                       "-metadata": f'title="Made By SVFI {self.args.get("version", "3.2")}"'}
 
         output_dict.update(self.color_info)
 
@@ -705,11 +711,11 @@ class InterpWorkFlow:
 
                 w, h = list(map(lambda x: round(x), self.video_info["size"]))
 
-            if w * h > 1920 * 1080:
-                if self.args["scale"] > 0.5:
-                    """超过1080p锁光流尺度为0.5"""
-                    self.args["scale"] = 0.5
-                self.logger.warning(f"Big Resolution (>1080p) Input found")
+            # if w * h > 1920 * 1080:
+            #     if self.args["scale"] > 0.5:
+            #         """超过1080p锁光流尺度为0.5"""
+            #         self.args["scale"] = 0.5
+            #     self.logger.warning(f"Big Resolution (>1080p) Input found")
             # else:
             self.logger.info(f"Start VRAM Test: {w}x{h} with scale {self.args['scale']}")
 
