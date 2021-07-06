@@ -21,7 +21,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from Utils import SVFI_UI, SVFI_help, SVFI_about, SVFI_preference
-from Utils.utils import Utils, EncodePresetAssemply
+from Utils.utils import Utils, EncodePresetAssemply, ImgSeqIO
 
 MAC = True
 try:
@@ -507,6 +507,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.on_DupRmMode_currentTextChanged()
         self.on_ScedetChecker_clicked()
         self.on_EncoderSelector_currentTextChanged()
+        self.on_ImgOutputChecker_clicked()
         self.settings_initiation()  # A double initiation to save encoding settings
 
         """Initiate Beautiful Layout and Signals"""
@@ -871,16 +872,26 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         自动根据现有区块设置启动信息
         :return:
         """
+        if not self.settings_check_args():
+            return
         if not len(self.function_get_input_files()):
             return
         if self.InputFileName.currentItem() is None:
             self.InputFileName.setCurrentRow(0)
             # self.sendWarning("请选择", "请在左边输入栏选择要恢复进度的条目")
-        project_dir = os.path.join(self.OutputFolder.text(),
-                                   Utils.get_filename(self.InputFileName.currentItem().text()))
+        output_dir = self.OutputFolder.text()
+        project_dir = os.path.join(output_dir, Utils.get_filename(self.InputFileName.currentItem().text()))
         if not os.path.exists(project_dir):
             os.mkdir(project_dir)
             self.settings_set_start_info(0, 1, True)
+            return
+
+        if self.ImgOutputChecker.isChecked():
+            """Img Output"""
+            img_io = ImgSeqIO(logger=logger, folder=output_dir, is_tool=True, output_ext=self.ExtSelector.currentText())
+            last_img = img_io.get_start_frame()
+            chunk_cnt = 0
+            self.settings_set_start_info(last_img + 1 if last_img else 0, chunk_cnt, True)
             return
 
         chunk_info_path = os.path.join(project_dir, "chunk.json")
@@ -1552,6 +1563,25 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
     def on_DupRmMode_currentTextChanged(self):
         self.DupFramesTSelector.setVisible(
             self.DupRmMode.currentIndex() == 1)  # Single Threshold Duplicated Frames Removal
+
+    @pyqtSlot(bool)
+    def on_ImgOutputChecker_clicked(self):
+        """
+        Support PNG or TIFF
+        :return:
+        """
+        ext_video = ["mp4", "mkv", "mov"]  # TODO: 提取输出格式到专门的类
+        ext_image = ["png", "tiff"]
+        self.ExtSelector.clear()
+        if self.ImgOutputChecker.isChecked():
+            self.SaveAudioChecker.setChecked(False)
+            self.SaveAudioChecker.setEnabled(False)
+            for ext in ext_image:
+                self.ExtSelector.addItem(ext)
+        else:
+            self.SaveAudioChecker.setEnabled(True)
+            for ext in ext_video:
+                self.ExtSelector.addItem(ext)
 
     @pyqtSlot(bool)
     def on_UseEncodeThread_clicked(self):

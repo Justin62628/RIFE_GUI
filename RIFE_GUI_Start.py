@@ -22,7 +22,7 @@ except ImportError as e:
 
 """Release Version Control"""
 version_free = False
-version_tag = "3.3.2.alpha"
+version_tag = "3.3.3.alpha"
 if "alpha" not in version_tag:
     if version_free:
         version_tag += " Community"

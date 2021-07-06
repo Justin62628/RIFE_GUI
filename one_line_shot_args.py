@@ -11,11 +11,10 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 
 from Utils.utils import *
 
-print("INFO - ONE LINE SHOT ARGS 6.6.5 2021/7/5")
+print("INFO - ONE LINE SHOT ARGS 6.7.0 2021/7/6")
 """
-Update Log at 6.6.5
-1. Remove >1080p scale limit
-2. Add Render Metadata
+Update Log at 6.7.0
+1. Support Image Sequence Output, PNG and TIFF
 """
 
 """设置环境路径"""
@@ -195,7 +194,7 @@ class InterpWorkFlow:
 
         """maintain output extension"""
         self.output_ext = "." + self.args["output_ext"]
-        if "ProRes" in self.args["encoder"]:
+        if "ProRes" in self.args["encoder"] and not self.args["img_output"]:
             self.output_ext = ".mov"
 
         self.main_error = None
@@ -210,7 +209,8 @@ class InterpWorkFlow:
         """
         """If input is sequence of frames"""
         if self.args["img_input"]:
-            img_io = ImgSeqIO(folder=self.input, is_read=True, start_frame=start_frame, **self.args)
+            img_io = ImgSeqIO(logger=self.logger, folder=self.input, is_read=True,
+                              start_frame=self.args["interp_start"], **self.args)
             self.all_frames_cnt = img_io.get_frames_cnt()
             self.logger.info(f"Img Input, update frames count to {self.all_frames_cnt}")
             return img_io
@@ -263,9 +263,10 @@ class InterpWorkFlow:
         self.logger.debug(f"reader: {input_dict} {output_dict}")
         return FFmpegReader(filename=self.input, inputdict=input_dict, outputdict=output_dict)
 
-    def generate_frame_renderer(self, output_path):
+    def generate_frame_renderer(self, output_path, start_frame=0):
         """
         渲染帧
+        :param start_frame: for IMG IO, select start_frame to generate IO instance
         :param output_path:
         :return:
         """
@@ -317,7 +318,7 @@ class InterpWorkFlow:
 
         """If output is sequence of frames"""
         if self.args["img_output"]:
-            return ImgSeqIO(folder=self.output, is_read=False, **self.args)
+            return ImgSeqIO(logger=self.logger, folder=self.output, is_read=False, start_frame=start_frame, **self.args)
 
         """HDR Check"""
         if self.first_hdr_check_report:
@@ -479,6 +480,16 @@ class InterpWorkFlow:
         :param: del_chunk: delete all chunks existed
         :return: chunk, start_frame
         """
+        if self.args["img_output"]:
+            """IMG OUTPUT"""
+            img_io = ImgSeqIO(logger=self.logger, folder=self.output, is_tool=True,
+                              start_frame=self.args["interp_start"], **self.args)
+            last_img = img_io.get_start_frame()
+            if last_img == 0:
+                return 1, 0
+            else:
+                if self.args["interp_start"] not in [-1, ] or self.args["chunk"] not in [-1, 0]:
+                    return int(self.args["chunk"]), int(self.args["interp_start"])  # Manually Prioritized
 
         chunk_regex = rf"chunk-[\d+].*?\{self.output_ext}"
 
@@ -528,8 +539,11 @@ class InterpWorkFlow:
         :return:
         """
 
+        # TODO 图片序列输出兼容
         def rename_chunk():
             """Maintain Chunk json"""
+            if self.args["img_output"]:
+                return
             chunk_desc_path = "chunk-{:0>3d}-{:0>8d}-{:0>8d}{}".format(chunk_cnt, start_frame, now_frame,
                                                                        self.output_ext)
             chunk_desc_path = os.path.join(self.project_dir, chunk_desc_path)
@@ -557,9 +571,11 @@ class InterpWorkFlow:
                     os.remove(chunk_info_path)
 
         def check_audio_concat():
+            """Check Input file ext"""
             if not self.args["save_audio"]:
                 return
-            """Check Input file ext"""
+            if self.args["img_output"]:
+                return
             output_ext = os.path.splitext(self.input)[-1]
             if output_ext not in [".mp4", ".mov", ".mkv"]:
                 output_ext = self.output_ext
@@ -586,7 +602,7 @@ class InterpWorkFlow:
         chunk_frame_cnt = 1  # number of frames of current output chunk
         chunk_path_list = list()
         chunk_tmp_path = os.path.join(self.project_dir, f"chunk-tmp{self.output_ext}")
-        frame_writer = self.generate_frame_renderer(chunk_tmp_path)  # get frame renderer
+        frame_writer = self.generate_frame_renderer(chunk_tmp_path, start_frame)  # get frame renderer
 
         now_frame = start_frame
         is_end = False
@@ -602,8 +618,7 @@ class InterpWorkFlow:
             if frame_data is None:
                 frame_writer.close()
                 is_end = True
-                if not self.args["img_output"]:
-                    rename_chunk()
+                rename_chunk()
                 break
 
             frame = frame_data[1]
@@ -625,7 +640,7 @@ class InterpWorkFlow:
                 rename_chunk()
                 chunk_cnt += 1
                 start_frame = now_frame + 1
-                frame_writer = self.generate_frame_renderer(chunk_tmp_path)
+                frame_writer = self.generate_frame_renderer(chunk_tmp_path, start_frame)
         return
 
     def feed_to_render(self, frames_list: list, is_end=False):
@@ -1301,7 +1316,8 @@ class InterpWorkFlow:
         if img1 is None:
             raise OSError(f"Input file not valid: {self.input}")
 
-        renderer = ImgSeqIO(folder=self.output, is_read=False)
+        renderer = ImgSeqIO(logger=self.logger, folder=self.output, is_read=False,
+                            start_frame=self.args["interp_start"], **self.args)
         pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="frames")
         pbar.update(n=start_frame)
         img_cnt = 0

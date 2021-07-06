@@ -317,23 +317,39 @@ class Utils:
 
 
 class ImgSeqIO:
-    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, **kwargs):
+    def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, logger=None,
+                 output_ext=".png", **kwargs):
+        if logger is None:
+            self.logger = Utils.get_logger(name="ImgIO", log_path=folder)
+        else:
+            self.logger = logger
+
         if folder is None or os.path.isfile(folder):
-            print(f"ERROR - [IMG.IO] Invalid ImgSeq Folder: {folder}")
+            self.logger.error(f"Invalid ImgSeq Folder: {folder}")
             return
-        if start_frame in [-1, 0]:
-            start_frame = 0
         self.seq_folder = folder  # + "/tmp"  # weird situation, cannot write to target dir, father dir instead
         if not os.path.exists(self.seq_folder):
             os.mkdir(self.seq_folder)
+            start_frame = 0
+        elif start_frame == -1:
+            start_frame = self.get_start_frame()
+            # read: start_frame = last img, no read; write: start writing at the end of sequence
+        self.star_frame = start_frame
         self.frame_cnt = 0
         self.img_list = list()
+
         self.write_queue = Queue(maxsize=1000)
         self.thread_cnt = thread
         self.thread_pool = list()
+
         self.use_imdecode = False
         self.resize = (0, 0)
         self.resize_flag = False
+
+        if output_ext[0] != ".":
+            output_ext = "." + output_ext
+        self.output_ext = output_ext
+
         if "exp" in kwargs:
             self.exp = kwargs["exp"]
         else:
@@ -345,29 +361,47 @@ class ImgSeqIO:
         if is_tool:
             return
         if is_read:
-            tmp = os.listdir(folder)
-            for p in tmp:
-                if os.path.splitext(p)[-1] in [".jpg", ".png", ".jpeg"]:
+            img_list = os.listdir(self.seq_folder)
+            img_list.sort()
+            for p in img_list:
+                fn, ext = os.path.splitext(p)
+                if ext in [".png", ".tiff"] and fn.isalnum():
                     if self.frame_cnt < start_frame:
-                        self.frame_cnt += 1
-                        continue
+                        self.frame_cnt += 1  # update frame_cnt
+                        continue  # do not read frame until reach start_frame img
                     self.img_list.append(os.path.join(self.seq_folder, p))
-            print(f"INFO - [IMG.IO] Load {len(self.img_list)} frames at {start_frame}")
+            self.logger.info(f"Load {len(self.img_list)} frames at {self.frame_cnt}")
         else:
-            png_re = re.compile("\d+\.png")
-            write_png = sorted([i for i in os.listdir(self.seq_folder) if png_re.match(i)],
-                               key=lambda x: int(x[:-4]), reverse=True)
-            if len(write_png):
-                self.frame_cnt = int(os.path.splitext(write_png[0])[0]) + 1
-                print(f"INFO - update Img Cnt to {self.frame_cnt}")
+            """Write Img"""
+            self.frame_cnt = start_frame
+            self.logger.info(f"Start Writing at {self.frame_cnt} frames")
             for t in range(self.thread_cnt):
                 _t = threading.Thread(target=self.write_buffer, name=f"[IMG.IO] Write Buffer No.{t + 1}")
                 self.thread_pool.append(_t)
             for _t in self.thread_pool:
                 _t.start()
-            # print(f"INFO - [IMG.IO] Set {self.seq_folder} As output Folder")
+
+    def get_start_frame(self):
+        """
+        Get Start Frame when start_frame is at its default value
+        :return:
+        """
+        img_list = list()
+        for f in os.listdir(self.seq_folder):
+            fn, ext = os.path.splitext(f)
+            if ext == self.output_ext and fn.isalnum():
+                img_list.append(int(fn))
+        if not len(img_list):
+            return 0
+        img_list.sort()
+        last_img = img_list[-1]  # biggest
+        return last_img
 
     def get_frames_cnt(self):
+        """
+        Get Frames Cnt with EXP
+        :return:
+        """
         return len(self.img_list) * 2 ** self.exp
 
     def read_frame(self, path):
@@ -379,7 +413,8 @@ class ImgSeqIO:
     def write_frame(self, img, path):
         if self.resize_flag:
             img = cv2.resize(img, (self.resize[0], self.resize[1]))
-        cv2.imencode('.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
+        cv2.imencode(self.output_ext, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))[1].tofile(path)
+        # TODO: 用回imwrite以支持tiff的无损编码，做中文路径警告
 
     def nextFrame(self):
         for p in self.img_list:
@@ -391,12 +426,12 @@ class ImgSeqIO:
         while True:
             img_data = self.write_queue.get()
             if img_data[1] is None:
-                print(f"INFO - [IMG.IO] {threading.current_thread().name}: get None, break")
+                self.logger.debug(f"{threading.current_thread().name}: get None, break")
                 break
             self.write_frame(img_data[1], img_data[0])
 
     def writeFrame(self, img):
-        img_path = os.path.join(self.seq_folder, f"{self.frame_cnt:0>8d}.png")
+        img_path = os.path.join(self.seq_folder, f"{self.frame_cnt:0>8d}{self.output_ext}")
         img_path = img_path.replace("\\", "/")
         if img is None:
             for t in range(self.thread_cnt):
