@@ -4,21 +4,24 @@ import json
 import logging
 import math
 import os
-import re
 import shutil
 import threading
 import time
 import traceback
+from collections import deque
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from queue import Queue
 
 import cv2
 import numpy as np
-from collections import deque
 from PIL import Image
 from sklearn import linear_model
-from ncnn.sr.realSR.realsr_ncnn_vulkan import RealSR
-from ncnn.sr.waifu2x.waifu2x_ncnn_vulkan import Waifu2x
+
+
+class SupportFormat:
+    img_inputs = ['.png', '.tif', '.tiff', '.jpg', '.jpeg']
+    img_outputs = ['.png', '.tiff', '.jpg']
+    vid_outputs = ['.mp4', '.mkv', '.mov']
 
 
 class EncodePresetAssemply:
@@ -68,11 +71,29 @@ class EncodePresetAssemply:
     }
 
 
+class SettingsPresets:
+    genre = \
+        {0:  # 动漫
+            {0:  # 速度
+                {
+                    0: 0,  # CPU
+                    1: 1,  # NVENC
+                }
+            },
+            1:  # 实拍
+                {0:  # 速度
+                     {0: 0,  # CPU
+                      1: 1  # NVENC
+                      }
+                 }
+        }
+
+
 class CommandResult:
     def __init__(self, command, output_path="output.txt"):
         self.command = command
         self.output_path = output_path
-        self.Utils = Utils()
+        self.Utils = Tools()
         pass
 
     def execute(self, ):
@@ -115,7 +136,7 @@ class DefaultConfigParser(ConfigParser):
         return value
 
 
-class Utils:
+class Tools:
     resize_param = (480, 270)
     crop_param = (0, 0, 0, 0)
 
@@ -208,7 +229,7 @@ class Utils:
     @staticmethod
     def get_norm_img(img1, resize=True):
         if resize:
-            img1 = cv2.resize(img1, Utils.resize_param, interpolation=cv2.INTER_LINEAR)
+            img1 = cv2.resize(img1, Tools.resize_param, interpolation=cv2.INTER_LINEAR)
         img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
         img1 = cv2.equalizeHist(img1)  # 进行直方图均衡化
         # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
@@ -224,8 +245,8 @@ class Utils:
         :param img2: cv2
         :return: float
         """
-        img1 = Utils.get_norm_img(img1, resize)
-        img2 = Utils.get_norm_img(img2, resize)
+        img1 = Tools.get_norm_img(img1, resize)
+        img2 = Tools.get_norm_img(img2, resize)
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         diff = cv2.absdiff(img1, img2).mean()
         return diff
@@ -240,8 +261,8 @@ class Utils:
         :param img2: cv2
         :return:  (int, np.array)
         """
-        prevgray = Utils.get_norm_img(img1, resize)
-        gray = Utils.get_norm_img(img2, resize)
+        prevgray = Tools.get_norm_img(img1, resize)
+        gray = Tools.get_norm_img(img2, resize)
         # h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
         # prevgray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         # gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -320,7 +341,7 @@ class ImgSeqIO:
     def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, logger=None,
                  output_ext=".png", **kwargs):
         if logger is None:
-            self.logger = Utils.get_logger(name="ImgIO", log_path=folder)
+            self.logger = Tools.get_logger(name="ImgIO", log_path=folder)
         else:
             self.logger = logger
 
@@ -365,16 +386,16 @@ class ImgSeqIO:
             img_list.sort()
             for p in img_list:
                 fn, ext = os.path.splitext(p)
-                if ext in [".png", ".tiff"] and fn.isalnum():
+                if ext.lower() in SupportFormat.img_inputs and fn.isalnum():
                     if self.frame_cnt < start_frame:
                         self.frame_cnt += 1  # update frame_cnt
                         continue  # do not read frame until reach start_frame img
                     self.img_list.append(os.path.join(self.seq_folder, p))
-            self.logger.info(f"Load {len(self.img_list)} frames at {self.frame_cnt}")
+            self.logger.debug(f"Load {len(self.img_list)} frames at {self.frame_cnt}")
         else:
             """Write Img"""
             self.frame_cnt = start_frame
-            self.logger.info(f"Start Writing at {self.frame_cnt} frames")
+            self.logger.debug(f"Start Writing at {self.frame_cnt} frames")
             for t in range(self.thread_cnt):
                 _t = threading.Thread(target=self.write_buffer, name=f"[IMG.IO] Write Buffer No.{t + 1}")
                 self.thread_pool.append(_t)
@@ -550,38 +571,6 @@ class SuperResolution:
         return img
 
 
-class SvfiWaifu(Waifu2x):
-    def __init__(self, **kwargs):
-        super().__init__(gpuid=0,
-                         model=kwargs["model"],
-                         tta_mode=False,
-                         num_threads=1,
-                         scale=kwargs["scale"],
-                         noise=0,
-                         tilesize=0, )
-
-    def svfi_process(self, img):
-        image = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        image = self.process(image)
-        image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
-        return image
-
-
-class SvfiRealSR(RealSR):
-    def __init__(self, **kwargs):
-        super().__init__(gpuid=0,
-                         model=kwargs["model"],
-                         tta_mode=False,
-                         scale=kwargs["scale"],
-                         tilesize=0, )
-
-    def svfi_process(self, img):
-        image = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        image = self.process(image)
-        image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
-        return image
-
-
 class PathManager:
     """
     路径管理器
@@ -591,10 +580,116 @@ class PathManager:
         pass
 
 
+class ArgumentManager:
+    """
+    For OLS's arguments input management
+    """
+
+    def __init__(self, args: dict):
+        self.app_dir = args.get("app_dir", "")
+        self.ols_path = args.get("ols_path", "")
+        self.batch = args.get("batch", False)
+        self.ffmpeg = args.get("ffmpeg", "")
+
+        self.input = args.get("input", "")
+        self.output_dir = args.get("output_dir", "")
+        self.gui_inputs = args.get("gui_inputs", "")
+        self.input_fps = args.get("input_fps", 0)
+        self.target_fps = args.get("target_fps", 0)
+        self.output_ext = args.get("output_ext", ".mp4")
+        self.is_img_input = args.get("is_img_input", False)
+        self.is_img_output = args.get("is_img_output", False)
+        self.is_output_only = args.get("is_output_only", True)
+        self.is_save_audio = args.get("is_save_audio", True)
+        self.input_start_point = args.get("input_start_point", None)
+        self.input_end_point = args.get("input_end_point", None)
+        self.output_chunk_cnt = args.get("output_chunk_cnt", 0)
+        self.interp_start = args.get("interp_start", 0)
+
+        self.is_no_scdet = args.get("is_no_scdet", False)
+        self.is_scdet_mix = args.get("is_scdet_mix", False)
+        self.use_scdet_fixed = args.get("use_scdet_fixed", False)
+        self.is_scdet_output = args.get("is_scdet_output", True)
+        self.scdet_threshold = args.get("scdet_threshold", 10)
+        self.scdet_fixed_max = args.get("scdet_fixed_max", 40)
+        self.scdet_flow_cnt = args.get("scdet_flow_cnt", 4)
+        self.scdet_mode = args.get("scdet_mode", 0)
+        self.remove_dup_mode = args.get("remove_dup_mode", 0)
+        self.remove_dup_threshold = args.get("remove_dup_threshold", 0.1)
+
+        self.use_manual_buffer = args.get("use_manual_buffer", False)
+        self.manual_buffer_size = args.get("manual_buffer_size", 1)
+
+        self.resize_width = args.get("resize_width", "")
+        self.resize_height = args.get("resize_height", "")
+        self.resize = args.get("resize", "")
+        self.crop_width = args.get("crop_width", "")
+        self.crop_height = args.get("crop_height", "")
+        self.crop = args.get("crop", "")
+
+        self.use_sr = args.get("use_sr", False)
+        self.use_sr_algo = args.get("use_sr_algo", "")
+        self.use_sr_model = args.get("use_sr_model", "")
+        self.use_sr_mode = args.get("use_sr_mode", "")
+
+        self.render_gap = args.get("render_gap", 1000)
+        self.use_crf = args.get("use_crf", True)
+        self.use_bitrate = args.get("use_bitrate", False)
+        self.render_crf = args.get("render_crf", 14)
+        self.render_bitrate = args.get("render_bitrate", 90)
+        self.render_encoder_preset = args.get("render_encoder_preset", "slow")
+        self.render_encoder = args.get("render_encoder", "")
+        self.render_hwaccel_mode = args.get("render_hwaccel_mode", "")
+        self.render_hwaccel_preset = args.get("render_hwaccel_preset", "")
+        self.use_hwaccel_decode = args.get("use_hwaccel_decode", True)
+        self.use_manual_encode_thread = args.get("use_manual_encode_thread", False)
+        self.render_encode_thread = args.get("render_encode_thread", 16)
+        self.is_quick_extract = args.get("is_quick_extract", True)
+        self.is_hdr_strict_mode = args.get("is_hdr_strict_mode", False)
+        self.render_ffmpeg_customized = args.get("render_ffmpeg_customized", "")
+        self.is_no_concat = args.get("is_no_concat", False)
+        self.use_fast_denoise = args.get("use_fast_denoise", False)
+        self.gif_loop = args.get("gif_loop", True)
+        self.is_render_slow_motion = args.get("is_render_slow_motion", False)
+        self.render_slow_motion_fps = args.get("render_slow_motion_fps", 0)
+        self.use_deinterlace = args.get("use_deinterlace", False)
+
+        self.use_ncnn = args.get("use_ncnn", False)
+        self.ncnn_thread = args.get("ncnn_thread", 4)
+        self.ncnn_gpu = args.get("ncnn_gpu", 0)
+        self.use_rife_tta_mode = args.get("use_rife_tta_mode", False)
+        self.use_rife_fp16 = args.get("use_rife_fp16", False)
+        self.rife_scale = args.get("rife_scale", 1.0)
+        self.rife_model_dir = args.get("rife_model_dir", "")
+        self.rife_model = args.get("rife_model", "")
+        self.rife_model_name = args.get("rife_model_name", "")
+        self.rife_exp = args.get("rife_exp", 1.0)
+        self.is_rife_reverse = args.get("is_rife_reverse", False)
+        self.use_specific_gpu = args.get("use_specific_gpu", 0)  # !
+        self.use_rife_auto_scale = args.get("use_rife_auto_scale", False)
+        self.use_rife_forward_ensemble = args.get("use_rife_forward_ensemble", False)
+
+        self.debug = args.get("debug", False)
+        self.multi_task_rest = args.get("multi_task_rest", False)
+        self.multi_task_rest_interval = args.get("multi_task_rest_interval", 1)
+        self.after_mission = args.get("after_mission", False)
+        self.force_cpu = args.get("force_cpu", False)
+        self.expert_mode = args.get("expert_mode", False)
+        self.preview_args = args.get("preview_args", False)
+        self.pos = args.get("pos", "")
+        self.size = args.get("size", "")
+
+        """OLS Params"""
+        self.concat_only = args.get("concat_only", False)
+        self.extract_only = args.get("extract_only", False)
+        self.render_only = args.get("render_only", False)
+        self.version = args.get("version", "0.0.0 beta")
+
+
 class VideoInfo:
-    def __init__(self, input: str, logger: Utils.get_logger, project_dir: str, HDR=False, ffmpeg=None, img_input=False,
+    def __init__(self, file_input: str, logger: Tools.get_logger, project_dir: str, ffmpeg=None, img_input=False,
                  strict_mode=False, exp=0, **kwargs):
-        self.filepath = input
+        self.filepath = file_input
         self.img_input = img_input
         self.strict_mode = strict_mode
         self.ffmpeg = "ffmpeg"
@@ -602,22 +697,22 @@ class VideoInfo:
         self.logger = logger
         self.project_dir = project_dir
         if ffmpeg is not None:
-            self.ffmpeg = Utils.fillQuotation(os.path.join(ffmpeg, "ffmpeg.exe"))
-            self.ffprobe = Utils.fillQuotation(os.path.join(ffmpeg, "ffprobe.exe"))
+            self.ffmpeg = Tools.fillQuotation(os.path.join(ffmpeg, "ffmpeg.exe"))
+            self.ffprobe = Tools.fillQuotation(os.path.join(ffmpeg, "ffprobe.exe"))
         if not os.path.exists(self.ffmpeg):
             self.ffmpeg = "ffmpeg"
             self.ffprobe = "ffprobe"
         self.color_info = dict()
-        if HDR:  # this should not be used
-            self.color_info.update({"-colorspace": "bt2020nc",
-                                    "-color_trc": "smpte2084",
-                                    "-color_primaries": "bt2020",
-                                    "-color_range": "tv"})
-        else:
-            self.color_info.update({"-colorspace": "bt709",
-                                    "-color_trc": "bt709",
-                                    "-color_primaries": "bt709",
-                                    "-color_range": "tv"})
+        # if HDR:  # this should not be used
+        #     self.color_info.update({"-colorspace": "bt2020nc",
+        #                             "-color_trc": "smpte2084",
+        #                             "-color_primaries": "bt2020",
+        #                             "-color_range": "tv"})
+        # else:
+        #     self.color_info.update({"-colorspace": "bt709",
+        #                             "-color_trc": "bt709",
+        #                             "-color_primaries": "bt709",
+        #                             "-color_range": "tv"})
         self.exp = exp
         self.frames_cnt = 0
         self.frames_size = (0, 0)  # width, height
@@ -631,7 +726,7 @@ class VideoInfo:
             f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
             f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
             f'color_primaries,color_range,color_space,color_transfer -print_format json '
-            f'{Utils.fillQuotation(self.filepath)}',
+            f'{Tools.fillQuotation(self.filepath)}',
             output_path=os.path.join(self.project_dir, "video_info.txt")).execute()
         try:
             video_info = json.loads(result)["streams"][0]  # select first video stream as input
@@ -709,8 +804,8 @@ class VideoInfo:
 
 
 class TransitionDetection_ST:
-    def __init__(self, scene_queue_length, scdet_threshold=50, project_dir="", no_scdet=False,
-                 use_fixed_scdet=False, fixed_max_scdet=50, scdet_output=False, **kwargs):
+    def __init__(self, project_dir, scene_queue_length, scdet_threshold=50, no_scdet=False,
+                 use_fixed_scdet=False, fixed_max_scdet=50, scdet_output=False):
         """
         转场检测类
         :param scdet_flow: 输入光流模式：0：2D 1：3D
@@ -721,7 +816,6 @@ class TransitionDetection_ST:
         :param no_scdet: 不进行转场识别
         :param use_fixed_scdet: 使用固定转场阈值
         :param fixed_max_scdet: 使用的最大转场阈值
-        :param kwargs:
         """
         self.scdet_output = scdet_output
         self.scdet_threshold = scdet_threshold
@@ -733,7 +827,7 @@ class TransitionDetection_ST:
         self.absdiff_queue = deque(maxlen=self.scene_stack_len)  # absdiff队列
         self.black_scene_queue = deque(maxlen=self.scene_stack_len)  # 黑场开场特判队列
         self.scene_checked_queue = deque(maxlen=self.scene_stack_len // 2)  # 已判断的转场absdiff特判队列
-        self.utils = Utils
+        self.utils = Tools
         self.dead_thres = 80
         self.born_thres = 2
         self.img1 = None
@@ -752,7 +846,7 @@ class TransitionDetection_ST:
         return reg.coef_, reg.intercept_
 
     def __check_var(self):
-        coef, intercept = self.__check_coef()
+        coef, intercept = self.__check_coef()  # TODO 简化为numpy
         coef_array = coef * np.array(range(len(self.absdiff_queue))).reshape(-1, 1) + intercept
         diff_array = np.array(self.absdiff_queue)
         sub_array = diff_array - coef_array
@@ -922,7 +1016,7 @@ class TransitionDetection:
         :param kwargs:
         """
         self.view = False
-        self.utils = Utils
+        self.utils = Tools
         self.scdet_cnt = 0
         self.scdet_threshold = scdet_threshold
         self.scene_dir = os.path.join(project_dir, "scene")  # 存储转场图片的文件夹路径
@@ -1133,7 +1227,7 @@ class TransitionDetection:
 
 
 if __name__ == "__main__":
-    u = Utils()
+    u = Tools()
     cp = DefaultConfigParser(allow_no_value=True)
     cp.read(r"D:\60-fps-Project\arXiv2020-RIFE-main\release\SVFI.Ft.RIFE_GUI.release.v6.2.2.A\RIFE_GUI.ini",
             encoding='utf-8')

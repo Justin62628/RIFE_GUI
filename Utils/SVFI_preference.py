@@ -96,6 +96,10 @@ class Ui_Dialog(object):
         self.ExpertModeChecker.setChecked(False)
         self.ExpertModeChecker.setObjectName("ExpertModeChecker")
         self.horizontalLayout_4.addWidget(self.ExpertModeChecker)
+        self.PreviewArgsModeChecker = QtWidgets.QCheckBox(self.groupBox_3)
+        self.PreviewArgsModeChecker.setChecked(False)
+        self.PreviewArgsModeChecker.setObjectName("PreviewArgsModeChecker")
+        self.horizontalLayout_4.addWidget(self.PreviewArgsModeChecker)
         self.gridLayout_4.addLayout(self.horizontalLayout_4, 0, 0, 1, 1)
         self.verticalLayout_3.addWidget(self.groupBox_3)
         spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
@@ -125,4 +129,5 @@ class Ui_Dialog(object):
         self.label.setText(_translate("Dialog", "补帧任务完成后："))
         self.ForceCpuChecker.setText(_translate("Dialog", "实验功能：有N卡但强制使用CPU？"))
         self.ExpertModeChecker.setText(_translate("Dialog", "开启专家模式"))
+        self.PreviewArgsModeChecker.setText(_translate("Dialog", "开启任务前参数文本预览"))
 from Utils.RIFE_GUI_Custom import MySpinBox

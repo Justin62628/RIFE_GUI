@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1332</width>
-    <height>865</height>
+    <height>856</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -460,6 +460,86 @@
                  </item>
                 </layout>
                </item>
+               <item row="10" column="0">
+                <widget class="QGroupBox" name="SettingsPresetGroup">
+                 <property name="title">
+                  <string/>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout_35">
+                  <item row="0" column="3">
+                   <widget class="QComboBox" name="SettingsPresetsSQ">
+                    <item>
+                     <property name="text">
+                      <string>速度优先</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>质量优先</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QLabel" name="SettingsPresetLabel">
+                    <property name="layoutDirection">
+                     <enum>Qt::LeftToRight</enum>
+                    </property>
+                    <property name="text">
+                     <string>预设(定型ing)：</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="2">
+                   <widget class="QComboBox" name="SettingsPresetsInputs">
+                    <item>
+                     <property name="text">
+                      <string>动漫</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>电影</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="0" column="4">
+                   <widget class="QComboBox" name="SettingsPresetsEncode">
+                    <item>
+                     <property name="text">
+                      <string>软件编码</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>硬件编码</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="0" column="0">
+                   <spacer name="horizontalSpacer_2">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeType">
+                     <enum>QSizePolicy::Minimum</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
               </layout>
              </widget>
              <widget class="QWidget" name="AdvanceArea" native="true">
@@ -502,7 +582,7 @@
                     <x>0</x>
                     <y>0</y>
                     <width>571</width>
-                    <height>743</height>
+                    <height>734</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_10">
@@ -558,7 +638,7 @@
                         <x>0</x>
                         <y>0</y>
                         <width>553</width>
-                        <height>440</height>
+                        <height>431</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -817,7 +897,7 @@
                         <x>0</x>
                         <y>0</y>
                         <width>553</width>
-                        <height>440</height>
+                        <height>431</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -1080,7 +1160,7 @@
                         <x>0</x>
                         <y>0</y>
                         <width>553</width>
-                        <height>440</height>
+                        <height>431</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -1920,7 +2000,7 @@
                         <x>0</x>
                         <y>0</y>
                         <width>553</width>
-                        <height>440</height>
+                        <height>431</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -1943,6 +2023,11 @@
                               <item>
                                <property name="text">
                                 <string>1.00</string>
+                               </property>
+                              </item>
+                              <item>
+                               <property name="text">
+                                <string>0.125</string>
                                </property>
                               </item>
                               <item>
@@ -2055,13 +2140,6 @@
                             </item>
                            </layout>
                           </item>
-                          <item row="2" column="0">
-                           <widget class="QLabel" name="AMDSettingsLabel">
-                            <property name="text">
-                             <string>使用A卡进行补帧的参数</string>
-                            </property>
-                           </widget>
-                          </item>
                           <item row="1" column="0">
                            <widget class="Line" name="line_6">
                             <property name="orientation">
@@ -2071,13 +2149,6 @@
                           </item>
                           <item row="3" column="0">
                            <layout class="QGridLayout" name="gridLayout_11">
-                            <item row="3" column="0">
-                             <widget class="QCheckBox" name="TtaModeChecker">
-                              <property name="text">
-                               <string>TTA模式</string>
-                              </property>
-                             </widget>
-                            </item>
                             <item row="0" column="1">
                              <widget class="MySpinBox" name="ncnnInterpThreadCnt">
                               <property name="enabled">
@@ -2137,6 +2208,23 @@
                              </widget>
                             </item>
                            </layout>
+                          </item>
+                          <item row="2" column="0">
+                           <widget class="QLabel" name="AMDSettingsLabel">
+                            <property name="text">
+                             <string>使用A卡进行补帧的参数</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="4" column="0">
+                           <widget class="QCheckBox" name="TtaModeChecker">
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;试验性选项：&lt;/span&gt;&lt;/p&gt;&lt;p&gt;极大地降低补帧速度&lt;/p&gt;&lt;p&gt;画面质量会有些许提升&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="text">
+                             <string>TTA模式</string>
+                            </property>
+                           </widget>
                           </item>
                          </layout>
                         </widget>
@@ -2760,13 +2848,13 @@ p, li { white-space: pre-wrap; }
  </widget>
  <customwidgets>
   <customwidget>
-   <class>MyComboBox</class>
-   <extends>QComboBox</extends>
+   <class>MySpinBox</class>
+   <extends>QSpinBox</extends>
    <header location="global">Utils.RIFE_GUI_Custom</header>
   </customwidget>
   <customwidget>
-   <class>MySpinBox</class>
-   <extends>QSpinBox</extends>
+   <class>MyComboBox</class>
+   <extends>QComboBox</extends>
    <header location="global">Utils.RIFE_GUI_Custom</header>
   </customwidget>
   <customwidget>
@@ -2838,7 +2926,6 @@ p, li { white-space: pre-wrap; }
   <tabstop>DiscreteCardSelector</tabstop>
   <tabstop>ncnnInterpThreadCnt</tabstop>
   <tabstop>ncnnSelectGPU</tabstop>
-  <tabstop>TtaModeChecker</tabstop>
   <tabstop>GifInput</tabstop>
   <tabstop>DebugChecker</tabstop>
   <tabstop>GifOutput</tabstop>

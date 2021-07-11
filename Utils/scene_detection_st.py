@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from sklearn import linear_model
 
-from Utils.utils import Utils
+from Utils.utils import Tools
 
 warnings.filterwarnings("ignore")
 
@@ -28,7 +28,7 @@ class TransitionDetection:
         :param kwargs:
         """
         self.view = False  # 控制预览
-        self.utils = Utils()
+        self.utils = Tools()
         self.scdet_cnt = 0
         self.scdet_threshold = scdet_threshold
         self.scene_dir = os.path.join(os.path.dirname(output), "scene")  # 存储转场图片的文件夹路径
@@ -216,7 +216,7 @@ class TransitionDetection_ST:
         self.scene_stack_len = scene_queue_length
         self.absdiff_queue = deque(maxlen=self.scene_stack_len)  # absdiff队列
         self.black_scene_queue = deque(maxlen=self.scene_stack_len)  # 黑场开场特判队列
-        self.utils = Utils()
+        self.utils = Tools()
         self.dead_thres = 80
         self.born_thres = 2
         self.img1 = None

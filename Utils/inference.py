@@ -5,24 +5,22 @@ import warnings
 import numpy as np
 import torch
 from torch.nn import functional as F
+from Utils.utils import ArgumentManager
 
 warnings.filterwarnings("ignore")
-# Utils = Utils()
 
 
 class RifeInterpolation:
-    def __init__(self, __args: dict):
+    def __init__(self, __args: ArgumentManager):
         self.initiated = False
-        self.args = {}
-        if __args is not None:
-            """Update Args"""
-            self.args = __args
-        else:
-            raise NotImplementedError("Args not sent in")
+        self.ARGS = __args
 
+        self.auto_scale = self.ARGS.use_rife_auto_scale
         self.device = None
         self.model = None
         self.model_path = ""
+        self.model_version = 0
+        self.tta_mode = self.ARGS.use_rife_tta_mode
         pass
 
     def initiate_rife(self, __args=None):
@@ -32,42 +30,45 @@ class RifeInterpolation:
         torch.set_grad_enabled(False)
         if not torch.cuda.is_available():
             self.device = torch.device("cpu")
-            self.args["fp16"] = False
+            self.ARGS.use_rife_fp16 = False
             print("INFO - use cpu to interpolate")
         else:
             self.device = torch.device("cuda")
             torch.backends.cudnn.enabled = True
             torch.backends.cudnn.benchmark = True
 
-            if self.args["fp16"]:
+            if self.ARGS.use_rife_fp16:
                 try:
                     torch.set_default_tensor_type(torch.cuda.HalfTensor)
                     print("INFO - FP16 mode switch success")
                 except Exception as e:
                     print("INFO - FP16 mode switch failed")
                     traceback.print_exc()
-                    self.args["fp16"] = False
+                    self.ARGS.use_rife_fp16 = False
 
-        if self.args["selected_model"] == "":
+        if self.ARGS.rife_model == "":
             self.model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train_log')
         else:
-            self.model_path = self.args["selected_model"]
+            self.model_path = self.ARGS.rife_model
 
         try:
             try:
                 from model.RIFE_HDv2 import Model
                 model = Model()
                 model.load_model(self.model_path, -1)
+                self.model_version = 2
                 print("INFO - Loaded v2.x HD model.")
             except:
                 from model.RIFE_HDv3 import Model
-                model = Model(forward_ensemble=self.args.get("forward_ensemble", False))
+                model = Model(forward_ensemble=self.ARGS.use_rife_forward_ensemble)
                 model.load_model(self.model_path, -1)
+                self.model_version = 3
                 print("INFO - Loaded v3.x HD model.")
         except:
             from model.RIFE_HD import Model
             model = Model()
             model.load_model(self.model_path, -1)
+            self.model_version = 1
             print("INFO - Loaded v1.x HD model")
 
         self.model = model
@@ -77,30 +78,22 @@ class RifeInterpolation:
         # print(f"INFO - Load model at {self.model_path}")
         self.initiated = True
 
-    def __make_inference(self, img1, img2, scale, exp):
-        padding, h, w = self.generate_padding(img1, scale)
-        i1 = self.generate_torch_img(img1, padding)
-        i2 = self.generate_torch_img(img2, padding)
-        if self.args["reverse"]:
+    def __inference(self, i1, i2, scale):
+        if self.ARGS.is_rife_reverse:
             mid = self.model.inference(i1, i2, scale)
         else:
             mid = self.model.inference(i2, i1, scale)
-        del i1, i2
-        mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
-        if exp == 1:
-            return [mid]
-        first_half = self.__make_inference(img1, mid, scale, exp=exp - 1)
-        second_half = self.__make_inference(mid, img2, scale, exp=exp - 1)
-        return [*first_half, mid, *second_half]
+        return mid
 
     def __make_n_inference(self, img1, img2, scale, n):
         padding, h, w = self.generate_padding(img1, scale)
         i1 = self.generate_torch_img(img1, padding)
         i2 = self.generate_torch_img(img2, padding)
-        if self.args["reverse"]:
-            mid = self.model.inference(i1, i2, scale)
-        else:
-            mid = self.model.inference(i2, i1, scale)
+        mid = self.__inference(i1, i2, scale)
+        if self.tta_mode:
+            mid1 = self.__inference(i1, mid, scale)
+            mid2 = self.__inference(mid, i2, scale)
+            mid = self.__inference(mid1, mid2, scale)
         del i1, i2
         mid = ((mid[0] * 255.).byte().cpu().numpy().transpose(1, 2, 0))[:h, :w].copy()
         if n == 1:
@@ -142,37 +135,10 @@ class RifeInterpolation:
             raise e
 
     def pad_image(self, img, padding):
-        if self.args["fp16"]:
+        if self.ARGS.use_rife_fp16:
             return F.pad(img, padding).half()
         else:
             return F.pad(img, padding)
-
-    def generate_interp(self, img1, img2, exp, scale, n=None, debug=False, test=False):
-        """
-
-        :param img1: cv2.imread
-        :param img2:
-        :param exp:
-        :param scale:
-        :param n:
-        :param debug:
-        :return: list of interp cv2 image
-        """
-        if debug:
-            output_gen = list()
-            if n is not None:
-                dup = n
-            else:
-                dup = 2 ** exp - 1
-            for i in range(dup):
-                output_gen.append(img1)
-            return output_gen
-
-        if n is not None:
-            interp_gen = self.__make_n_inference(img1, img2, scale, n=n)
-        else:
-            interp_gen = self.__make_inference(img1, img2, scale, exp=exp)
-        return interp_gen
 
     def generate_n_interp(self, img1, img2, n, scale, debug=False, test=False):
         if debug:
