@@ -7,7 +7,6 @@ import os
 import re
 import shlex
 import shutil
-import subprocess
 import subprocess as sp
 import sys
 import time
@@ -185,6 +184,7 @@ class SVFI_Preference_Dialog(QDialog, SVFI_preference.Ui_Dialog):
         self.ForceCpuChecker.setChecked(self.preference_dict["rife_use_cpu"])
         self.ExpertModeChecker.setChecked(self.preference_dict["expert"])
         self.PreviewArgsModeChecker.setChecked(self.preference_dict["is_preview_args"])
+        self.QuietModeChecker.setChecked(self.preference_dict["is_gui_quiet"])
         pass
 
     def request_preference(self):
@@ -199,6 +199,7 @@ class SVFI_Preference_Dialog(QDialog, SVFI_preference.Ui_Dialog):
         preference_dict["rife_use_cpu"] = self.ForceCpuChecker.isChecked()
         preference_dict["expert"] = self.ExpertModeChecker.isChecked()
         preference_dict["is_preview_args"] = self.PreviewArgsModeChecker.isChecked()
+        preference_dict["is_gui_quiet"] = self.QuietModeChecker.isChecked()
         self.preference_signal.emit(preference_dict)
 
 
@@ -224,7 +225,7 @@ class SVFI_Run_Others(QThread):
 
     def run(self):
         logger.info(f"[CMD Thread]: Start execute {self.command}")
-        ps = subprocess.Popen(self.command)
+        ps = Tools.popen(self.command)
         ps.wait()
         self.fire_finish_signal()
         pass
@@ -524,6 +525,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.force_cpu = False
         self.expert_mode = True
         self.preview_args = False
+        self.is_gui_quiet = False
         self.SVFI_Preference_form = None
 
         """Initiate and Check GPU"""
@@ -697,6 +699,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.force_cpu = appData.value("rife_use_cpu", False, type=bool)
         self.expert_mode = appData.value("expert_mode", True, type=bool)
         self.preview_args = appData.value("is_preview_args", False, type=bool)
+        self.is_gui_quiet = appData.value("is_gui_quiet", False, type=bool)
 
         """REM Management Configuration"""
         self.MBufferChecker.setChecked(appData.value("use_manual_buffer", False, type=bool))
@@ -830,6 +833,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         appData.setValue("rife_use_cpu", self.force_cpu)
         appData.setValue("expert_mode", self.expert_mode)
         appData.setValue("is_preview_args", self.preview_args)
+        appData.setValue("is_gui_quiet", self.is_gui_quiet)
 
         """SVFI Main Page Position and Size"""
         appData.setValue("pos", QVariant(self.pos()))
@@ -1097,9 +1101,9 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         :param msg_type: 1 warning 2 info 3 question
         :return:
         """
-        if self.silent:
+        if self.is_gui_quiet:
             return
-        QMessageBox.setWindowIcon(self, QIcon('svfi.png'))
+        QMessageBox.setWindowIcon(self, QIcon(ico_path))
         if msg_type == 1:
             reply = QMessageBox.warning(self,
                                         f"{title}",
@@ -1155,7 +1159,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             -map 1:v:0 -map 0:a:0 -c:v copy -c:a copy -shortest {Tools.fillQuotation(output_v)} -y
         """.strip().strip("\n").replace("\n", "").replace("\\", "/")
         logger.info(f"[GUI] concat {ffmpeg_command}")
-        ps = subprocess.Popen(ffmpeg_command)
+        ps = Tools.popen(ffmpeg_command)
         ps.wait()
         self.function_send_msg("音视频合并操作完成！", f"请查收", msg_type=2)
 
@@ -1201,7 +1205,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
 
         logger.info(f"[GUI] create gif: {ffmpeg_command}")
         self.GifButton.setEnabled(False)
-        ps = subprocess.Popen(ffmpeg_command)
+        ps = Tools.popen(ffmpeg_command)
         ps.wait()
         self.GifButton.setEnabled(True)
         self.function_send_msg("GIF制作完成", f"GIF帧率：{target_fps}", 2)
@@ -1293,7 +1297,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
                 tmp = ""
                 lines = data["subprocess"].splitlines()
                 for line in lines:
-                    if not any([i in line for i in dup_keys_list]):
+                    if not any([i in line for i in dup_keys_list]) and len(line.strip()):
                         tmp += line + "\n"
                 if tmp.strip() == lines[-1].strip():
                     lines[-1] = ""
@@ -1407,7 +1411,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         # self.on_EncoderSelector_currentTextChanged()  # update Encoders
         self.settings_load_current()  # update settings
 
-        if self.preview_args:
+        if self.preview_args and not self.is_gui_quiet:
             SVFI_preview_args_form = SVFI_Preview_Args_Dialog(self)
             SVFI_preview_args_form.setWindowTitle("Preview SVFI Arguments")
             # SVFI_preview_args_form.setWindowModality(Qt.ApplicationModal)
@@ -1835,6 +1839,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
             preference_dict["expert"] = self.expert_mode
             preference_dict["rife_use_cpu"] = self.force_cpu
             preference_dict["is_preview_args"] = self.preview_args
+            preference_dict["is_gui_quiet"] = self.is_gui_quiet
             return preference_dict
 
         self.SVFI_Preference_form = SVFI_Preference_Dialog(preference_dict=generate_preference_dict())
@@ -1850,6 +1855,7 @@ class RIFE_GUI_BACKEND(QMainWindow, SVFI_UI.Ui_MainWindow):
         self.expert_mode = preference_dict["expert"]
         self.force_cpu = preference_dict["rife_use_cpu"]
         self.preview_args = preference_dict["is_preview_args"]
+        self.is_gui_quiet = preference_dict["is_gui_quiet"]
         self.on_ExpertMode_changed()
 
     def on_ExpertMode_changed(self):

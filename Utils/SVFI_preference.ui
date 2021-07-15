@@ -171,6 +171,16 @@
             </item>
            </layout>
           </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="QuietModeChecker">
+            <property name="text">
+             <string>开启安静模式（不显示弹窗等）</string>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

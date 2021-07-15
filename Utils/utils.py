@@ -4,7 +4,9 @@ import json
 import logging
 import math
 import os
+import shlex
 import shutil
+import subprocess
 import threading
 import time
 import traceback
@@ -14,8 +16,8 @@ from queue import Queue
 
 import cv2
 import numpy as np
-from PIL import Image
 from sklearn import linear_model
+from skvideo.utils import check_output
 
 
 class SupportFormat:
@@ -76,7 +78,7 @@ class SettingsPresets:
         {0:  # 动漫
             {0:  # 速度
                 {
-                    0: 0,  # CPU
+                    0: {"encoder": "CPU", "...": "..."},  # CPU
                     1: 1,  # NVENC
                 }
             },
@@ -87,20 +89,7 @@ class SettingsPresets:
                       }
                  }
         }
-
-
-class CommandResult:
-    def __init__(self, command, output_path="output.txt"):
-        self.command = command
-        self.output_path = output_path
-        self.Utils = Tools()
-        pass
-
-    def execute(self, ):
-        os.system(f"{self.command} > {self.Utils.fillQuotation(self.output_path)} 2>&1")
-        with open(self.output_path, "r", encoding="utf-8") as tool_read:
-            content = tool_read.read()
-        return content
+    genre_2 = {(0, 0, 0): {"render_crf": 16}}
 
 
 class DefaultConfigParser(ConfigParser):
@@ -335,6 +324,14 @@ class Tools:
             return input_fps
         except Exception:
             return 0
+
+    @staticmethod
+    def popen(args: str):
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags = subprocess.CREATE_NEW_CONSOLE | subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        p = subprocess.Popen(args, startupinfo=startupinfo)
+        return p
 
 
 class ImgSeqIO:
@@ -722,12 +719,11 @@ class VideoInfo:
         self.update_info()
 
     def update_frames_info_ffprobe(self):
-        result = CommandResult(
-            f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
-            f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
-            f'color_primaries,color_range,color_space,color_transfer -print_format json '
-            f'{Tools.fillQuotation(self.filepath)}',
-            output_path=os.path.join(self.project_dir, "video_info.txt")).execute()
+        check_command = (f'{self.ffprobe} -v error -show_streams -select_streams v:0 -v error '
+                         f'-show_entries stream=index,width,height,r_frame_rate,nb_frames,duration,'
+                         f'color_primaries,color_range,color_space,color_transfer -print_format json '
+                         f'{Tools.fillQuotation(self.filepath)}')
+        result = check_output(shlex.split(check_command))
         try:
             video_info = json.loads(result)["streams"][0]  # select first video stream as input
         except Exception as e:

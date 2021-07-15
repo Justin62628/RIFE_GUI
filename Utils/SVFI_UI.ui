@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1332</width>
-    <height>856</height>
+    <width>1303</width>
+    <height>846</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -581,8 +581,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>571</width>
-                    <height>734</height>
+                    <width>557</width>
+                    <height>724</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_10">
@@ -637,8 +637,8 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>553</width>
-                        <height>431</height>
+                        <width>539</width>
+                        <height>421</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -896,8 +896,8 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>553</width>
-                        <height>431</height>
+                        <width>539</width>
+                        <height>421</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -1159,8 +1159,8 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>553</width>
-                        <height>431</height>
+                        <width>539</width>
+                        <height>421</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -1474,7 +1474,7 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>536</width>
+                        <width>522</width>
                         <height>452</height>
                        </rect>
                       </property>
@@ -1999,8 +1999,8 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>553</width>
-                        <height>431</height>
+                        <width>539</width>
+                        <height>421</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -2249,7 +2249,7 @@
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>536</width>
+                        <width>522</width>
                         <height>458</height>
                        </rect>
                       </property>
@@ -2721,7 +2721,7 @@ p, li { white-space: pre-wrap; }
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1332</width>
+     <width>1303</width>
      <height>23</height>
     </rect>
    </property>

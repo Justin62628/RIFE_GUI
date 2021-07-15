@@ -1,10 +1,7 @@
 # coding: utf-8
 import argparse
 import re
-import shlex
-import subprocess
 import sys
-import traceback
 
 import psutil
 import tqdm
@@ -12,11 +9,16 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 
 from Utils.utils import *
 
-print("INFO - ONE LINE SHOT ARGS 6.8.0 2021/7/11")
+print("INFO - ONE LINE SHOT ARGS 6.8.1 2021/7/15")
 """
-Update Log at 6.8.0
-1. Optimize Arguments Managements
-2. Development Guide
+Update Log at 6.8.1
+1. Fix Single Duplication Threshold Removal Mode Inability
+2. Fix Temporary Frozen Situation when RD Mode enabled (by adding special judge of identical frames)
+3. Optimize Status Visualization of RD Mode Initialization 
+4. Add Quiet Mode
+5. Add New Icon of SVFI
+6. Remove CMD Black Window
+7. Developer: Remove Txt based communication model
 """
 
 """设置环境路径"""
@@ -622,7 +624,7 @@ class InterpWorkFlow:
                              f'{Tools.fillQuotation(concat_filepath)} -y'
 
             self.logger.info("Start Audio Concat Test")
-            sp = subprocess.Popen(ffmpeg_command)
+            sp = Tools.popen(ffmpeg_command)
             sp.wait()
             if not os.path.exists(concat_filepath) or not os.path.getsize(concat_filepath):
                 self.logger.error(f"Concat Test Error, {output_ext}, empty output")
@@ -718,24 +720,12 @@ class InterpWorkFlow:
             mse = np.mean((i1 - i2) ** 2)
             if mse == 0:
                 return 100
-            PIXEL_MAX = 255.0
-            return 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
+            pixel_max = 255.0
+            return 20 * math.log10(pixel_max / math.sqrt(mse))
 
         scale = self.ARGS.rife_scale
         if self.ARGS.use_rife_auto_scale:
             """使用动态光流"""
-            # img0_ = np.float64(cv2.resize(img0, (256, 256)))
-            # img1_ = np.float64(cv2.resize(img1, (256, 256)))
-            # mse = np.mean((img0_ - img1_) ** 2)
-            # if mse == 0:
-            #     return 1.0
-            # p = 20 * math.log10(255.0 / math.sqrt(mse))
-            # if p > 20:
-            #     scale = 1.0
-            # elif 15 < p <= 20:
-            #     scale = 0.5
-            # else:
-            #     scale = 0.25
             if img0 is None or img1 is None:
                 scale = 1.0
             else:
@@ -744,12 +734,7 @@ class InterpWorkFlow:
                 y50 = 0.00000970763 * (x ** 3) - 0.0000908092 * (x ** 2) - 0.02095 * x - 0.69068
                 y100 = 0.0000134965 * (x ** 3) - 0.000246688 * (x ** 2) - 0.01987 * x - 0.70953
                 m = min(y25, y50, y100)
-                if m == y25:
-                    scale = 0.25
-                elif m == y50:
-                    scale = 0.5
-                else:
-                    scale = 1.0
+                scale = {y25: 0.25, y50: 0.5, y100: 1.0}[m]
 
         self.rife_task_queue.put(
             {"now_frame": now_frame, "img0": img0, "img1": img1, "n": n, "exp": exp, "scale": scale,
@@ -882,8 +867,6 @@ class InterpWorkFlow:
             predict_dict[(pos0, pos1)] = prediction
             return prediction
 
-        if init:
-            self.logger.info("Initiating Duplicated Frames Removal Process...This might take some time")
 
         use_flow = True
         check_queue_size = min(self.frames_output_size, 1000)  # 预处理长度
@@ -891,6 +874,12 @@ class InterpWorkFlow:
         scene_frame_list = list()  # 转场图片帧数序列,key,和check_frame_list同步
         input_frame_data = dict()  # 输入图片数据
         check_frame_data = dict()  # 用于判断的采样图片数据
+        if init:
+            self.logger.info("Initiating Duplicated Frames Removal Process...This might take some time")
+            pbar = tqdm.tqdm(total=check_queue_size, unit="frames")
+
+        else:
+            pbar = None
         """
             check_frame_list contains key, check_frame_data contains (key, frame_data)
         """
@@ -901,6 +890,10 @@ class InterpWorkFlow:
             check_frame = Tools.gen_next(videogen_check)
             if check_frame is None:
                 break
+            if init:
+                pbar.update(1)
+                pbar.set_description(
+                    f"Process at Extract Frame {check_frame_cnt}")
             if len(check_frame_list):  # len>1
                 if Tools.get_norm_img_diff(input_frame_data[check_frame_list[-1]],
                                            check_frame) < 0.001:
@@ -912,15 +905,28 @@ class InterpWorkFlow:
             # check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
             check_frame_data[check_frame_cnt] = cv2.resize(cv2.GaussianBlur(check_frame, (3, 3), 0), (256, 256))
         if not len(check_frame_list):
+            if init:
+                pbar.close()
             return [], [], {}
 
+        if init:
+            pbar.close()
+            pbar = tqdm.tqdm(total=len(check_frame_list), unit="frames")
         """Scene Batch Detection"""
         for i in range(len(check_frame_list) - 1):
+            if init:
+                pbar.update(1)
+                pbar.set_description(
+                    f"Process at Scene Detect Frame {i}")
             i1 = check_frame_data[check_frame_list[i]]
             i2 = check_frame_data[check_frame_list[i + 1]]
             result = self.scene_detection.check_scene(i1, i2)
             if result:
                 scene_frame_list.append(check_frame_list[i + 1])  # at i find scene
+
+        if init:
+            pbar.close()
+            self.logger.info("Start Remove First Batch of Duplicated Frames")
 
         max_epoch = self.ARGS.remove_dup_mode  # 一直去除到一拍N，N为max_epoch，默认去除一拍二
         opt = []  # 已经被标记，识别的帧
@@ -928,27 +934,30 @@ class InterpWorkFlow:
             Icount = queue_size - 1  # 输入帧数
             Current = []  # 该轮被标记的帧
             i = 1
-            while i < len(check_frame_list) - Icount:
-                c = [check_frame_list[p + i] for p in range(queue_size)]  # 读取queue_size帧图像 ~ 对应check_frame_list中的帧号
-                first_frame = c[0]
-                last_frame = c[-1]
-                count = 0
-                for step in range(1, queue_size - 2):
-                    pos = 1
-                    while pos + step <= queue_size - 2:
-                        m0 = c[pos]
-                        m1 = c[pos + step]
-                        d0 = calc_flow_distance(first_frame, m0, use_flow)
-                        d1 = calc_flow_distance(m0, m1, use_flow)
-                        d2 = calc_flow_distance(m1, last_frame, use_flow)
-                        value_scale = predict_scale(m0, m1)
-                        if value_scale * d1 < d0 and value_scale * d1 < d2:
-                            count += 1
-                        pos += 1
-                if count == (queue_size * (queue_size - 5) + 6) / 2:
-                    Current.append(i)  # 加入标记序号
-                    i += queue_size - 3
-                i += 1
+            try:
+                while i < len(check_frame_list) - Icount:
+                    c = [check_frame_list[p + i] for p in range(queue_size)]  # 读取queue_size帧图像 ~ 对应check_frame_list中的帧号
+                    first_frame = c[0]
+                    last_frame = c[-1]
+                    count = 0
+                    for step in range(1, queue_size - 2):
+                        pos = 1
+                        while pos + step <= queue_size - 2:
+                            m0 = c[pos]
+                            m1 = c[pos + step]
+                            d0 = calc_flow_distance(first_frame, m0, use_flow)
+                            d1 = calc_flow_distance(m0, m1, use_flow)
+                            d2 = calc_flow_distance(m1, last_frame, use_flow)
+                            value_scale = predict_scale(m0, m1)
+                            if value_scale * d1 < d0 and value_scale * d1 < d2:
+                                count += 1
+                            pos += 1
+                    if count == (queue_size * (queue_size - 5) + 6) / 2:
+                        Current.append(i)  # 加入标记序号
+                        i += queue_size - 3
+                    i += 1
+            except:
+                self.logger.error(traceback.format_exc())
             for x in Current:
                 if x not in opt:  # 优化:该轮一拍N不可能出现在上一轮中
                     for t in range(queue_size - 3):
@@ -1100,9 +1109,9 @@ class InterpWorkFlow:
 
         """Update Interp Mode Info"""
         if self.ARGS.remove_dup_mode == 1:  # 单一模式
-            self.ARGS.dup_threshold = self.ARGS.dup_threshold if self.ARGS.dup_threshold > 0.01 else 0.01
+            self.ARGS.remove_dup_threshold = self.ARGS.remove_dup_threshold if self.ARGS.remove_dup_threshold > 0.01 else 0.01
         else:  # 0， 不去除重复帧
-            self.ARGS.dup_threshold = 0.001
+            self.ARGS.remove_dup_threshold = 0.001
 
         self.rife_work_event.set()
         """Start Process"""
@@ -1142,10 +1151,10 @@ class InterpWorkFlow:
                 self.scene_detection.update_scene_status(now_frame, "scene")
                 continue
             else:
-                if diff < self.ARGS.dup_threshold:
+                if diff < self.ARGS.remove_dup_threshold:
                     before_img = img1
                     is_scene = False
-                    while diff < self.ARGS.dup_threshold:
+                    while diff < self.ARGS.remove_dup_threshold:
                         skip += 1
                         self.scene_detection.update_scene_status(now_frame, "dup")
 
@@ -1258,6 +1267,7 @@ class InterpWorkFlow:
 
             previous_cnt = start_frame
             now_frame = start_frame
+            PURE_SCENE_THRESHOLD = 30
 
             self.rife_work_event.wait()
             pbar = tqdm.tqdm(total=self.all_frames_cnt, unit="frames")
@@ -1298,8 +1308,14 @@ class InterpWorkFlow:
                     frames_list.extend(mix_list)
                 else:
                     if n > 0:
-                        interp_list = self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug)
-                        frames_list.extend(interp_list)
+                        if n > PURE_SCENE_THRESHOLD:
+                            if Tools.check_pure_img(img0):
+                                """It's Pure Img, Copy img0"""
+                                for i in range(n):
+                                    frames_list.append(img0)
+                        else:
+                            interp_list = self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug)
+                            frames_list.extend(interp_list)
                     elif exp > 0:
                         interp_list = self.rife_core.generate_n_interp(img0, img1, n=2**exp-1, scale=scale, debug=debug)
                         frames_list.extend(interp_list)
@@ -1483,7 +1499,7 @@ class InterpWorkFlow:
         ffmpeg_command = f'{self.ffmpeg} -hide_banner -f concat -safe 0 -i "{concat_path}" {map_audio} -c:v copy ' \
                          f'{Tools.fillQuotation(concat_filepath)} -metadata title="Made By SVFI {self.ARGS.version}" -y'
         self.logger.debug(f"Concat command: {ffmpeg_command}")
-        sp = subprocess.Popen(ffmpeg_command)
+        sp = Tools.popen(ffmpeg_command)
         sp.wait()
         if self.ARGS.is_output_only and os.path.exists(concat_filepath):
             if not os.path.getsize(concat_filepath):

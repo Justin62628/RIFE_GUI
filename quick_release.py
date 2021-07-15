@@ -11,7 +11,7 @@ os.system(
 # debug
 # os.system(f'nuitka --standalone --mingw64 --show-memory --show-progress --nofollow-imports --include-qt-plugins=sensible,styles --plugin-enable=qt-plugins  --include-package=QCandyUi,PyQt5 --windows-icon-from-ico="{ico_path}" --windows-product-name="SVFI" --windows-product-version={gui_version} --windows-file-description="Squirrel Video Frame Interpolation" --windows-company-name="SVFI" --follow-import-to=Utils --output-dir=release .\RIFE_GUI_Start.py')
 os.system(
-    f'nuitka --standalone --mingw64 --show-memory --show-progress --nofollow-imports --plugin-enable=qt-plugins --windows-icon-from-ico="{ico_path}" --windows-product-name="SVFI CLI" --windows-product-version={cli_version} --windows-file-description="SVFI Interpolation CLI" --windows-company-name="Jeanna-SVFI"  --follow-import-to=Utils --output-dir=release .\one_line_shot_args.py')
+    f'nuitka --standalone --windows-disable-console --mingw64 --show-memory --show-progress --nofollow-imports --plugin-enable=qt-plugins --windows-icon-from-ico="{ico_path}" --windows-product-name="SVFI CLI" --windows-product-version={cli_version} --windows-file-description="SVFI Interpolation CLI" --windows-company-name="Jeanna-SVFI"  --follow-import-to=Utils --output-dir=release .\one_line_shot_args.py')
 pack_dir = r"D:\60-fps-Project\Projects\RIFE GUI\release\release_pack"
 if not os.path.exists(pack_dir):
     os.mkdir(pack_dir)

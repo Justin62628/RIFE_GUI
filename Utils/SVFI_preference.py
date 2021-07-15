@@ -101,6 +101,10 @@ class Ui_Dialog(object):
         self.PreviewArgsModeChecker.setObjectName("PreviewArgsModeChecker")
         self.horizontalLayout_4.addWidget(self.PreviewArgsModeChecker)
         self.gridLayout_4.addLayout(self.horizontalLayout_4, 0, 0, 1, 1)
+        self.QuietModeChecker = QtWidgets.QCheckBox(self.groupBox_3)
+        self.QuietModeChecker.setChecked(False)
+        self.QuietModeChecker.setObjectName("QuietModeChecker")
+        self.gridLayout_4.addWidget(self.QuietModeChecker, 1, 0, 1, 1)
         self.verticalLayout_3.addWidget(self.groupBox_3)
         spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         self.verticalLayout_3.addItem(spacerItem)
@@ -130,4 +134,5 @@ class Ui_Dialog(object):
         self.ForceCpuChecker.setText(_translate("Dialog", "实验功能：有N卡但强制使用CPU？"))
         self.ExpertModeChecker.setText(_translate("Dialog", "开启专家模式"))
         self.PreviewArgsModeChecker.setText(_translate("Dialog", "开启任务前参数文本预览"))
+        self.QuietModeChecker.setText(_translate("Dialog", "开启安静模式（不显示弹窗等）"))
 from Utils.RIFE_GUI_Custom import MySpinBox
