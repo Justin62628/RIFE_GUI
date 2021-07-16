@@ -419,7 +419,13 @@
                   <bool>true</bool>
                  </property>
                  <property name="dragDropMode">
-                  <enum>QAbstractItemView::DropOnly</enum>
+                  <enum>QAbstractItemView::NoDragDrop</enum>
+                 </property>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
+                 </property>
+                 <property name="viewMode">
+                  <enum>QListView::ListMode</enum>
                  </property>
                 </widget>
                </item>
@@ -630,7 +636,7 @@
                       </size>
                      </property>
                      <property name="currentIndex">
-                      <number>3</number>
+                      <number>5</number>
                      </property>
                      <widget class="QWidget" name="ResumeSettings">
                       <property name="geometry">

@@ -22,7 +22,7 @@ except ImportError as e:
 
 """Release Version Control"""
 version_free = False
-version_tag = "3.4.1.alpha"
+version_tag = "3.4.2.alpha"
 """ **** 改动以上参即可 **** """
 
 if "alpha" not in version_tag:

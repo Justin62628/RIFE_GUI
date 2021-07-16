@@ -1,5 +1,6 @@
 # coding: utf-8
 import datetime
+import hashlib
 import json
 import logging
 import math
@@ -333,6 +334,11 @@ class Tools:
         p = subprocess.Popen(args, startupinfo=startupinfo)
         return p
 
+    @staticmethod
+    def md5(d: str):
+        m = hashlib.md5(d.encode(encoding='utf-8'))
+        return m.hexdigest()
+
 
 class ImgSeqIO:
     def __init__(self, folder=None, is_read=True, thread=4, is_tool=False, start_frame=0, logger=None,
@@ -588,8 +594,10 @@ class ArgumentManager:
         self.batch = args.get("batch", False)
         self.ffmpeg = args.get("ffmpeg", "")
 
+        self.config = args.get("config", "")
         self.input = args.get("input", "")
         self.output_dir = args.get("output_dir", "")
+        self.task_id = args.get("task_id", "")
         self.gui_inputs = args.get("gui_inputs", "")
         self.input_fps = args.get("input_fps", 0)
         self.target_fps = args.get("target_fps", 0)
@@ -700,16 +708,6 @@ class VideoInfo:
             self.ffmpeg = "ffmpeg"
             self.ffprobe = "ffprobe"
         self.color_info = dict()
-        # if HDR:  # this should not be used
-        #     self.color_info.update({"-colorspace": "bt2020nc",
-        #                             "-color_trc": "smpte2084",
-        #                             "-color_primaries": "bt2020",
-        #                             "-color_range": "tv"})
-        # else:
-        #     self.color_info.update({"-colorspace": "bt709",
-        #                             "-color_trc": "bt709",
-        #                             "-color_primaries": "bt709",
-        #                             "-color_range": "tv"})
         self.exp = exp
         self.frames_cnt = 0
         self.frames_size = (0, 0)  # width, height

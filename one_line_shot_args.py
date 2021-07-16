@@ -9,16 +9,12 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 
 from Utils.utils import *
 
-print("INFO - ONE LINE SHOT ARGS 6.8.1 2021/7/15")
+print("INFO - ONE LINE SHOT ARGS 6.8.2 2021/7/16")
 """
-Update Log at 6.8.1
-1. Fix Single Duplication Threshold Removal Mode Inability
-2. Fix Temporary Frozen Situation when RD Mode enabled (by adding special judge of identical frames)
-3. Optimize Status Visualization of RD Mode Initialization 
-4. Add Quiet Mode
-5. Add New Icon of SVFI
-6. Remove CMD Black Window
-7. Developer: Remove Txt based communication model
+Update Log at 6.8.2
+1. Greatly Optimize Tasks Pipe
+2. Optimize SVFI GUI toolbox utility(multi thread)
+3. Fix pretty much bugs on work flow
 """
 
 """设置环境路径"""
@@ -36,6 +32,7 @@ basic_parser.add_argument('-i', '--input', dest='input', type=str, required=True
 basic_parser.add_argument('-o', '--output', dest='output', type=str, required=True,
                           help="成品输出的路径，注意默认在项目文件夹")
 basic_parser.add_argument("-c", '--config', dest='config', type=str, required=True, help="配置文件路径")
+basic_parser.add_argument("-t", '--task-id', dest='task_id', type=str, required=True, help="任务id")
 basic_parser.add_argument('--concat-only', dest='concat_only', action='store_true', help='只执行合并已有区块操作')
 basic_parser.add_argument('--extract-only', dest='extract_only', action='store_true', help='只执行拆帧操作')
 basic_parser.add_argument('--render-only', dest='render_only', action='store_true', help='只执行渲染操作')
@@ -64,10 +61,9 @@ class InterpWorkFlow:
 
         """获得补帧输出路径"""
         if os.path.isfile(self.ARGS.output_dir):
-            self.project_dir = os.path.join(os.path.dirname(self.ARGS.output_dir),
-                                            Tools.get_filename(self.ARGS.input))
-        else:
-            self.project_dir = os.path.join(self.ARGS.output_dir, Tools.get_filename(self.ARGS.input))
+            self.ARGS.output_dir = os.path.dirname(self.ARGS.output_dir)
+        self.project_dir = os.path.join(self.ARGS.output_dir,
+                                        f"{Tools.get_filename(self.ARGS.input)}_{self.ARGS.task_id}")
 
         if not os.path.exists(self.project_dir):
             os.mkdir(self.project_dir)
@@ -185,9 +181,12 @@ class InterpWorkFlow:
                 if input_resolution and resolution_rate > 1:
                     sr_scale = Tools.get_exp_edge(resolution_rate)
                     if self.ARGS.use_sr_algo == "waifu2x":
-                        self.sr_module = Utils.SuperResolutionModule.SvfiWaifu(model=self.ARGS.use_sr_model, scale=sr_scale, num_threads=self.ARGS.ncnn_thread)
+                        self.sr_module = Utils.SuperResolutionModule.SvfiWaifu(model=self.ARGS.use_sr_model,
+                                                                               scale=sr_scale,
+                                                                               num_threads=self.ARGS.ncnn_thread)
                     elif self.ARGS.use_sr_algo == "realSR":
-                        self.sr_module = Utils.SuperResolutionModule.SvfiRealSR(model=self.ARGS.use_sr_model, scale=sr_scale)
+                        self.sr_module = Utils.SuperResolutionModule.SvfiRealSR(model=self.ARGS.use_sr_model,
+                                                                                scale=sr_scale)
                     self.logger.info(
                         f"Load AI SR at {self.ARGS.use_sr_algo}, {self.ARGS.use_sr_model}, scale = {sr_scale}")
                 else:
@@ -575,7 +574,6 @@ class InterpWorkFlow:
         :return:
         """
 
-        # TODO 图片序列输出兼容
         def rename_chunk():
             """Maintain Chunk json"""
             if self.ARGS.is_img_output:
@@ -866,7 +864,6 @@ class InterpWorkFlow:
             prediction = -2 * (S1 / S0) + 3
             predict_dict[(pos0, pos1)] = prediction
             return prediction
-
 
         use_flow = True
         check_queue_size = min(self.frames_output_size, 1000)  # 预处理长度
@@ -1240,7 +1237,7 @@ class InterpWorkFlow:
                     self.logger.warning("Import Torch Failed, use NCNN-RIFE instead")
                     traceback.print_exc()
                     self.ARGS.use_ncnn = True
-                    self.ARGS.rife_model_name = "rife-v2"  # TODO check rife model args
+                    self.ARGS.rife_model_name = "rife-v2"
                     from Utils import inference_A as inference
 
             """Update RIFE Core"""
@@ -1263,7 +1260,6 @@ class InterpWorkFlow:
             self.render_thread = threading.Thread(target=self.render, name="[ARGS] RenderThread",
                                                   args=(chunk_cnt, start_frame,))
             self.render_thread.start()
-
 
             previous_cnt = start_frame
             now_frame = start_frame
@@ -1308,18 +1304,13 @@ class InterpWorkFlow:
                     frames_list.extend(mix_list)
                 else:
                     if n > 0:
-                        if n > PURE_SCENE_THRESHOLD:
-                            if Tools.check_pure_img(img0):
-                                """It's Pure Img, Copy img0"""
-                                for i in range(n):
-                                    frames_list.append(img0)
+                        if n > PURE_SCENE_THRESHOLD and Tools.check_pure_img(img0):
+                            """It's Pure Img Sequence, Copy img0"""
+                            for i in range(n):
+                                frames_list.append(img0)
                         else:
                             interp_list = self.rife_core.generate_n_interp(img0, img1, n=n, scale=scale, debug=debug)
                             frames_list.extend(interp_list)
-                    elif exp > 0:
-                        interp_list = self.rife_core.generate_n_interp(img0, img1, n=2**exp-1, scale=scale, debug=debug)
-                        frames_list.extend(interp_list)
-
                     if add_scene:
                         frames_list.append(img1)
 
@@ -1360,8 +1351,10 @@ class InterpWorkFlow:
             """Concat the chunks"""
             if not self.ARGS.is_no_concat and not self.ARGS.is_img_output:
                 self.concat_all()
-                return
 
+        if os.path.exists(self.ARGS.config):
+            self.logger.info("Successfully Remove Config File")
+            os.remove(self.ARGS.config)
         self.logger.info(f"Program finished at {datetime.datetime.now()}")
         pass
 

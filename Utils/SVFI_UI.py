@@ -237,7 +237,8 @@ class Ui_MainWindow(object):
         self.InputFileName.setTabKeyNavigation(True)
         self.InputFileName.setDragEnabled(True)
         self.InputFileName.setDragDropOverwriteMode(True)
-        self.InputFileName.setDragDropMode(QtWidgets.QAbstractItemView.DropOnly)
+        self.InputFileName.setDragDropMode(QtWidgets.QAbstractItemView.NoDragDrop)
+        self.InputFileName.setViewMode(QtWidgets.QListView.ListMode)
         self.InputFileName.setObjectName("InputFileName")
         self.gridLayout.addWidget(self.InputFileName, 2, 0, 1, 1)
         self.OutputFolder = MyLineWidget(self.InputArea)
@@ -1290,7 +1291,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
         self.tabWidget.setCurrentIndex(0)
-        self.toolBox.setCurrentIndex(3)
+        self.toolBox.setCurrentIndex(5)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
         MainWindow.setTabOrder(self.tabWidget, self.AutoSet)
         MainWindow.setTabOrder(self.AutoSet, self.StartPoint)

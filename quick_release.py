@@ -3,8 +3,8 @@ import os
 
 root = r"D:\60-fps-Project\Projects\RIFE GUI"
 ico_path = os.path.join(root, "svfi-i.ico")
-gui_version = "3.4.1"
-cli_version = "6.8.1"
+gui_version = "3.4.2"
+cli_version = "6.8.2"
 tag_version = gui_version + ".alpha"
 # gui_version = input("SVFI GUI Version: ")
 # cli_version = input("SVFI CLI Version: ")
